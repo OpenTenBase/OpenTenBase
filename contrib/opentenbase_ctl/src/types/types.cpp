@@ -899,7 +899,7 @@ bool parse_command_line(int argc, char** argv, CommandLineArgs& args, Opentenbas
         // Initialize node directories
         if (init_node_directories(config) != 0) {
             LOG_ERROR_FMT("Failed to initialize node directories");
-            return -1;
+            return false;
         }
 
         // Assign ports for nodes
@@ -907,7 +907,7 @@ bool parse_command_line(int argc, char** argv, CommandLineArgs& args, Opentenbas
             // 分配端口
             if (assign_ports_for_nodes(config.nodes, config.server.ssh_user, config.server.ssh_password, config.server.ssh_port) != 0) {
                 LOG_ERROR_FMT("Failed to assign ports for nodes");
-                return -1;
+                return false;
             }
         } else {
             // 查询并补齐端口
@@ -924,12 +924,13 @@ bool parse_command_line(int argc, char** argv, CommandLineArgs& args, Opentenbas
         // 生成操作的节点信息,这个逻辑放到比较靠后的原因是：希望等所有信息补充完后再挑选出要操作的节点
         if (process_op_nodes(args, config) != 0) {
             LOG_INFO_FMT("Invalid --node option. The available options are: cn-master, cn-slave, dn-master, dn-slave, cn0001, ip:port");
-            return -1;
+            return false;
         }
 
         return true;
     } catch (const CLI::ParseError &e) {
-        return app.exit(e);
+        app.exit(e);
+        return false;
     } catch (const std::exception &e) {
         LOG_ERROR_FMT("Error parsing command line arguments: %s", e.what());
         return false;
