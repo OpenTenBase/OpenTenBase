@@ -16,6 +16,7 @@
 
 | 想知道什么 | 看这里 |
 |---|---|
+| **拿到库先跑这个**：一条 SQL 看当前库有什么风险 | `select * from vecdiag.diagnose();` |
 | 这个模块解决什么问题、怎么用 | `vecdiag/README.md` |
 | **审查用**：怎么独立复核、我自报的薄弱点、门禁判定 | `vecdiag/report/审查报告-20260826.md` |
 | 一条命令把所有结论重跑一遍 | `bash vecdiag/reproduce.sh` |
@@ -34,7 +35,8 @@ vecdiag/
 │   ├── 10_ivfflat_memory_model.sql  M1：分项 breakdown + 三检查点 first_hit
 │   ├── 20_legacy_model.sql        旧模型（0.8.0 口径）对照实现
 │   ├── 30_hnsw_model.sql          M2：图内存标定系数 + 降级点预测与区间
-│   └── 40_progress_model.sql      M3：阶段权重（按规模档与数据集分开存）、进度曲线、ETA
+│   ├── 40_progress_model.sql      M3：阶段权重（按规模档与数据集分开存）、进度曲线、ETA
+│   └── 50_diagnose.sql            M4：零参数体检 + 结论可用性分层
 ├── tools/             环境搭建、ABI 实测、验证 harness、绘图（纯标准库）
 ├── tests/             验证矩阵、回归断言、上游能力清单
 ├── results/           每轮实测产物：原始 stderr + CSV + SHA256SUMS + env.txt
@@ -54,7 +56,8 @@ vecdiag/
 | M2 HNSW 落盘降级预警 | 核心完成 | 11 组实测降级点**全部落在预测区间内**，点预测平均误差 **1.20%** |
 | 上游测试基线 | 完成 | `installcheck` 14/14；`prove_installcheck` 48 文件 **1250 测例全过** |
 | M3 阶段耗时与加权进度 | 完成 | 两套数据集共 **3919 采样点单调性断言通过**；权重按 S/M/L 分档；**实测证明权重依赖数据分布**（主导阶段从 k-means 46% 变成 loading 41%）|
-| M4 诊断整合 / 项目报告 | 未开始 | — |
+| M4 零参数体检与可用性分层 | 完成 | `vecdiag.diagnose()` 零参数、每条输出带齐四要素且修复建议可直接执行；权重分三层（存档 / 审计 / 消费） |
+| P5 项目报告与 PPT | 未开始 | — |
 
 ## 数据集
 
@@ -68,6 +71,26 @@ results/sift_sha256.txt  sift.tar.gz 与 sift_base.fvecs 的校验和，证明�
 
 M1 在 SIFT1M 上抽查 4 组全部逐字命中；M3 的阶段权重在 SIFT1M 上重测了一遍，
 **与合成数据的结果并列保存、不互相覆盖**（`vecdiag.stage_weight.dataset` 列区分）。
+
+## 结论怎么用（人和 AI 都适用）
+
+阶段权重有五组，只有两组的极差达标。**证据全部保留，但默认只让人用可用的那两组**：
+
+| 对象 | 给谁用 |
+|---|---|
+| `vecdiag.stage_weight_usable` | **消费方默认走这个视图**：只含达标且分过档的权重 |
+| `vecdiag.stage_weight_audit` | 审查者：全部五组，每组附"可用/不可用 + 原因" |
+| `vecdiag.stage_weight` | 存档原表 |
+
+不确定该用哪组时不要自己挑，问它：
+
+```sql
+select * from vecdiag.recommend_stage_weights('ivfflat', 300000);
+```
+
+它会回答命中哪档、极差多少；命中的档不达标就明说换了档；**该数据集下没有任何达标权重时
+返回 `applicable=false` 并指名该跑哪个脚本去标定，不会随便给一组凑数**。
+详见 `vecdiag/docs/M4-diagnose-and-usability.md`。
 
 ## 三条不越界的声明
 

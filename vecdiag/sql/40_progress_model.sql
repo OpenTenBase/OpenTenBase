@@ -168,3 +168,130 @@ comment on function vecdiag.progress_curve(text, text, text, text) is
   'intra_source=time-interpolated 的行说明该阶段的阶段内进度是插值，不是视图计数——'
   '报告里必须写清哪些阶段属于这一类。';
 
+
+-- ---------------------------------------------------------------------------
+-- 可用性判定：证据全留，但**默认只让人用可用的那几组**
+--
+-- 为什么要这一层：阶段权重的极差（各次重复之间该阶段占比的极差）直接决定权重能不能用。
+-- 实测发现 pooled 组极差 0.72、10 万行档 0.51，这种权重拿去算进度是自欺欺人；
+-- 但把它们删掉，"为什么必须按规模分档"这个结论就失去了支撑。
+-- 所以：不可用的组**保留在表里并显式标注原因**，消费方走 stage_weight_usable 视图。
+--
+-- 阈值 0.25 的来源：可用档的实测极差是 0.08 与 0.16，不可用档是 0.51 与 0.72，
+-- 中间有明显空隙，取 0.25 落在空隙里。这是**依据实测分布定的阈值，不是拍的**，
+-- 换机器或换数据集后应重新检查这个空隙是否还存在。
+-- ---------------------------------------------------------------------------
+create or replace function vecdiag.stage_weight_dispersion_limit()
+returns numeric language sql immutable
+set search_path = pg_catalog, pg_temp
+as $$ select 0.25::numeric $$;
+
+comment on function vecdiag.stage_weight_dispersion_limit() is
+  '权重可用性的极差上限。实测可用档 0.08/0.16、不可用档 0.51/0.72，阈值取中间空隙 0.25。';
+
+-- 可用性必须**按组**判定，不能按行：一组权重里只要有一个阶段极差超限，
+-- 整组就不能用。按行过滤会留下"缺了几个阶段、求和不为 1"的残缺权重集，
+-- 那比整组排除更危险——实测 S 档就是这种情况（assigning 0.18 达标，
+-- 但 loading 0.51、k-means 0.33 超限）。
+create or replace view vecdiag.stage_weight_usable as
+select w.am, w.phase, w.size_class, w.dataset, w.weight, w.n_samples, w.dispersion,
+       w.source, w.run_id, w.measured_at
+from vecdiag.stage_weight w
+join (
+  select am, size_class, dataset
+  from vecdiag.stage_weight
+  where size_class <> 'pooled'
+  group by am, size_class, dataset
+  having max(coalesce(dispersion, 1)) <= vecdiag.stage_weight_dispersion_limit()
+) ok on ok.am = w.am and ok.size_class = w.size_class and ok.dataset = w.dataset;
+
+comment on view vecdiag.stage_weight_usable is
+  '**消费方默认用这个视图。** 只含极差达标且按规模分档的权重；pooled 一律排除。'
+  '被排除的组仍在 vecdiag.stage_weight 里，附极差可查，用于说明"为什么必须分档"。';
+
+create or replace view vecdiag.stage_weight_audit as
+select am, phase, size_class, dataset, weight, n_samples, dispersion,
+       case
+         when size_class = 'pooled' then '不可用：pooled 把多个规模档混在一起求平均，无物理意义'
+         when max(coalesce(dispersion, 1)) over (partition by am, size_class, dataset)
+                > vecdiag.stage_weight_dispersion_limit()
+           then format('不可用：本组最大极差 %s 超过上限 %s（该组内某阶段耗时占比不稳定，'
+                       '通常是构建太快、被检查点或 autovacuum 整体拖慢）',
+                       max(coalesce(dispersion, 1)) over (partition by am, size_class, dataset),
+                       vecdiag.stage_weight_dispersion_limit())
+         else '可用'
+       end as usability,
+       run_id, measured_at
+from vecdiag.stage_weight;
+
+comment on view vecdiag.stage_weight_audit is
+  '给审查者看的全量视图：每组权重都带"可用/不可用 + 原因"。证据不删，结论不混。';
+
+-- ---------------------------------------------------------------------------
+-- 自动选权重：给定访问方法、行数、数据集，返回该用哪一组
+--
+-- 这个函数是给**人和 AI 都能直接用**准备的：不需要先读文档才知道 S/M/L 怎么分、
+-- 哪组能用。选不出来时返回 applicable=false 并说明原因，**不退化成随便给一组**。
+--
+-- 规模档的行数边界来自实际标定点：S=10 万、M=30 万、L=100 万。
+-- 落在两档之间取较近的一档；超出 L 档上界按 L 处理但把 note 标成外插。
+-- ---------------------------------------------------------------------------
+create or replace function vecdiag.recommend_stage_weights(
+    p_am      text,
+    p_rows    bigint,
+    p_dataset text default 'sift1m'
+) returns table (
+    applicable  boolean,
+    size_class  text,
+    dataset     text,
+    phases      int,
+    max_dispersion numeric,
+    note        text
+)
+language sql stable
+set search_path = pg_catalog, pg_temp
+as $$
+  with pick as (
+    select case
+             when p_rows <= 200000  then 'S'
+             when p_rows <= 650000  then 'M'
+             else 'L'
+           end as cls
+  ),
+  cand as (
+    select w.size_class, w.dataset, count(*)::int as phases, max(w.dispersion) as disp
+    from vecdiag.stage_weight_usable w, pick
+    where w.am = p_am and w.dataset = p_dataset and w.size_class = pick.cls
+    group by w.size_class, w.dataset
+  ),
+  -- 首选档不可用时，退到同数据集下任何可用档，并在 note 里说清换了档
+  fallback as (
+    select w.size_class, w.dataset, count(*)::int as phases, max(w.dispersion) as disp
+    from vecdiag.stage_weight_usable w
+    where w.am = p_am and w.dataset = p_dataset
+    group by w.size_class, w.dataset
+    order by max(w.dispersion)
+    limit 1
+  )
+  select true, c.size_class, c.dataset, c.phases, c.disp,
+         case when p_rows > 1300000
+              then format('按行数 %s 命中 %s 档；极差 %s 达标。**但已超出标定上界 100 万行，'
+                          '属外插**，ETA 只能当量级参考', p_rows, c.size_class, c.disp)
+              else format('按行数 %s 命中 %s 档；极差 %s 达标', p_rows, c.size_class, c.disp)
+         end
+  from cand c
+  union all
+  select true, f.size_class, f.dataset, f.phases, f.disp,
+         format('行数 %s 对应的档位没有达标权重，退用极差最小的 %s 档；'
+                'ETA 只能当量级参考，结论里要注明换档', p_rows, f.size_class)
+  from fallback f where not exists (select 1 from cand)
+  union all
+  select false, null, p_dataset, 0, null,
+         format('数据集 %s 下 %s 没有任何达标权重。请先跑 tools/measure_build_time.sh '
+                '与 tools/load_stage_weights.sh 标定，不要拿别的数据集的权重顶替', p_dataset, p_am)
+  where not exists (select 1 from cand) and not exists (select 1 from fallback);
+$$;
+
+comment on function vecdiag.recommend_stage_weights(text, bigint, text) is
+  '给人和 AI 用的入口：不用先读文档就知道该取哪组权重。选不出来时明确返回 applicable=false，'
+  '并给出该跑哪个脚本去标定，而不是随便返回一组凑数。';

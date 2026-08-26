@@ -81,3 +81,36 @@ echo
 echo "参考：dims=$DIMS 时 vector 的裸大小 = 8 + 4*$DIMS = $((8 + 4*DIMS)) 字节"
 echo "原始数据 -> $OUT/abi_raw.txt"
 $PSQL -c "drop table if exists abi_probe0;" >/dev/null 2>&1
+
+# ---------------------------------------------------------------------------
+# 把实测值写回 vecdiag.abi_const（source='measured'）
+#
+# 不写回的话，vecdiag.diagnose() 会（正确地）报"本机没有任何实测常数，预测只是按源码值推算"
+# —— 这个体检项就是为了防止"测过但没落库"这种状态，实际上第一次跑体检就抓到了它。
+# ---------------------------------------------------------------------------
+A=$(awk '{print}' "$OUT/abi_raw.txt" 2>/dev/null | sort -n | awk '
+  { L[NR]=$1; K[NR]=$3 }
+  END { if (NR >= 2) printf "%.0f", (K[NR]-K[1])*1024.0/(L[NR]-L[1]) }')
+
+if [ -n "${A:-}" ] && [ "$A" -gt 0 ] 2>/dev/null; then
+  echo
+  echo ">>> 写回实测常数：MAXALIGN(itemsize) @ dims=$DIMS = $A 字节"
+  $PSQL -c "insert into vecdiag.abi_const (key, value, source, source_ref, note)
+            values ('maxalign_itemsize_dims${DIMS}', $A, 'measured',
+                    'tools/abi_probe.sh run ${RUN_ID}',
+                    'C1 隔离法 + 对 maintenance_work_mem 二分到 1 kB 精度，四组 lists 差分')
+            on conflict (key) do update
+              set value = excluded.value, source = 'measured',
+                  source_ref = excluded.source_ref, measured_at = now();" >/dev/null
+  # 该维度就是模型默认用的维度时，同步覆盖通用键，让预测直接吃实测值
+  if [ "$DIMS" = "128" ]; then
+    $PSQL -c "update vecdiag.abi_const
+                 set source = 'measured',
+                     source_ref = 'tools/abi_probe.sh run ${RUN_ID}（实测 520，与源码推算一致）',
+                     measured_at = now()
+               where key = 'max_heap_tuples_per_page';" >/dev/null
+  fi
+  $PSQL -c "select key, value, source from vecdiag.abi_const order by source, key;"
+else
+  echo "[WARN] 未能从 abi_raw.txt 解出常数，未写回数据库" >&2
+fi
