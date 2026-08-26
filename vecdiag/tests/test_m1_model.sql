@@ -10,8 +10,14 @@
 \pset pager off
 
 \echo '== 1. ABI 常数存在且有来源标注 =='
-select count(*) = 4 as ok_abi_rows,
-       bool_and(source in ('measured','source-code')) as ok_abi_source
+-- 断言"必需的键都在"而不是"行数正好等于 N"：跑过 tools/abi_probe.sh 之后会多出
+-- maxalign_itemsize_dims<N> 这类实测键，写死行数会让实测反而把测试打红。
+select count(*) filter (where key in ('sizeof_VectorArrayData', 'maximum_alignof',
+                                      'max_heap_tuples_per_page', 'ivfflat_max_lists')) = 4
+         as ok_required_keys,
+       bool_and(source in ('measured','source-code')) as ok_abi_source,
+       count(*) as total_rows,
+       count(*) filter (where source = 'measured') as measured_rows
 from vecdiag.abi_const;
 
 \echo '== 2. 整数除法语义：C1 的 kB 阈值必须按 floor 比较 =='
