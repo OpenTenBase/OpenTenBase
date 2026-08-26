@@ -1,0 +1,35 @@
++ source /opt/rh/devtoolset-11/enable
+++ export PATH=/opt/rh/devtoolset-11/root/usr/bin:/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin
+++ PATH=/opt/rh/devtoolset-11/root/usr/bin:/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin
+++ export MANPATH=/opt/rh/devtoolset-11/root/usr/share/man
+++ MANPATH=/opt/rh/devtoolset-11/root/usr/share/man
+++ export INFOPATH=/opt/rh/devtoolset-11/root/usr/share/info
+++ INFOPATH=/opt/rh/devtoolset-11/root/usr/share/info
+++ export PCP_DIR=/opt/rh/devtoolset-11/root
+++ PCP_DIR=/opt/rh/devtoolset-11/root
++++ rpm --eval '%{_libdir}'
+++ rpmlibdir=/usr/lib64
+++ '[' /usr/lib64 '!=' /usr/ ']'
+++ rpmlibdir32=:/opt/rh/devtoolset-11/root/usr/lib
+++ dynpath32=:/opt/rh/devtoolset-11/root/usr/lib/dyninst
+++ rpmlibdir64=
+++ dynpath64=
+++ export LD_LIBRARY_PATH=/opt/rh/devtoolset-11/root/usr/lib64/dyninst:/opt/rh/devtoolset-11/root/usr/lib/dyninst
+++ LD_LIBRARY_PATH=/opt/rh/devtoolset-11/root/usr/lib64/dyninst:/opt/rh/devtoolset-11/root/usr/lib/dyninst
+++ export LD_LIBRARY_PATH=/opt/rh/devtoolset-11/root/usr/lib64:/opt/rh/devtoolset-11/root/usr/lib:/opt/rh/devtoolset-11/root/usr/lib64/dyninst:/opt/rh/devtoolset-11/root/usr/lib/dyninst
+++ LD_LIBRARY_PATH=/opt/rh/devtoolset-11/root/usr/lib64:/opt/rh/devtoolset-11/root/usr/lib:/opt/rh/devtoolset-11/root/usr/lib64/dyninst:/opt/rh/devtoolset-11/root/usr/lib/dyninst
+++ export PKG_CONFIG_PATH=/opt/rh/devtoolset-11/root/usr/lib64/pkgconfig
+++ PKG_CONFIG_PATH=/opt/rh/devtoolset-11/root/usr/lib64/pkgconfig
++ export PG_CONFIG=/data/pg18/install/bin/pg_config
++ PG_CONFIG=/data/pg18/install/bin/pg_config
++ export PATH=/data/pg18/install/bin:/opt/rh/devtoolset-11/root/usr/bin:/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin
++ PATH=/data/pg18/install/bin:/opt/rh/devtoolset-11/root/usr/bin:/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin
++ cd /data/pg18/src/pgvector
++ O=/data/artifacts/t04-20260826
++ psql -p 5518 -d postgres -c 'select version()'
++ make PG_CONFIG=/data/pg18/install/bin/pg_config installcheck PGPORT=5518
++ echo 'installcheck exit=0'
++ make PG_CONFIG=/data/pg18/install/bin/pg_config prove_installcheck PGPORT=5518
++ echo 'prove exit=0'
++ cd /data/artifacts/t04-20260826
++ sha256sum ./installcheck.log ./preflight.txt ./prove_installcheck.log

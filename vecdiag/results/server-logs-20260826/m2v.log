@@ -1,0 +1,19 @@
+>>> E 组前置：建两张未参与标定的表
+>>> 一、外样本预测（dims=256 与 m=24 都不在标定点上）
+  [PASS] V1       out-of-sample          预测降级=3614     实测=3618     误差=-0.11    calibrated
+  [PASS] V2       out-of-sample          预测降级=5254     实测=5256     误差=-0.04    calibrated
+  [PASS] V3       out-of-sample          预测降级=3413     实测=3419     误差=-0.18    calibrated
+>>> 二、建议有效性：按 recommended_mwm_mb 重建，NOTICE 应当消失
+     模型给 6000 行 × 128 维 × m=16 的内存下限建议：9 MB
+  [PASS] E1       advice-works           预测降级=none     实测=none     误差=—      calibrated
+>>> 三、反向验证：低于建议值应当重新降级（否则上一条不构成证据）
+  [PASS] E2       advice-tight           预测降级=3840     实测=3422     误差=12.22    calibrated
+
+>>> 结果 -> /data/artifacts/m2v-20260826/hnsw_validate.csv
+case_id  kind           rows   dims  m   mwm_kb  pred_spill  actual_spill  rel_err_pct  confidence  verdict
+V1       out-of-sample  12000  256   16  6144    3614        3618          -0.11        calibrated  PASS
+V2       out-of-sample  12000  256   24  10240   5254        5256          -0.04        calibrated  PASS
+V3       out-of-sample  6000   128   16  4096    3413        3419          -0.18        calibrated  PASS
+E1       advice-works   6000   128   16  9216    none        none                       calibrated  PASS
+E2       advice-tight   6000   128   16  4608    3840        3422          12.22        calibrated  PASS
+>>> 降级点预测平均绝对相对误差 3.14%（4 组有可比值）

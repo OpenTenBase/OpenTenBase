@@ -1,0 +1,19 @@
+>>> 下载 ANN_SIFT1M（约 161 MB）
+>>> 解包
+-rw-r--r--. 1 postgres postgres 516000000 Dec 16  2009 sift_base.fvecs
+-rw-r--r--. 1 postgres postgres   4040000 Dec 16  2009 sift_groundtruth.ivecs
+-rw-r--r--. 1 postgres postgres   5160000 Dec 16  2009 sift_query.fvecs
+>>> 数据集校验和（写进报告，证明用的是原始未改动的公开数据）
+92f1270c5e3a0cb46b89983e72b0511e4df065c31a9fa0276d8c9b1fca5bc81a  sift.tar.gz
+21f66e2975057b5728ba56de1c825bac4f4d89d596609ae985741c6242631816  sift_base.fvecs
+>>> 建表并流式灌入（fvecs → COPY，不落中间大文件）
+NOTICE:  table "sift_base" does not exist, skipping
+loaded_rows=1000000 dims=128
+  rows   | relpages | reltuples 
+---------+----------+-----------
+ 1000000 |    71472 |   1000074
+(1 row)
+
+>>> 完成。真实数据表 sift_base 已就绪（vector(128)）。
+    注意：这张表用于 M3 的阶段权重复测与 M1 的真实数据抽查；
+    合成数据的结果不删除，两组并列报告。

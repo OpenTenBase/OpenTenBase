@@ -1,0 +1,2 @@
+NOTICE:  table "t_mem" does not exist, skipping
+ERROR:  memory required is 22 MB, maintenance_work_mem is 1 MB

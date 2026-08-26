@@ -1,0 +1,1633 @@
+make -C ./src/backend generated-headers
+make[1]: Entering directory `/data/pg18/src/OpenTenBase/src/backend'
+make -C ../include/catalog generated-headers
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/include/catalog'
+make[2]: Nothing to be done for `generated-headers'.
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/include/catalog'
+make -C nodes generated-header-symlinks
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/nodes'
+make[2]: Nothing to be done for `generated-header-symlinks'.
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/nodes'
+make -C utils generated-header-symlinks
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils'
+make -C adt jsonpath_gram.h
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/adt'
+make[3]: `jsonpath_gram.h' is up to date.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/adt'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils'
+make[1]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend'
+make -C src install
+make[1]: Entering directory `/data/pg18/src/OpenTenBase/src'
+make -C common install
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/lib'
+/bin/install -c -m 644  libpgcommon.a '/data/pg18/install/lib/libpgcommon.a'
+/bin/install -c -m 644  libpgcommon_shlib.a '/data/pg18/install/lib/libpgcommon_shlib.a'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C port install
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+/bin/mkdir -p '/data/pg18/install/lib'
+/bin/install -c -m 644  libpgport.a '/data/pg18/install/lib/libpgport.a'
+/bin/install -c -m 644  libpgport_shlib.a '/data/pg18/install/lib/libpgport_shlib.a'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C timezone install
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/timezone'
+make -C ../../src/port all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../src/common all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/share/postgresql'
+./zic -d '/data/pg18/install/share/postgresql/timezone'  ./data/tzdata.zi
+make -C tznames install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/timezone/tznames'
+/bin/mkdir -p '/data/pg18/install/share/postgresql/timezonesets'
+/bin/install -c -m 644 ./Africa.txt ./America.txt ./Antarctica.txt ./Asia.txt ./Atlantic.txt ./Australia.txt ./Etc.txt ./Europe.txt ./Indian.txt ./Pacific.txt '/data/pg18/install/share/postgresql/timezonesets'
+/bin/install -c -m 644 ./Default ./Australia ./India '/data/pg18/install/share/postgresql/timezonesets'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/timezone/tznames'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/timezone'
+make -C backend install
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/backend'
+make -C ../../src/port all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../src/common all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../include/catalog generated-headers
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/include/catalog'
+make[3]: Nothing to be done for `generated-headers'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/include/catalog'
+make -C utils generated-header-symlinks
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils'
+make -C adt jsonpath_gram.h
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/adt'
+make[4]: `jsonpath_gram.h' is up to date.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/adt'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils'
+make -C access all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access'
+make -C brin all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/brin'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/brin'
+make -C common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/common'
+make -C gin all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/gin'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/gin'
+make -C gist all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/gist'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/gist'
+make -C hash all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/hash'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/hash'
+make -C heap all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/heap'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/heap'
+make -C index all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/index'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/index'
+make -C nbtree all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/nbtree'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/nbtree'
+make -C rmgrdesc all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/rmgrdesc'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/rmgrdesc'
+make -C spgist all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/spgist'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/spgist'
+make -C sequence all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/sequence'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/sequence'
+make -C table all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/table'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/table'
+make -C tablesample all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/tablesample'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/tablesample'
+make -C transam all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/transam'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/transam'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access'
+make -C archive all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/archive'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/archive'
+make -C backup all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/backup'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/backup'
+make -C bootstrap all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/bootstrap'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/bootstrap'
+make -C catalog all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/catalog'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/catalog'
+make -C parser all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/parser'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/parser'
+make -C commands all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/commands'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/commands'
+make -C executor all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/executor'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/executor'
+make -C foreign all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/foreign'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/foreign'
+make -C lib all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/lib'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/lib'
+make -C libpq all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/libpq'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/libpq'
+make -C main all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/main'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/main'
+make -C nodes all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/nodes'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/nodes'
+make -C optimizer all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/optimizer'
+make -C geqo all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/geqo'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/geqo'
+make -C path all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/path'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/path'
+make -C plan all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/plan'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/plan'
+make -C prep all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/prep'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/prep'
+make -C util all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/util'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/util'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/optimizer'
+make -C partitioning all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/partitioning'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/partitioning'
+make -C port all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/port'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/port'
+make -C postmaster all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/postmaster'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/postmaster'
+make -C regex all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/regex'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/regex'
+make -C replication all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/replication'
+make -C logical all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/replication/logical'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/replication/logical'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/replication'
+make -C rewrite all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/rewrite'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/rewrite'
+make -C statistics all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/statistics'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/statistics'
+make -C storage all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage'
+make -C aio all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/aio'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/aio'
+make -C buffer all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/buffer'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/buffer'
+make -C file all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/file'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/file'
+make -C freespace all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/freespace'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/freespace'
+make -C ipc all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/ipc'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/ipc'
+make -C large_object all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/large_object'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/large_object'
+make -C lmgr all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/lmgr'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/lmgr'
+make -C page all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/page'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/page'
+make -C smgr all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/smgr'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/smgr'
+make -C sync all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/sync'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/sync'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage'
+make -C tcop all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/tcop'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/tcop'
+make -C tsearch all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/tsearch'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/tsearch'
+make -C utils all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils'
+make -C activity all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/activity'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/activity'
+make -C adt all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/adt'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/adt'
+make -C cache all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/cache'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/cache'
+make -C error all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/error'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/error'
+make -C fmgr all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/fmgr'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/fmgr'
+make -C hash all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/hash'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/hash'
+make -C init all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/init'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/init'
+make -C mb all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb'
+make -C misc all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/misc'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/misc'
+make -C mmgr all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mmgr'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mmgr'
+make -C resowner all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/resowner'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/resowner'
+make -C sort all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/sort'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/sort'
+make -C time all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/time'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/time'
+make -C adt jsonpath_gram.h
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/adt'
+make[4]: `jsonpath_gram.h' is up to date.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/adt'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils'
+make -C ../../src/timezone all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/timezone'
+make -C ../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/timezone'
+make -C jit all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/jit'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/jit'
+/bin/mkdir -p '/data/pg18/install/bin' '/data/pg18/install/share/postgresql'
+/bin/install -c  postgres '/data/pg18/install/bin/postgres'
+make -C access install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access'
+make -C brin install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/brin'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/brin'
+make -C common install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/common'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/common'
+make -C gin install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/gin'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/gin'
+make -C gist install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/gist'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/gist'
+make -C hash install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/hash'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/hash'
+make -C heap install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/heap'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/heap'
+make -C index install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/index'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/index'
+make -C nbtree install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/nbtree'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/nbtree'
+make -C rmgrdesc install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/rmgrdesc'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/rmgrdesc'
+make -C spgist install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/spgist'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/spgist'
+make -C sequence install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/sequence'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/sequence'
+make -C table install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/table'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/table'
+make -C tablesample install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/tablesample'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/tablesample'
+make -C transam install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/access/transam'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access/transam'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/access'
+make -C archive install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/archive'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/archive'
+make -C backup install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/backup'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/backup'
+make -C bootstrap install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/bootstrap'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/bootstrap'
+make -C catalog install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/catalog'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/catalog'
+make -C parser install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/parser'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/parser'
+make -C commands install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/commands'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/commands'
+make -C executor install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/executor'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/executor'
+make -C foreign install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/foreign'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/foreign'
+make -C lib install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/lib'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/lib'
+make -C libpq install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/libpq'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/libpq'
+make -C main install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/main'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/main'
+make -C nodes install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/nodes'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/nodes'
+make -C optimizer install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/optimizer'
+make -C geqo install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/geqo'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/geqo'
+make -C path install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/path'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/path'
+make -C plan install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/plan'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/plan'
+make -C prep install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/prep'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/prep'
+make -C util install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/util'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/optimizer/util'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/optimizer'
+make -C partitioning install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/partitioning'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/partitioning'
+make -C port install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/port'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/port'
+make -C postmaster install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/postmaster'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/postmaster'
+make -C regex install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/regex'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/regex'
+make -C replication install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/replication'
+make -C logical install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/replication/logical'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/replication/logical'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/replication'
+make -C rewrite install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/rewrite'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/rewrite'
+make -C statistics install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/statistics'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/statistics'
+make -C storage install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage'
+make -C aio install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/aio'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/aio'
+make -C buffer install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/buffer'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/buffer'
+make -C file install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/file'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/file'
+make -C freespace install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/freespace'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/freespace'
+make -C ipc install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/ipc'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/ipc'
+make -C large_object install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/large_object'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/large_object'
+make -C lmgr install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/lmgr'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/lmgr'
+make -C page install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/page'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/page'
+make -C smgr install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/smgr'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/smgr'
+make -C sync install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/storage/sync'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage/sync'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/storage'
+make -C tcop install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/tcop'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/tcop'
+make -C tsearch install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/tsearch'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/tsearch'
+make -C utils install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils'
+make -C activity install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/activity'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/activity'
+make -C adt install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/adt'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/adt'
+make -C cache install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/cache'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/cache'
+make -C error install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/error'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/error'
+make -C fmgr install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/fmgr'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/fmgr'
+make -C hash install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/hash'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/hash'
+make -C init install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/init'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/init'
+make -C mb install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb'
+make -C misc install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/misc'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/misc'
+make -C mmgr install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mmgr'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mmgr'
+make -C resowner install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/resowner'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/resowner'
+make -C sort install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/sort'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/sort'
+make -C time install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/time'
+make[4]: Nothing to be done for `install'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/time'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils'
+make -C ../../src/timezone install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/timezone'
+make -C ../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/share/postgresql'
+./zic -d '/data/pg18/install/share/postgresql/timezone'  ./data/tzdata.zi
+make -C tznames install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/timezone/tznames'
+/bin/mkdir -p '/data/pg18/install/share/postgresql/timezonesets'
+/bin/install -c -m 644 ./Africa.txt ./America.txt ./Antarctica.txt ./Asia.txt ./Atlantic.txt ./Australia.txt ./Etc.txt ./Europe.txt ./Indian.txt ./Pacific.txt '/data/pg18/install/share/postgresql/timezonesets'
+/bin/install -c -m 644 ./Default ./Australia ./India '/data/pg18/install/share/postgresql/timezonesets'
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/timezone/tznames'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/timezone'
+make -C jit install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/jit'
+make[3]: Nothing to be done for `install'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/jit'
+make -C catalog install-data
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/catalog'
+/bin/mkdir -p '/data/pg18/install/share/postgresql'
+/bin/install -c -m 644 ./system_functions.sql '/data/pg18/install/share/postgresql/system_functions.sql'
+/bin/install -c -m 644 ./system_views.sql '/data/pg18/install/share/postgresql/system_views.sql'
+/bin/install -c -m 644 ./information_schema.sql '/data/pg18/install/share/postgresql/information_schema.sql'
+/bin/install -c -m 644 ./sql_features.txt '/data/pg18/install/share/postgresql/sql_features.txt'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/catalog'
+make -C tsearch install-data
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/tsearch'
+/bin/mkdir -p '/data/pg18/install/share/postgresql' '/data/pg18/install/share/postgresql/tsearch_data'
+/bin/install -c -m 644 ./dicts/synonym_sample.syn ./dicts/thesaurus_sample.ths ./dicts/hunspell_sample.affix ./dicts/ispell_sample.affix ./dicts/ispell_sample.dict ./dicts/hunspell_sample_long.affix ./dicts/hunspell_sample_long.dict ./dicts/hunspell_sample_num.affix ./dicts/hunspell_sample_num.dict '/data/pg18/install/share/postgresql/tsearch_data/'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/tsearch'
+make -C utils install-data
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils'
+/bin/mkdir -p '/data/pg18/install/share/postgresql'
+/bin/install -c -m 644 ./errcodes.txt '/data/pg18/install/share/postgresql/errcodes.txt'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils'
+/bin/install -c -m 644 ./libpq/pg_hba.conf.sample '/data/pg18/install/share/postgresql/pg_hba.conf.sample'
+/bin/install -c -m 644 ./libpq/pg_ident.conf.sample '/data/pg18/install/share/postgresql/pg_ident.conf.sample'
+/bin/install -c -m 644 ./utils/misc/postgresql.conf.sample '/data/pg18/install/share/postgresql/postgresql.conf.sample'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend'
+make -C backend/utils/mb/conversion_procs install
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs'
+make -C cyrillic_and_mic install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/cyrillic_and_mic'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  cyrillic_and_mic.so '/data/pg18/install/lib/postgresql/cyrillic_and_mic.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/cyrillic_and_mic'
+make -C euc_cn_and_mic install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/euc_cn_and_mic'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  euc_cn_and_mic.so '/data/pg18/install/lib/postgresql/euc_cn_and_mic.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/euc_cn_and_mic'
+make -C euc_jp_and_sjis install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/euc_jp_and_sjis'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  euc_jp_and_sjis.so '/data/pg18/install/lib/postgresql/euc_jp_and_sjis.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/euc_jp_and_sjis'
+make -C euc_kr_and_mic install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/euc_kr_and_mic'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  euc_kr_and_mic.so '/data/pg18/install/lib/postgresql/euc_kr_and_mic.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/euc_kr_and_mic'
+make -C euc_tw_and_big5 install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/euc_tw_and_big5'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  euc_tw_and_big5.so '/data/pg18/install/lib/postgresql/euc_tw_and_big5.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/euc_tw_and_big5'
+make -C latin2_and_win1250 install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/latin2_and_win1250'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  latin2_and_win1250.so '/data/pg18/install/lib/postgresql/latin2_and_win1250.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/latin2_and_win1250'
+make -C latin_and_mic install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/latin_and_mic'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  latin_and_mic.so '/data/pg18/install/lib/postgresql/latin_and_mic.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/latin_and_mic'
+make -C utf8_and_big5 install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_big5'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  utf8_and_big5.so '/data/pg18/install/lib/postgresql/utf8_and_big5.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_big5'
+make -C utf8_and_cyrillic install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_cyrillic'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  utf8_and_cyrillic.so '/data/pg18/install/lib/postgresql/utf8_and_cyrillic.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_cyrillic'
+make -C utf8_and_euc_cn install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_euc_cn'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  utf8_and_euc_cn.so '/data/pg18/install/lib/postgresql/utf8_and_euc_cn.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_euc_cn'
+make -C utf8_and_euc_jp install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_euc_jp'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  utf8_and_euc_jp.so '/data/pg18/install/lib/postgresql/utf8_and_euc_jp.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_euc_jp'
+make -C utf8_and_euc_kr install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_euc_kr'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  utf8_and_euc_kr.so '/data/pg18/install/lib/postgresql/utf8_and_euc_kr.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_euc_kr'
+make -C utf8_and_euc_tw install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_euc_tw'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  utf8_and_euc_tw.so '/data/pg18/install/lib/postgresql/utf8_and_euc_tw.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_euc_tw'
+make -C utf8_and_gb18030 install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_gb18030'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  utf8_and_gb18030.so '/data/pg18/install/lib/postgresql/utf8_and_gb18030.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_gb18030'
+make -C utf8_and_gbk install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_gbk'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  utf8_and_gbk.so '/data/pg18/install/lib/postgresql/utf8_and_gbk.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_gbk'
+make -C utf8_and_iso8859 install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_iso8859'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  utf8_and_iso8859.so '/data/pg18/install/lib/postgresql/utf8_and_iso8859.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_iso8859'
+make -C utf8_and_iso8859_1 install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_iso8859_1'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  utf8_and_iso8859_1.so '/data/pg18/install/lib/postgresql/utf8_and_iso8859_1.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_iso8859_1'
+make -C utf8_and_johab install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_johab'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  utf8_and_johab.so '/data/pg18/install/lib/postgresql/utf8_and_johab.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_johab'
+make -C utf8_and_sjis install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_sjis'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  utf8_and_sjis.so '/data/pg18/install/lib/postgresql/utf8_and_sjis.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_sjis'
+make -C utf8_and_win install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_win'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  utf8_and_win.so '/data/pg18/install/lib/postgresql/utf8_and_win.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_win'
+make -C utf8_and_uhc install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_uhc'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  utf8_and_uhc.so '/data/pg18/install/lib/postgresql/utf8_and_uhc.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_uhc'
+make -C utf8_and_euc2004 install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_euc2004'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  utf8_and_euc2004.so '/data/pg18/install/lib/postgresql/utf8_and_euc2004.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_euc2004'
+make -C utf8_and_sjis2004 install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_sjis2004'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  utf8_and_sjis2004.so '/data/pg18/install/lib/postgresql/utf8_and_sjis2004.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/utf8_and_sjis2004'
+make -C euc2004_sjis2004 install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/euc2004_sjis2004'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  euc2004_sjis2004.so '/data/pg18/install/lib/postgresql/euc2004_sjis2004.so'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs/euc2004_sjis2004'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/utils/mb/conversion_procs'
+make -C backend/snowball install
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/snowball'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/mkdir -p '/data/pg18/install/share/postgresql' '/data/pg18/install/share/postgresql/tsearch_data'
+/bin/install -c -m 755  dict_snowball.so '/data/pg18/install/lib/postgresql/dict_snowball.so'
+/bin/install -c -m 644 snowball_create.sql '/data/pg18/install/share/postgresql'
+/bin/install -c -m 644 ./stopwords/danish.stop ./stopwords/dutch.stop ./stopwords/english.stop ./stopwords/finnish.stop ./stopwords/french.stop ./stopwords/german.stop ./stopwords/hungarian.stop ./stopwords/italian.stop ./stopwords/nepali.stop ./stopwords/norwegian.stop ./stopwords/portuguese.stop ./stopwords/russian.stop ./stopwords/spanish.stop ./stopwords/swedish.stop ./stopwords/turkish.stop '/data/pg18/install/share/postgresql/tsearch_data'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/snowball'
+make -C include install
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/include'
+/bin/mkdir -p '/data/pg18/install/include/libpq' '/data/pg18/install/include/postgresql/internal/libpq'
+/bin/mkdir -p '/data/pg18/install/include/postgresql/server'/access '/data/pg18/install/include/postgresql/server'/archive '/data/pg18/install/include/postgresql/server'/bootstrap '/data/pg18/install/include/postgresql/server'/catalog '/data/pg18/install/include/postgresql/server'/commands '/data/pg18/install/include/postgresql/server'/common '/data/pg18/install/include/postgresql/server'/datatype '/data/pg18/install/include/postgresql/server'/executor '/data/pg18/install/include/postgresql/server'/fe_utils '/data/pg18/install/include/postgresql/server'/foreign '/data/pg18/install/include/postgresql/server'/jit '/data/pg18/install/include/postgresql/server'/lib '/data/pg18/install/include/postgresql/server'/libpq '/data/pg18/install/include/postgresql/server'/mb '/data/pg18/install/include/postgresql/server'/nodes '/data/pg18/install/include/postgresql/server'/optimizer '/data/pg18/install/include/postgresql/server'/parser '/data/pg18/install/include/postgresql/server'/partitioning '/data/pg18/install/include/postgresql/server'/postmaster '/data/pg18/install/include/postgresql/server'/regex '/data/pg18/install/include/postgresql/server'/replication '/data/pg18/install/include/postgresql/server'/rewrite '/data/pg18/install/include/postgresql/server'/statistics '/data/pg18/install/include/postgresql/server'/storage '/data/pg18/install/include/postgresql/server'/tcop '/data/pg18/install/include/postgresql/server'/snowball '/data/pg18/install/include/postgresql/server'/snowball/libstemmer '/data/pg18/install/include/postgresql/server'/tsearch '/data/pg18/install/include/postgresql/server'/tsearch/dicts '/data/pg18/install/include/postgresql/server'/utils '/data/pg18/install/include/postgresql/server'/port '/data/pg18/install/include/postgresql/server'/port/atomics '/data/pg18/install/include/postgresql/server'/port/win32 '/data/pg18/install/include/postgresql/server'/port/win32_msvc '/data/pg18/install/include/postgresql/server'/port/win32_msvc/sys '/data/pg18/install/include/postgresql/server'/port/win32/arpa '/data/pg18/install/include/postgresql/server'/port/win32/netinet '/data/pg18/install/include/postgresql/server'/port/win32/sys '/data/pg18/install/include/postgresql/server'/portability
+/bin/install -c -m 644 ./postgres_ext.h   '/data/pg18/install/include'
+/bin/install -c -m 644 ./libpq/libpq-fs.h '/data/pg18/install/include/libpq'
+/bin/install -c -m 644 pg_config.h     '/data/pg18/install/include'
+/bin/install -c -m 644 pg_config_os.h  '/data/pg18/install/include'
+/bin/install -c -m 644 ./pg_config_manual.h '/data/pg18/install/include'
+/bin/install -c -m 644 ./c.h            '/data/pg18/install/include/postgresql/internal'
+/bin/install -c -m 644 ./port.h         '/data/pg18/install/include/postgresql/internal'
+/bin/install -c -m 644 ./postgres_fe.h  '/data/pg18/install/include/postgresql/internal'
+/bin/install -c -m 644 ./libpq/pqcomm.h '/data/pg18/install/include/postgresql/internal/libpq'
+/bin/install -c -m 644 ./libpq/protocol.h '/data/pg18/install/include/postgresql/internal/libpq'
+/bin/install -c -m 644 pg_config.h     '/data/pg18/install/include/postgresql/server'
+/bin/install -c -m 644 pg_config_os.h  '/data/pg18/install/include/postgresql/server'
+/bin/install -c -m 644 nodes/nodetags.h '/data/pg18/install/include/postgresql/server/nodes'
+/bin/install -c -m 644 utils/errcodes.h '/data/pg18/install/include/postgresql/server/utils'
+/bin/install -c -m 644 utils/fmgroids.h '/data/pg18/install/include/postgresql/server/utils'
+/bin/install -c -m 644 utils/fmgrprotos.h '/data/pg18/install/include/postgresql/server/utils'
+/bin/install -c -m 644 ./*.h '/data/pg18/install/include/postgresql/server'
+for dir in access archive bootstrap catalog commands common datatype executor fe_utils foreign jit lib libpq mb nodes optimizer parser partitioning postmaster regex replication rewrite statistics storage tcop snowball snowball/libstemmer tsearch tsearch/dicts utils port port/atomics port/win32 port/win32_msvc port/win32_msvc/sys port/win32/arpa port/win32/netinet port/win32/sys portability; do \
+  /bin/install -c -m 644 ./$dir/*.h '/data/pg18/install/include/postgresql/server'/$dir || exit; \
+done
+make -C catalog install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/include/catalog'
+/bin/mkdir -p '/data/pg18/install/share/postgresql' '/data/pg18/install/include/postgresql/server'
+/bin/install -c -m 644 postgres.bki '/data/pg18/install/share/postgresql/postgres.bki'
+/bin/install -c -m 644 system_constraints.sql '/data/pg18/install/share/postgresql/system_constraints.sql'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/include/catalog'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/include'
+make -C interfaces install
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces'
+make -C libpq install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/lib' '/data/pg18/install/lib/pkgconfig' 
+/bin/mkdir -p '/data/pg18/install/include' '/data/pg18/install/include/postgresql/internal' '/data/pg18/install/share/postgresql'
+/bin/install -c -m 755  libpq.so.5.18 '/data/pg18/install/lib/libpq.so.5.18'
+cd '/data/pg18/install/lib' && \
+rm -f libpq.so.5 && \
+ln -s libpq.so.5.18 libpq.so.5
+cd '/data/pg18/install/lib' && \
+rm -f libpq.so && \
+ln -s libpq.so.5.18 libpq.so
+/bin/install -c -m 644  libpq.a '/data/pg18/install/lib/libpq.a'
+/bin/install -c -m 644 libpq.pc '/data/pg18/install/lib/pkgconfig/libpq.pc'
+/bin/install -c -m 644 ./libpq-fe.h '/data/pg18/install/include'
+/bin/install -c -m 644 ./libpq-events.h '/data/pg18/install/include'
+/bin/install -c -m 644 ./libpq-int.h '/data/pg18/install/include/postgresql/internal'
+/bin/install -c -m 644 ./fe-auth-sasl.h '/data/pg18/install/include/postgresql/internal'
+/bin/install -c -m 644 ./pqexpbuffer.h '/data/pg18/install/include/postgresql/internal'
+/bin/install -c -m 644 ./pg_service.conf.sample '/data/pg18/install/share/postgresql/pg_service.conf.sample'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ecpg install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg'
+make -C include install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/include'
+/bin/mkdir -p '/data/pg18/install/include' '/data/pg18/install/include/postgresql/informix/esql'
+/bin/install -c -m 644 ./ecpgerrno.h ./ecpglib.h ./ecpgtype.h ./sqlca.h ./sql3types.h ./ecpg_informix.h ./pgtypes_error.h ./pgtypes_numeric.h ./pgtypes_timestamp.h ./pgtypes_date.h ./pgtypes_interval.h ./pgtypes.h ./sqlda.h ./sqlda-compat.h ./sqlda-native.h '/data/pg18/install/include/'
+/bin/install -c -m 644 ./datetime.h ./decimal.h ./sqltypes.h '/data/pg18/install/include/postgresql/informix/esql/'
+/bin/install -c -m 644 ../../../../src/interfaces/ecpg/include/ecpg_config.h '/data/pg18/install/include'
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/include'
+make -C pgtypeslib install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/pgtypeslib'
+make -C ../../../../src/port all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../../src/common all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/lib' '/data/pg18/install/lib/pkgconfig' 
+/bin/install -c -m 755  libpgtypes.so.3.18 '/data/pg18/install/lib/libpgtypes.so.3.18'
+cd '/data/pg18/install/lib' && \
+rm -f libpgtypes.so.3 && \
+ln -s libpgtypes.so.3.18 libpgtypes.so.3
+cd '/data/pg18/install/lib' && \
+rm -f libpgtypes.so && \
+ln -s libpgtypes.so.3.18 libpgtypes.so
+/bin/install -c -m 644  libpgtypes.a '/data/pg18/install/lib/libpgtypes.a'
+/bin/install -c -m 644 libpgtypes.pc '/data/pg18/install/lib/pkgconfig/libpgtypes.pc'
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/pgtypeslib'
+make -C ecpglib install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/ecpglib'
+make -C ../../../../src/interfaces/libpq all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[6]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[6]: Nothing to be done for `all'.
+make[6]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[6]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[6]: Nothing to be done for `all'.
+make[6]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../../src/interfaces/ecpg/pgtypeslib all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/pgtypeslib'
+make -C ../../../../src/port all
+make[6]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[6]: Nothing to be done for `all'.
+make[6]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../../src/common all
+make[6]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[6]: Nothing to be done for `all'.
+make[6]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/pgtypeslib'
+/bin/mkdir -p '/data/pg18/install/lib' '/data/pg18/install/lib/pkgconfig' 
+/bin/install -c -m 755  libecpg.so.6.18 '/data/pg18/install/lib/libecpg.so.6.18'
+cd '/data/pg18/install/lib' && \
+rm -f libecpg.so.6 && \
+ln -s libecpg.so.6.18 libecpg.so.6
+cd '/data/pg18/install/lib' && \
+rm -f libecpg.so && \
+ln -s libecpg.so.6.18 libecpg.so
+/bin/install -c -m 644  libecpg.a '/data/pg18/install/lib/libecpg.a'
+/bin/install -c -m 644 libecpg.pc '/data/pg18/install/lib/pkgconfig/libecpg.pc'
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/ecpglib'
+make -C compatlib install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/compatlib'
+make -C ../../../../src/interfaces/ecpg/ecpglib all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/ecpglib'
+make -C ../../../../src/interfaces/libpq all
+make[6]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[7]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[7]: Nothing to be done for `all'.
+make[7]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[7]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[7]: Nothing to be done for `all'.
+make[7]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[6]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../../src/interfaces/ecpg/pgtypeslib all
+make[6]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/pgtypeslib'
+make -C ../../../../src/port all
+make[7]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[7]: Nothing to be done for `all'.
+make[7]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../../src/common all
+make[7]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[7]: Nothing to be done for `all'.
+make[7]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[6]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/pgtypeslib'
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/ecpglib'
+make -C ../../../../src/interfaces/ecpg/pgtypeslib all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/pgtypeslib'
+make -C ../../../../src/port all
+make[6]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[6]: Nothing to be done for `all'.
+make[6]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../../src/common all
+make[6]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[6]: Nothing to be done for `all'.
+make[6]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/pgtypeslib'
+/bin/mkdir -p '/data/pg18/install/lib' '/data/pg18/install/lib/pkgconfig' 
+/bin/install -c -m 755  libecpg_compat.so.3.18 '/data/pg18/install/lib/libecpg_compat.so.3.18'
+cd '/data/pg18/install/lib' && \
+rm -f libecpg_compat.so.3 && \
+ln -s libecpg_compat.so.3.18 libecpg_compat.so.3
+cd '/data/pg18/install/lib' && \
+rm -f libecpg_compat.so && \
+ln -s libecpg_compat.so.3.18 libecpg_compat.so
+/bin/install -c -m 644  libecpg_compat.a '/data/pg18/install/lib/libecpg_compat.a'
+/bin/install -c -m 644 libecpg_compat.pc '/data/pg18/install/lib/pkgconfig/libecpg_compat.pc'
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/compatlib'
+make -C preproc install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/preproc'
+make -C ../../../../src/port all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../../src/common all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  ecpg '/data/pg18/install/bin'
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg/preproc'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/ecpg'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces'
+make -C backend/replication/libpqwalreceiver install
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/replication/libpqwalreceiver'
+make -C ../../../../src/interfaces/libpq all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  libpqwalreceiver.so '/data/pg18/install/lib/postgresql/libpqwalreceiver.so'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/replication/libpqwalreceiver'
+make -C backend/replication/pgoutput install
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/backend/replication/pgoutput'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  pgoutput.so '/data/pg18/install/lib/postgresql/pgoutput.so'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/backend/replication/pgoutput'
+make -C fe_utils install
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+/bin/mkdir -p '/data/pg18/install/lib'
+/bin/install -c -m 644  libpgfeutils.a '/data/pg18/install/lib/libpgfeutils.a'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+make -C bin install
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/bin'
+make -C initdb install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/initdb'
+make -C ../../../src/interfaces/libpq all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/fe_utils all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  initdb '/data/pg18/install/bin/initdb'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/initdb'
+make -C pg_amcheck install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pg_amcheck'
+make -C ../../../src/interfaces/libpq all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/fe_utils all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  pg_amcheck '/data/pg18/install/bin/pg_amcheck'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pg_amcheck'
+make -C pg_archivecleanup install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pg_archivecleanup'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  pg_archivecleanup '/data/pg18/install/bin/pg_archivecleanup'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pg_archivecleanup'
+make -C pg_basebackup install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pg_basebackup'
+make -C ../../../src/interfaces/libpq all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/fe_utils all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  pg_basebackup '/data/pg18/install/bin/pg_basebackup'
+/bin/install -c  pg_createsubscriber '/data/pg18/install/bin/pg_createsubscriber'
+/bin/install -c  pg_receivewal '/data/pg18/install/bin/pg_receivewal'
+/bin/install -c  pg_recvlogical '/data/pg18/install/bin/pg_recvlogical'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pg_basebackup'
+make -C pg_checksums install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pg_checksums'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  pg_checksums '/data/pg18/install/bin/pg_checksums'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pg_checksums'
+make -C pg_combinebackup install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pg_combinebackup'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/fe_utils all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  pg_combinebackup '/data/pg18/install/bin/pg_combinebackup'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pg_combinebackup'
+make -C pg_config install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pg_config'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c -m 755 pg_config '/data/pg18/install/bin/pg_config'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pg_config'
+make -C pg_controldata install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pg_controldata'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  pg_controldata '/data/pg18/install/bin/pg_controldata'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pg_controldata'
+make -C pg_ctl install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pg_ctl'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  pg_ctl '/data/pg18/install/bin/pg_ctl'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pg_ctl'
+make -C pg_dump install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pg_dump'
+make -C ../../../src/interfaces/libpq all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/fe_utils all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  pg_dump '/data/pg18/install/bin'/pg_dump
+/bin/install -c  pg_restore '/data/pg18/install/bin'/pg_restore
+/bin/install -c  pg_dumpall '/data/pg18/install/bin'/pg_dumpall
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pg_dump'
+make -C pg_resetwal install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pg_resetwal'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  pg_resetwal '/data/pg18/install/bin/pg_resetwal'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pg_resetwal'
+make -C pg_rewind install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pg_rewind'
+make -C ../../../src/interfaces/libpq all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  pg_rewind '/data/pg18/install/bin/pg_rewind'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pg_rewind'
+make -C pg_test_fsync install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pg_test_fsync'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  pg_test_fsync '/data/pg18/install/bin/pg_test_fsync'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pg_test_fsync'
+make -C pg_test_timing install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pg_test_timing'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  pg_test_timing '/data/pg18/install/bin/pg_test_timing'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pg_test_timing'
+make -C pg_upgrade install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pg_upgrade'
+make -C ../../../src/interfaces/libpq all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/fe_utils all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  pg_upgrade '/data/pg18/install/bin/pg_upgrade'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pg_upgrade'
+make -C pg_verifybackup install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pg_verifybackup'
+make -C ../../../src/interfaces/libpq all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/fe_utils all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  pg_verifybackup '/data/pg18/install/bin/pg_verifybackup'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pg_verifybackup'
+make -C pg_waldump install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pg_waldump'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  pg_waldump '/data/pg18/install/bin/pg_waldump'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pg_waldump'
+make -C pg_walsummary install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pg_walsummary'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/fe_utils all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  pg_walsummary '/data/pg18/install/bin/pg_walsummary'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pg_walsummary'
+make -C pgbench install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/pgbench'
+make -C ../../../src/interfaces/libpq all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/fe_utils all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  pgbench '/data/pg18/install/bin/pgbench'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/pgbench'
+make -C psql install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/psql'
+make -C ../../../src/interfaces/libpq all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/fe_utils all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+/bin/mkdir -p '/data/pg18/install/bin' '/data/pg18/install/share/postgresql'
+/bin/install -c  psql '/data/pg18/install/bin/psql'
+/bin/install -c -m 644 ./psqlrc.sample '/data/pg18/install/share/postgresql/psqlrc.sample'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/psql'
+make -C scripts install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/bin/scripts'
+make -C ../../../src/interfaces/libpq all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[5]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[5]: Nothing to be done for `all'.
+make[5]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make -C ../../../src/fe_utils all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/fe_utils'
+/bin/mkdir -p '/data/pg18/install/bin'
+/bin/install -c  createdb   '/data/pg18/install/bin'/createdb
+/bin/install -c  dropdb     '/data/pg18/install/bin'/dropdb
+/bin/install -c  createuser '/data/pg18/install/bin'/createuser
+/bin/install -c  dropuser   '/data/pg18/install/bin'/dropuser
+/bin/install -c  clusterdb  '/data/pg18/install/bin'/clusterdb
+/bin/install -c  vacuumdb   '/data/pg18/install/bin'/vacuumdb
+/bin/install -c  reindexdb  '/data/pg18/install/bin'/reindexdb
+/bin/install -c  pg_isready '/data/pg18/install/bin'/pg_isready
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin/scripts'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/bin'
+make -C pl install
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/pl'
+make -C plpgsql install
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/pl/plpgsql'
+make -C src install
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/pl/plpgsql/src'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql'
+/bin/install -c -m 755  plpgsql.so '/data/pg18/install/lib/postgresql/plpgsql.so'
+/bin/mkdir -p '/data/pg18/install/share/postgresql/extension'
+/bin/mkdir -p '/data/pg18/install/include/postgresql/server'
+/bin/install -c -m 644 ./plpgsql.control ./plpgsql--1.0.sql '/data/pg18/install/share/postgresql/extension/'
+/bin/install -c -m 644 './plpgsql.h' '/data/pg18/install/include/postgresql/server'
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/pl/plpgsql/src'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/pl/plpgsql'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/pl'
+make -C makefiles install
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/makefiles'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql/pgxs/src/makefiles'
+/bin/install -c -m 644 ./pgxs.mk '/data/pg18/install/lib/postgresql/pgxs/src/makefiles/'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/makefiles'
+make -C test/regress install
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/test/regress'
+make -C ../../../src/port all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql/pgxs/src/test/regress'
+/bin/install -c  pg_regress '/data/pg18/install/lib/postgresql/pgxs/src/test/regress/pg_regress'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/test/regress'
+make -C test/isolation install
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/test/isolation'
+make -C ../../../src/interfaces/libpq all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[4]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[4]: Nothing to be done for `all'.
+make[4]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/interfaces/libpq'
+make -C ../../../src/port all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/port'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/port'
+make -C ../../../src/common all
+make[3]: Entering directory `/data/pg18/src/OpenTenBase/src/common'
+make[3]: Nothing to be done for `all'.
+make[3]: Leaving directory `/data/pg18/src/OpenTenBase/src/common'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql/pgxs/src/test/isolation'
+/bin/install -c  pg_isolation_regress '/data/pg18/install/lib/postgresql/pgxs/src/test/isolation/pg_isolation_regress'
+/bin/install -c  isolationtester '/data/pg18/install/lib/postgresql/pgxs/src/test/isolation/isolationtester'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/test/isolation'
+make -C test/perl install
+make[2]: Entering directory `/data/pg18/src/OpenTenBase/src/test/perl'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql/pgxs/src/test/perl/PostgreSQL/Test'
+/bin/install -c -m 644 ./PostgreSQL/Test/Utils.pm '/data/pg18/install/lib/postgresql/pgxs/src/test/perl/PostgreSQL/Test/Utils.pm'
+/bin/install -c -m 644 ./PostgreSQL/Test/SimpleTee.pm '/data/pg18/install/lib/postgresql/pgxs/src/test/perl/PostgreSQL/Test/SimpleTee.pm'
+/bin/install -c -m 644 ./PostgreSQL/Test/RecursiveCopy.pm '/data/pg18/install/lib/postgresql/pgxs/src/test/perl/PostgreSQL/Test/RecursiveCopy.pm'
+/bin/install -c -m 644 ./PostgreSQL/Test/Kerberos.pm '/data/pg18/install/lib/postgresql/pgxs/src/test/perl/PostgreSQL/Test/Kerberos.pm'
+/bin/install -c -m 644 ./PostgreSQL/Test/Cluster.pm '/data/pg18/install/lib/postgresql/pgxs/src/test/perl/PostgreSQL/Test/Cluster.pm'
+/bin/install -c -m 644 ./PostgreSQL/Test/BackgroundPsql.pm '/data/pg18/install/lib/postgresql/pgxs/src/test/perl/PostgreSQL/Test/BackgroundPsql.pm'
+/bin/install -c -m 644 ./PostgreSQL/Test/AdjustDump.pm '/data/pg18/install/lib/postgresql/pgxs/src/test/perl/PostgreSQL/Test/AdjustDump.pm'
+/bin/install -c -m 644 ./PostgreSQL/Test/AdjustUpgrade.pm '/data/pg18/install/lib/postgresql/pgxs/src/test/perl/PostgreSQL/Test/AdjustUpgrade.pm'
+/bin/install -c -m 644 ./PostgreSQL/Version.pm '/data/pg18/install/lib/postgresql/pgxs/src/test/perl/PostgreSQL/Version.pm'
+make[2]: Leaving directory `/data/pg18/src/OpenTenBase/src/test/perl'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql/pgxs/src'
+/bin/install -c -m 644 Makefile.global '/data/pg18/install/lib/postgresql/pgxs/src/Makefile.global'
+/bin/install -c -m 644 Makefile.port '/data/pg18/install/lib/postgresql/pgxs/src/Makefile.port'
+/bin/install -c -m 644 ./Makefile.shlib '/data/pg18/install/lib/postgresql/pgxs/src/Makefile.shlib'
+/bin/install -c -m 644 ./nls-global.mk '/data/pg18/install/lib/postgresql/pgxs/src/nls-global.mk'
+make[1]: Leaving directory `/data/pg18/src/OpenTenBase/src'
+make -C config install
+make[1]: Entering directory `/data/pg18/src/OpenTenBase/config'
+/bin/mkdir -p '/data/pg18/install/lib/postgresql/pgxs/config'
+/bin/install -c -m 755 ./install-sh '/data/pg18/install/lib/postgresql/pgxs/config/install-sh'
+/bin/install -c -m 755 ./missing '/data/pg18/install/lib/postgresql/pgxs/config/missing'
+make[1]: Leaving directory `/data/pg18/src/OpenTenBase/config'

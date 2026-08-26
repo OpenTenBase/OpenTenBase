@@ -1,0 +1,34 @@
+  [PASS     ] S1             target=C3   first_hit=none 预测=none  实际=none  mwm=121 kB
+  [PASS     ] S2             target=C2   first_hit=C2   预测=3     实际=3     mwm=507 kB
+  [PASS     ] S3             target=C3   first_hit=C3   预测=9     实际=9     mwm=5578 kB
+  [PASS     ] S4             target=C3   first_hit=C3   预测=7     实际=7     mwm=4578 kB
+  [PASS     ] S5             target=C2   first_hit=C2   预测=22    实际=22    mwm=507 kB
+  [PASS     ] S6             target=C3   first_hit=C3   预测=11    实际=11    mwm=10756 kB
+  [PASS     ] F1             target=C3   first_hit=C3   预测=10    实际=10    mwm=7191 kB
+  [PASS     ] F2             target=C3   first_hit=C3   预测=14    实际=14    mwm=9304 kB
+  [PASS     ] F3             target=C3   first_hit=C3   预测=43    实际=43    mwm=28399 kB
+  [PASS     ] F4             target=C3   first_hit=C3   预测=15    实际=15    mwm=12291 kB
+  [PASS     ] F5             target=C3   first_hit=C3   预测=37    实际=37    mwm=21378 kB
+  [PASS     ] F6             target=C3   first_hit=C3   预测=88    实际=88    mwm=57716 kB
+  [PASS     ] L1             target=C1   first_hit=C1   预测=2     实际=2     mwm=1039 kB
+  [PASS     ] L2             target=C1   first_hit=C1   预测=3     实际=3     mwm=2079 kB
+  [PASS     ] L3             target=C2   first_hit=C2   预测=25    实际=25    mwm=4160 kB
+  [PASS     ] L4             target=C2   first_hit=C2   预测=29    实际=29    mwm=8320 kB
+  [PASS     ] L5             target=C1   first_hit=C1   预测=17    实际=17    mwm=16639 kB
+  [PASS     ] X1             target=C3   first_hit=C3   预测=22    实际=22    mwm=12846 kB
+  [PASS     ] X2             target=C3   first_hit=C3   预测=17    实际=17    mwm=10759 kB
+  [PASS     ] X3             target=none first_hit=none 预测=none  实际=none  mwm=13350 kB
+run_id      = m1-r3-20260826
+matrix      = /data/pg18/vecdiag/tests/matrix_m1.tsv
+PGHOME      = /data/pg18/install  PGPORT = 5518
+采集时间     = 2026-08-26T13:02:43+0800
+
+PASS        = 20
+FAIL        = 0
+BLOCKED     = 0   （未能执行，不得计为通过）
+AUTO-ONLY   = 0      （仅模型输出，不是观测值）
+
+边界声明：mode=real-threshold 的用例是通过压低 maintenance_work_mem 触发同源检查点得到的，
+         只证明后端检查点与预测一致，不证明巨型索引构建成功。
+SHA256SUMS 已生成 -> /data/artifacts/m1-r3-20260826/SHA256SUMS
+结果 -> /data/artifacts/m1-r3-20260826/results.tsv

@@ -1,0 +1,17 @@
+空表已建（dims=128，relpages 应为 0 → numSamples 被压到 1）
+0|0
+maintenance_work_mem 下限 = 64 kB（低于它的设置会被拒绝）
+
+lists    报错MB(下限内存) floor(C/1024) kB
+4096     3                  2080            
+8192     5                  4160            
+16384    9                  8320            
+32768    17                 16640           
+
+===== 解方程 =====
+L=4096 与 L=8192 解得 MAXALIGN(itemsize) = 520.000 字节
+L=4096 与 L=16384 解得 MAXALIGN(itemsize) = 520.000 字节
+L=4096 与 L=32768 解得 MAXALIGN(itemsize) = 520.000 字节
+
+参考：dims=128 时 vector 的裸大小 = 8 + 4*128 = 520 字节
+原始数据 -> /data/artifacts/t06-20260826/abi_raw.txt
