@@ -1,5 +1,5 @@
 group,item,baseline_label,baseline,improved_label,improved,unit,delta,evidence
-M1-内存模型,逐例命中,旧公式(0.8.0),高估 1.00–306.35 倍,本模型,18/18 逐字命中,倍/例,平均高估 29.54 倍,results/m1-r3-20260826/model_compare.csv
+M1-内存模型,报错MB逐字命中,旧公式(0.8.0),高估 1.00–306.35 倍,本模型,18/18 逐字命中（另 2 例预测不报错且实际未报错）,倍/例,平均高估 29.54 倍,results/m1-r3-20260826/model_compare.csv
 M1-内存模型,内存下界,报错消息里的MB,13,所需内存(三检查点最大值),62,MB,差 4.8 倍,results/t44-20260827/anomaly_matrix.csv（B* 组）
 M3-ETA偏差,L 档 ETA 平均绝对偏差,flat-0.5(修复前),42.33,phase-rate(修复后),29.08,%,降低 13.25 个百分点,vecdiag.eta_accuracy('m3r-L/%' 'ivfflat' 'L' 'sift1m' <mode>)
 M3-ETA偏差,M 档 ETA 平均绝对偏差,flat-0.5(修复前),30.83,phase-rate(修复后),29.31,%,降低 1.52 个百分点,vecdiag.eta_accuracy('m3r-M/%' 'ivfflat' 'M' 'sift1m' <mode>)
