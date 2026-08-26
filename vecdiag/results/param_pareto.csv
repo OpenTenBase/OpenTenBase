@@ -1,0 +1,10 @@
+am,cfg,build_median_ms,index_mb,recall_at_k,query_ms_mean,on_frontier,dominated_by
+hnsw,m=8/ef=64,8326,71.0,0.9427,0.55,t,
+hnsw,m=16/ef=64,18192,79.4,0.9790,0.80,t,
+hnsw,m=8/ef=200,23679,71.0,0.9583,0.56,f,"m=16/ef=64（18192 ms, recall 0.9790）"
+hnsw,m=32/ef=64,36751,98.1,0.9917,1.28,t,
+hnsw,m=16/ef=200,40573,79.4,0.9893,0.88,f,"m=32/ef=64（36751 ms, recall 0.9917）"
+hnsw,m=32/ef=200,70722,98.1,0.9943,1.31,t,
+ivfflat,m=/ef=,1147,52.5,0.9860,6.90,t,
+ivfflat,m=/ef=,2226,53.4,0.9373,1.87,f,"lists=100（1147 ms, recall 0.9860）"
+ivfflat,m=/ef=,14311,56.3,0.8583,0.76,f,"lists=100（1147 ms, recall 0.9860）; lists=316（2226 ms, recall 0.9373）"

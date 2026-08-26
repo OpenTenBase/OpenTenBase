@@ -1,0 +1,26 @@
+>>> T4.4 异常场景矩阵
+  A1     低内存-IVFFlat      will_fail    → 实际 failed         correct
+  A2     低内存-刚好够    buildable    → 实际 built          correct
+  A3     极端lists-上界     will_fail    → 实际 failed         correct
+  A4     极端lists-远超行数 buildable    → 实际 built          correct
+  A5     空表                 buildable    → 实际 built          correct
+  A6     小表-10行           buildable    → 实际 built          correct
+  A7     偏斜-全同向量    buildable    → 实际 built          correct
+  A8     unlogged表            buildable    → 实际 built          correct
+  A9     HNSW-低内存降级   will_spill   → 实际 built_spilled  correct
+  A10    HNSW-内存充足      no_spill     → 实际 built          correct
+  A11    HNSW-并行构建      will_spill   → 实际 built_spilled  correct
+  A12    HNSW-禁并行         will_spill   → 实际 built_spilled  correct
+
+>>> T4.3 保守方向专项：把内存卡在真正的临界值上下各 1 kB
+  B200hi 所需内存+0kB(lists=200) buildable    → 实际 built          correct
+  B200lo 所需内存-1kB(lists=200) will_fail    → 实际 failed         correct
+  B500hi 所需内存+0kB(lists=500) buildable    → 实际 built          correct
+  B500lo 所需内存-1kB(lists=500) will_fail    → 实际 failed         correct
+  B1000hi 所需内存+0kB(lists=1000) buildable    → 实际 built          correct
+  B1000lo 所需内存-1kB(lists=1000) will_fail    → 实际 failed         correct
+
+>>> 判定汇总
+  correct        18
+>>> 矩阵 -> /data/artifacts/t44-20260827/anomaly_matrix.csv；每个用例的原始 stdout/stderr -> /data/artifacts/t44-20260827/raw/
+[OK] 没有 DANGEROUS 用例

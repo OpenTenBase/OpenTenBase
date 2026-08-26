@@ -401,3 +401,73 @@ comment on function vecdiag.ivfflat_mwm_plan(bigint, int, int, bigint, boolean) 
 
 
 
+
+
+-- ---------------------------------------------------------------------------
+-- "到底该给多少内存" —— 和"报错里写的 MB"不是同一个数
+--
+-- 这个函数是 T4.3（保守方向专项测试）逼出来的。原先只有 predicted_mb，
+-- 也就是**最先越界的那个检查点**的值，等于报错消息里的数字。
+-- 保守方向测试把 maintenance_work_mem 设成这个值再建一次，结果**照样报错**——
+-- 因为抬高内存只是让 C1 放行，接着就撞上 C2 或 C3，而 C3 通常比 C1 大一大截。
+--
+-- 所以要区分两个问题：
+--   "报错会写多少"      → ivfflat_predict.predicted_mb（用于核对模型与实际一致）
+--   "我该把内存设多少"  → 本函数（三个检查点里最大的那个）
+-- 这个区别对用户是致命的：照着报错里的数字设内存，会以为自己按提示做了，然后又失败一次。
+-- 触发条件是 totalSize/1024 > maintenance_work_mem（整数除法，ivfutils.c:124），
+-- 所以可行的下界是 max_i floor(C_i/1024)，取等号即可通过。
+-- ---------------------------------------------------------------------------
+create or replace function vecdiag.ivfflat_min_mwm_kb(
+    p_rows     bigint,
+    p_dims     int,
+    p_lists    int,
+    p_relpages bigint  default null,
+    p_empty_build boolean default false
+) returns table (
+    min_mwm_kb bigint,
+    min_mwm_mb int,
+    binding    vecdiag.checkpoint_kind,
+    c1_kb      bigint,
+    c2_kb      bigint,
+    c3_kb      bigint,
+    note       text
+)
+language sql stable
+set search_path = pg_catalog, pg_temp
+as $$
+  -- 这里刻意**不看当前 maintenance_work_mem**：所需内存是配置本身的属性，
+  -- 与你现在设了多少无关。带上 first_hit 只会让输出随会话设置变来变去。
+  with p as (
+    select c1_bytes, c2_bytes, c3_bytes, c3_applicable
+    from vecdiag.ivfflat_predict(p_rows, p_dims, p_lists, p_relpages, p_empty_build, null, null)
+  ),
+  k as (
+    select p.*,
+           greatest(c1_bytes / 1024,
+                    c2_bytes / 1024,
+                    case when c3_applicable then c3_bytes / 1024 else 0 end) as need_kb,
+           case when c3_applicable and c3_bytes >= greatest(c1_bytes, c2_bytes) then 'C3'
+                when c2_bytes >= c1_bytes then 'C2'
+                else 'C1' end::vecdiag.checkpoint_kind as bind
+    from p
+  )
+  select need_kb,
+         (need_kb / 1024 + case when need_kb % 1024 > 0 then 1 else 0 end)::int,
+         bind,
+         c1_bytes / 1024, c2_bytes / 1024,
+         case when c3_applicable then c3_bytes / 1024 end,
+         format('把 maintenance_work_mem 设到 %s kB（约 %s MB）及以上即可建成，约束来自检查点 %s。'
+                '三个检查点分别需要 C1=%s kB、C2=%s kB、C3=%s。'
+                '⚠ 不要照着报错消息里的 MB 设内存：那个数字只是**最先越界的那个检查点**的值，'
+                '抬到它只会让第一个检查点放行，接着在更大的检查点上再失败一次。',
+                need_kb, (need_kb / 1024 + case when need_kb % 1024 > 0 then 1 else 0 end), bind,
+                c1_bytes / 1024, c2_bytes / 1024,
+                case when c3_applicable then (c3_bytes / 1024)::text || ' kB'
+                     else '不适用（采样数为 0，走 RandomCenters，不存在 C3）' end)
+  from k;
+$$;
+
+comment on function vecdiag.ivfflat_min_mwm_kb(bigint, int, int, bigint, boolean) is
+  '"我该给多少内存"的答案。与 ivfflat_predict.predicted_mb（"报错会写多少"）是两个不同的数——'
+  '这个区别是 T4.3 保守方向测试发现的，见 docs/M1-ivfflat-memory-model.md。';

@@ -17,11 +17,17 @@
 | 想知道什么 | 看这里 |
 |---|---|
 | **拿到库先跑这个**：一条 SQL 看当前库有什么风险 | `select * from vecdiag.diagnose();` |
+| **正在建索引，想看进度和剩余时间** | `select * from vecdiag.build_monitor();` 或 `bash vecdiag/tools/watch_build.sh` |
+| **要解决什么问题、上游缺什么、哪些没做** | `vecdiag/docs/00-requirements-and-scope.md` |
+| **一张表看完所有"改进前 vs 改进后"** | `bash vecdiag/tools/perf_compare.sh` → `perf_compare.md` |
 | 这个模块解决什么问题、怎么用 | `vecdiag/README.md` |
 | **审查用**：怎么独立复核、我自报的薄弱点、门禁判定 | `vecdiag/report/审查报告-20260826.md` |
 | 一条命令把所有结论重跑一遍 | `bash vecdiag/reproduce.sh` |
 | IVFFlat 构建内存模型的推导与验证 | `vecdiag/docs/M1-ivfflat-memory-model.md` |
 | HNSW 落盘降级预警的标定与验证 | `vecdiag/docs/M2-hnsw-spill-model.md` |
+| 阶段耗时、加权进度、ETA 偏差量化 | `vecdiag/docs/M3-progress-and-stage-timing.md` |
+| `m` / `ef_construction` / `lists` 该怎么选 | `vecdiag/docs/M5-param-advisor.md` |
+| 实时监控能给什么、有哪三条硬限制 | `vecdiag/docs/M6-realtime-monitor.md` |
 | 原始 stderr、CSV、SHA256、环境快照 | `vecdiag/results/` |
 
 ## 目录结构
@@ -35,10 +41,12 @@ vecdiag/
 │   ├── 10_ivfflat_memory_model.sql  M1：分项 breakdown + 三检查点 first_hit
 │   ├── 20_legacy_model.sql        旧模型（0.8.0 口径）对照实现
 │   ├── 30_hnsw_model.sql          M2：图内存标定系数 + 降级点预测与区间
-│   ├── 40_progress_model.sql      M3：阶段权重（按规模档与数据集分开存）、进度曲线、ETA
-│   └── 50_diagnose.sql            M4：零参数体检 + 结论可用性分层
+│   ├── 40_progress_model.sql      M3：阶段顺序（源码常量）、进度曲线、ETA 偏差、降级修正
+│   ├── 50_diagnose.sql            M4：零参数体检 + 结论可用性分层
+│   ├── 60_param_advisor.sql       M5：参数建议表（三类溯源）+ 帕累托前沿
+│   └── 70_realtime.sql            M6：实时监控（零参数，含降级预警与修正 ETA）
 ├── tools/             环境搭建、ABI 实测、验证 harness、绘图（纯标准库）
-├── tests/             验证矩阵、回归断言、上游能力清单
+├── tests/             验证矩阵、SQL 回归断言、上游能力清单、TAP 用例（t/*.pl）
 ├── results/           每轮实测产物：原始 stderr + CSV + SHA256SUMS + env.txt
 ├── docs/              各模块设计文档与图（figs/ 下为 SVG，可从 CSV 重建）
 ├── report/            审查报告；项目报告与 PPT 收尾时放这里
@@ -57,7 +65,14 @@ vecdiag/
 | 上游测试基线 | 完成 | `installcheck` 14/14；`prove_installcheck` 48 文件 **1250 测例全过** |
 | M3 阶段耗时与加权进度 | 完成 | 两套数据集共 **3919 采样点单调性断言通过**；权重按 S/M/L 分档；**实测证明权重依赖数据分布**（主导阶段从 k-means 46% 变成 loading 41%）|
 | M4 零参数体检与可用性分层 | 完成 | `vecdiag.diagnose()` 零参数、每条输出带齐四要素且修复建议可直接执行；权重分三层（存档 / 审计 / 消费） |
-| P5 项目报告与 PPT | 未开始 | — |
+| M1 补充：所需内存 ≠ 报错里的 MB | 完成 | 三配置边界**精确到 1 kB**；C1 253 kB 与 C3 63459 kB 差 250 倍 |
+| M3 T3.4 ETA 偏差量化 | 完成 | 修掉两个缺陷后 L 档 MAD **42.33% → 29.08%**；`unstable` 窗口 K=1 有实测依据 |
+| M3 T3.5 降级对 ETA 的影响 | 完成 | 降级点外样本偏差 **0.12%**；接入 M2 后全程 MAD **59.10% → 9.02%** |
+| M5 构建参数建议表（T2.7） | 完成 | 每个数字标 source-code / upstream-doc / measured；6 个 HNSW 配置里 **2 个被支配** |
+| M6 实时构建监控 | 完成 | 198 采样点单调、终值 100%，实时 ETA MAD **5.36%**，降级预警正确触发 |
+| T4.3 / T4.4 异常场景与保守方向 | 完成 | 18 用例全部判定正确，`DANGEROUS` = **0** |
+| T4.5 TAP 回归 | 完成 | `prove` **19/19 通过**，退出码 0 |
+| P5 项目报告与 PPT | 脚本已交付 | 讲稿与报告脚本见工作区 `09-讲稿/` |
 
 ## 数据集
 
@@ -101,3 +116,8 @@ select * from vecdiag.recommend_stage_weights('ivfflat', 300000);
    **只证明后端检查点与预测一致，不证明巨型索引真的能建成**。
 3. ABI 常数与机器、编译器、`BLCKSZ` 绑定。换机器必须重跑 `tools/abi_probe.sh`，
    不要把 `results/` 里的数字当成新机器上的结论。
+4. M5 里的 `recall@10` 属于**方向一的指标口径**，这里只作为构建参数取舍的质量轴，
+   **不作为方向一的交付成果**。它的 ground truth 是库内顺序扫描重算的 exact top-10——
+   公开数据集自带的 groundtruth 是针对全量 100 万底库的，用在子集上不成立。
+5. 实时监控读不到别的后端的 `maintenance_work_mem`（PostgreSQL 不提供该能力），
+   默认用监控会话自己的值。监控别人的构建时必须把对方的值传进来，否则降级预警会误报。

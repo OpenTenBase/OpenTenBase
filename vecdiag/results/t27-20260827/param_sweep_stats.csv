@@ -1,0 +1,10 @@
+am,param,n,build_min_ms,build_median_ms,build_max_ms,index_mb,spilled,recall_at_k,query_ms_mean
+hnsw,m=16;ef_construction=200,3,38197,40573,41038,79.4,no,0.9893,0.88
+hnsw,m=16;ef_construction=64,3,16744,18192,18985,79.4,no,0.9790,0.80
+hnsw,m=32;ef_construction=200,3,68633,70722,70783,98.1,no,0.9943,1.31
+hnsw,m=32;ef_construction=64,3,36025,36751,36968,98.1,no,0.9917,1.28
+hnsw,m=8;ef_construction=200,3,21618,23679,26010,71.0,no,0.9583,0.56
+hnsw,m=8;ef_construction=64,3,7911,8326,8510,71.0,no,0.9427,0.55
+ivfflat,lists=1000,3,14083,14311,16676,56.3,no,0.8583,0.76
+ivfflat,lists=100,3,1004,1147,1159,52.5,no,0.9860,6.90
+ivfflat,lists=316,3,2023,2226,2676,53.4,no,0.9373,1.87
