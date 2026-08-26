@@ -1,0 +1,25 @@
+#	M1 验证矩阵（20 组）。制表符分隔，# 开头为注释。
+#	target 是"希望先触发哪个检查点"，harness 会向模型索取对应的 maintenance_work_mem。
+#	若某组的 target 在 64kB 下限约束下不可达，results.tsv 里 first_hit 会与 target 不同——
+#	这不算失败（模型预测与报错仍逐字比对），但要在报告里说明该组没验到目标检查点。
+#	case_id	class	rows	dims	lists	target	unlogged
+S1	small	0	128	100	C3	0
+S2	small	200	128	1000	C2	0
+S3	small	200	128	1000	C3	0
+S4	small	1000	64	500	C3	0
+S5	small	2000	128	1000	C2	0
+S6	small-unlogged	500	256	200	C3	1
+F1	saturated	20000	128	100	C3	0
+F2	saturated	20000	128	200	C3	0
+F3	saturated	15000	128	500	C3	0
+F4	saturated	20000	256	100	C3	0
+F5	saturated	20000	64	400	C3	0
+F6	saturated	15000	128	1000	C3	0
+L1	large-lists	2000	128	2048	C1	0
+L2	large-lists	2000	128	4096	C1	0
+L3	large-lists	2000	128	8192	C2	0
+L4	large-lists	2000	128	16384	C2	0
+L5	large-lists	2000	128	32768	C1	0
+X1	legacy-fail	200	128	2000	C3	0
+X2	legacy-fail	100	960	1000	C3	0
+X3	build-succeeds	20000	128	100	none	0
