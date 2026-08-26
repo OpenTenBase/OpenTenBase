@@ -1,0 +1,20 @@
+echo "# +++ regress install-check in  +++" && /data/pg18/install/lib/postgresql/pgxs/src/makefiles/../../src/test/regress/pg_regress --inputdir=./ --bindir='/data/pg18/install/bin'    --inputdir=test --load-extension=vector --dbname=contrib_regression vector_type ivfflat_vector halfvec ivfflat_bit hnsw_halfvec bit hnsw_vector cast hnsw_bit sparsevec copy ivfflat_halfvec hnsw_sparsevec btree
+# +++ regress install-check in  +++
+# using postmaster on Unix socket, port 5518
+ok 1         - vector_type                                40 ms
+ok 2         - ivfflat_vector                            113 ms
+ok 3         - halfvec                                    20 ms
+ok 4         - ivfflat_bit                               473 ms
+ok 5         - hnsw_halfvec                               47 ms
+ok 6         - bit                                         8 ms
+ok 7         - hnsw_vector                                67 ms
+ok 8         - cast                                       23 ms
+ok 9         - hnsw_bit                                   33 ms
+ok 10        - sparsevec                                  16 ms
+ok 11        - copy                                       37 ms
+ok 12        - ivfflat_halfvec                           119 ms
+ok 13        - hnsw_sparsevec                             49 ms
+ok 14        - btree                                      28 ms
+1..14
+# All 14 tests passed.
+installcheck exit=0

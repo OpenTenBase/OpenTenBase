@@ -93,7 +93,24 @@ as $$
 $$;
 
 comment on function vecdiag.estimate_relpages(bigint, int) is
-  '仅在拿不到 pg_class.relpages 时使用；调用方必须把 pages_estimated 标为 true。';
+  '仅在拿不到 pg_class.relpages 时使用；调用方必须把 pages_estimated 标为 true。'
+  '⚠️ dims 大到让 vector 超过 TOAST 阈值（约 2000 字节，即 dims ≳ 498）时，值会被压缩或移到 '
+  'TOAST 表，主元组变小、relpages 远小于本函数的估算，numSamples 上限随之算错。'
+  '实测 100 行 × 960 维那组，用估算值会把预测从 17 MB 抬到 58 MB。高维场景必须先 ANALYZE 用真实 relpages。';
+
+-- 高维时提醒调用方：estimate_relpages 不可信
+create or replace function vecdiag.toast_risk(p_dims int)
+returns boolean
+language sql immutable strict
+set search_path = pg_catalog, pg_temp
+as $$
+  -- TOAST_TUPLE_THRESHOLD = MAXALIGN(BLCKSZ/4) 之下才留在主元组，
+  -- 超过就可能被压缩或外置，堆内元组大小与 itemsize 脱钩。
+  select vecdiag.vector_itemsize(p_dims) > (current_setting('block_size')::bigint / 4);
+$$;
+
+comment on function vecdiag.toast_risk(int) is
+  'true 表示该维度下 vector 可能被 TOAST，estimate_relpages 的结果不可用于预测，必须取真实 relpages。';
 
 -- ---------------------------------------------------------------------------
 -- 分项 breakdown

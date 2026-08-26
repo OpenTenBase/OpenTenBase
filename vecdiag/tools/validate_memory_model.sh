@@ -37,7 +37,7 @@ else
   echo "[WARN] 连不上数据库（$PGHOME/bin/psql -p $PGPORT），本轮所有用例只能是 auto" >&2
 fi
 
-printf 'case_id\tclass\trows\tdims\tlists\ttarget\tmode\tfirst_hit\tpredicted_mb\tactual_mb\tmwm_kb\tverdict\tstderr_file\n' > "$RESULT"
+printf 'case_id\tclass\trows\tdims\tlists\ttarget\tmode\tfirst_hit\tpredicted_mb\tactual_mb\tmwm_kb\trelpages\tverdict\tstderr_file\n' > "$RESULT"
 
 # ---------------------------------------------------------------------------
 # 唯一的判定出口。auto/blocked 不产生 PASS，这是代码级保证而不是自觉。
@@ -88,7 +88,7 @@ while IFS=$'\t' read -r -u 3 case_id class rows dims lists target unlogged; do
   for v in "$rows" "$dims" "$lists"; do
     if ! is_uint "$v"; then
       echo "[SKIP] $case_id 参数非法（$v），拒绝执行" >&2
-      printf '%s\t%s\t%s\t%s\t%s\t%s\tblocked\t\t\t\t\tBLOCKED\t\n' \
+      printf '%s\t%s\t%s\t%s\t%s\t%s\tblocked\t\t\t\t\t\tBLOCKED\t\n' \
         "$case_id" "$class" "$rows" "$dims" "$lists" "$target" >> "$RESULT"
       n_blocked=$((n_blocked + 1)); continue 2
     fi
@@ -99,14 +99,14 @@ while IFS=$'\t' read -r -u 3 case_id class rows dims lists target unlogged; do
   ERRF="$OUTDIR/stderr/${case_id}.err"
 
   if [ "$DB_UP" = "0" ]; then
-    printf '%s\t%s\t%s\t%s\t%s\t%s\tauto\t\t\t\t\t%s\t\n' \
+    printf '%s\t%s\t%s\t%s\t%s\t%s\tauto\t\t\t\t\t\t%s\t\n' \
       "$case_id" "$class" "$rows" "$dims" "$lists" "$target" "$(verdict auto '' '')" >> "$RESULT"
     n_auto=$((n_auto + 1)); continue
   fi
 
   if ! prepare_table "$rows" "$dims" "$unlogged" "$TBL"; then
     echo "[BLOCKED] $case_id 建表或 ANALYZE 失败" >&2
-    printf '%s\t%s\t%s\t%s\t%s\t%s\tblocked\t\t\t\t\tBLOCKED\t\n' \
+    printf '%s\t%s\t%s\t%s\t%s\t%s\tblocked\t\t\t\t\t\tBLOCKED\t\n' \
       "$case_id" "$class" "$rows" "$dims" "$lists" "$target" >> "$RESULT"
     n_blocked=$((n_blocked + 1)); continue
   fi
@@ -124,7 +124,7 @@ while IFS=$'\t' read -r -u 3 case_id class rows dims lists target unlogged; do
 
   if ! is_uint "${mwm_kb:-}"; then
     echo "[BLOCKED] $case_id 模型未能给出 mwm 取值（target=$target）" >&2
-    printf '%s\t%s\t%s\t%s\t%s\t%s\tblocked\t\t\t\t\tBLOCKED\t\n' \
+    printf '%s\t%s\t%s\t%s\t%s\t%s\tblocked\t\t\t\t\t\tBLOCKED\t\n' \
       "$case_id" "$class" "$rows" "$dims" "$lists" "$target" >> "$RESULT"
     n_blocked=$((n_blocked + 1))
     $PSQL -c "drop table if exists $TBL;" >/dev/null 2>&1
@@ -135,6 +135,8 @@ while IFS=$'\t' read -r -u 3 case_id class rows dims lists target unlogged; do
   read -r first_hit predicted_mb < <($PSQL -Atc \
     "select first_hit||' '||coalesce(predicted_mb::text,'none')
        from vecdiag.ivfflat_predict_table('$TBL'::regclass, $lists, null, $mwm_kb, $rows);" 2>/dev/null)
+
+  relpages=$($PSQL -Atc "select relpages::bigint from pg_class where oid='$TBL'::regclass;" 2>/dev/null)
 
   # 真正建索引，捕获 stderr 原文（一字不改归档）
   $PSQL -c "set maintenance_work_mem='${mwm_kb}kB';
@@ -159,9 +161,9 @@ while IFS=$'\t' read -r -u 3 case_id class rows dims lists target unlogged; do
     *)         n_fail=$((n_fail + 1)) ;;
   esac
 
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
     "$case_id" "$class" "$rows" "$dims" "$lists" "$target" "$mode" \
-    "${first_hit:-}" "${predicted_mb:-}" "${actual_mb:-}" "$mwm_kb" "$v" \
+    "${first_hit:-}" "${predicted_mb:-}" "${actual_mb:-}" "$mwm_kb" "${relpages:-}" "$v" \
     "stderr/${case_id}.err" >> "$RESULT"
   printf '  [%-9s] %-14s target=%-4s first_hit=%-4s 预测=%-5s 实际=%-5s mwm=%s kB\n' \
     "$v" "$case_id" "$target" "${first_hit:-?}" "${predicted_mb:-?}" "${actual_mb:-?}" "$mwm_kb"

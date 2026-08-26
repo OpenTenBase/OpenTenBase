@@ -55,11 +55,26 @@ select * from vecdiag.ivfflat_predict_table('my_table'::regclass, 1000);
 
 只算完整总量（C3）的模型，在低 `maintenance_work_mem` 或大 `lists` 场景下会系统性对不上报错原文——实测同一张表只改内存参数，报错值会在 **1 / 22 / 34 MB** 之间切换。所以 `ivfflat_predict` 必须返回 `first_hit`。
 
-## 验证结果
+## 已完成的两个模块
 
-`results/m1-r2-20260826/`：20 组矩阵，**20/20 逐字命中，误差 0**（红线是 <5%）。覆盖 C1 三组、C2 四组、C3 十一组、以及两组"预测不报错且真的建成功"。每组的 stderr 原文与 SHA256 都在 `results/` 下。
+**M1 · IVFFlat 构建内存预测**（`sql/00_schema.sql`、`sql/10_ivfflat_memory_model.sql`）
+20 组验证矩阵 **20/20 逐字命中、误差 0**（红线 <5%），覆盖 C1 三组、C2 四组、C3 十一组、
+以及两组"预测不报错且真的建成功"。新旧模型对照见 `docs/figs/M1-model-compare.svg`：
+旧模型（0.8.0 口径）最大偏 **306 倍**。推导与三个被验证矩阵抓出的模型缺陷记在
+`docs/M1-ivfflat-memory-model.md`。
 
-`docs/M1-ivfflat-memory-model.md` 记录了模型推导、ABI 常数实测方法，以及验证矩阵抓出来的三个真实缺陷。
+**M2 · HNSW 落盘降级预警**（`sql/30_hnsw_model.sql`）
+把降级 NOTICE 当观测量反解每元素图内存，**不需要重编 `-DHNSW_MEMORY` 的 `.so`**。
+11 组实测降级点 **全部落在预测区间内**，点预测平均绝对误差 **1.20%**；
+外样本（dims=256、m=24 均未参与标定）误差 ≤0.18%。
+按模型给的内存下限重建后 NOTICE 消失，且降到建议值一半时 NOTICE 重新出现。
+详见 `docs/M2-hnsw-spill-model.md`。
+
+**上游测试基线**（`results/t04-20260826/`）：`make installcheck` 14/14 通过；
+`make prove_installcheck` 48 个文件、1250 个测例全部通过。
+
+**上游能力清单**（`results/t05-20260826/`）：pgvector 0.8.6 共注册 7 个 GUC，
+**全部是查询/扫描侧，构建侧一个都没有**——这是本项目的立项依据，也是边界声明的一手证据。
 
 ## 边界声明（不要越界宣传）
 

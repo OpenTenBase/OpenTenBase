@@ -1,0 +1,54 @@
+rm -rf /data/pg18/src/pgvector/tmp_check
+cd ./ && TESTDIR='/data/pg18/src/pgvector' PATH="/data/pg18/install/bin:$PATH" PGPORT='65432' PG_REGRESS='/data/pg18/install/lib/postgresql/pgxs/src/makefiles/../../src/test/regress/pg_regress' /bin/prove -I /data/pg18/install/lib/postgresql/pgxs/src/makefiles/../../src/test/perl/ -I ./  -I ./test/perl test/t/*.pl
+test/t/001_ivfflat_wal.pl .................... ok
+test/t/002_ivfflat_vacuum.pl ................. ok
+test/t/003_ivfflat_vector_build_recall.pl .... ok
+test/t/004_ivfflat_vector_insert_recall.pl ... ok
+test/t/005_ivfflat_query_recall.pl ........... ok
+test/t/006_ivfflat_lists.pl .................. ok
+test/t/007_ivfflat_inserts.pl ................ ok
+test/t/008_ivfflat_centers.pl ................ ok
+test/t/009_ivfflat_filtering.pl .............. ok
+test/t/010_hnsw_wal.pl ....................... ok
+test/t/011_hnsw_vacuum.pl .................... ok
+test/t/012_hnsw_vector_build_recall.pl ....... ok
+test/t/013_hnsw_vector_insert_recall.pl ...... ok
+test/t/014_hnsw_vector_vacuum_recall.pl ...... ok
+test/t/015_hnsw_vector_duplicates.pl ......... ok
+test/t/016_hnsw_inserts.pl ................... ok
+test/t/017_hnsw_filtering.pl ................. ok
+test/t/018_aggregates.pl ..................... ok
+test/t/019_storage.pl ........................ ok
+test/t/020_hnsw_bit_build_recall.pl .......... ok
+test/t/021_hnsw_bit_insert_recall.pl ......... ok
+test/t/022_hnsw_bit_vacuum_recall.pl ......... ok
+test/t/023_hnsw_bit_duplicates.pl ............ ok
+test/t/024_hnsw_halfvec_build_recall.pl ...... ok
+test/t/025_hnsw_halfvec_insert_recall.pl ..... ok
+test/t/026_hnsw_halfvec_vacuum_recall.pl ..... ok
+test/t/027_hnsw_halfvec_duplicates.pl ........ ok
+test/t/028_hnsw_sparsevec_build_recall.pl .... ok
+test/t/029_hnsw_sparsevec_insert_recall.pl ... ok
+test/t/030_hnsw_sparsevec_vacuum_recall.pl ... ok
+test/t/031_hnsw_sparsevec_duplicates.pl ...... ok
+test/t/032_ivfflat_halfvec_build_recall.pl ... ok
+test/t/033_comparison.pl ..................... ok
+test/t/034_distance_functions.pl ............. ok
+test/t/035_ivfflat_bit_build_recall.pl ....... ok
+test/t/036_ivfflat_bit_centers.pl ............ ok
+test/t/037_inputs.pl ......................... ok
+test/t/038_hnsw_sparsevec_vacuum_insert.pl ... ok
+test/t/039_hnsw_cost.pl ...................... ok
+test/t/040_ivfflat_cost.pl ................... ok
+test/t/041_ivfflat_iterative_scan.pl ......... ok
+test/t/042_ivfflat_iterative_scan_recall.pl .. ok
+test/t/043_hnsw_iterative_scan.pl ............ ok
+test/t/044_hnsw_iterative_scan_recall.pl ..... ok
+test/t/045_hnsw_low_memory_build.pl .......... ok
+test/t/046_hnsw_vacuum_scan.pl ............... ok
+test/t/047_hnsw_vacuum_insert.pl ............. ok
+test/t/048_ivfflat_vacuum_insert.pl .......... ok
+All tests successful.
+Files=48, Tests=1250, 405 wallclock secs ( 0.34 usr  0.07 sys + 43.35 cusr 30.79 csys = 74.55 CPU)
+Result: PASS
+prove exit=0
