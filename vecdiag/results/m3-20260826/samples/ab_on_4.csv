@@ -1,0 +1,15 @@
+# sampler_start_epoch_ms=1787733021558
+elapsed_ms,pid,phase,blocks_total,blocks_done,tuples_total,tuples_done,relid,index_relid
+1,6340,building index: performing k-means,0,0,0,0,68396,0
+61,6340,building index: performing k-means,0,0,0,0,68396,0
+123,6340,building index: performing k-means,0,0,0,0,68396,0
+185,6340,building index: performing k-means,0,0,0,0,68396,0
+247,6340,building index: performing k-means,0,0,0,0,68396,0
+307,6340,building index: assigning tuples,4286,22,0,0,68396,0
+369,6340,building index: assigning tuples,4286,808,0,0,68396,0
+432,6340,building index: assigning tuples,4286,1597,0,0,68396,0
+494,6340,building index: assigning tuples,4286,2372,0,0,68396,0
+554,6340,building index: assigning tuples,4286,3139,0,0,68396,0
+613,6340,building index: assigning tuples,4286,3916,0,0,68396,0
+674,6340,building index: loading tuples,4286,4286,60000,5353,68396,0
+735,6340,building index: loading tuples,4286,4286,60000,48630,68396,0

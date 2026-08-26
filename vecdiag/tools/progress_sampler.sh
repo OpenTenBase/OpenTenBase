@@ -26,6 +26,8 @@ start)
   # 时间轴对齐：首行记录采样起点，后续 elapsed_ms 都相对它
   echo "# sampler_start_epoch_ms=$(($(date +%s%3N)))" > "$out"
   echo "elapsed_ms,pid,phase,blocks_total,blocks_done,tuples_total,tuples_done,relid,index_relid" >> "$out"
+  # 后台采样循环必须把 stdout/stderr 从继承的管道上摘掉。
+  # 否则调用方用 sp=$(... start ...) 取 pid 时，命令替换会一直等这个管道关闭 —— 直接挂死。
   (
     t0=$(date +%s%3N)
     while :; do
@@ -39,7 +41,7 @@ start)
       # sleep 支持小数；间隔用毫秒表达便于换算
       sleep "$(awk -v m="$interval_ms" 'BEGIN{printf "%.3f", m/1000}')"
     done
-  ) &
+  ) >/dev/null 2>&1 &
   echo $!
   ;;
 stop)

@@ -35,7 +35,7 @@ mk() {
 build_once() {
   local tbl=$1 am=$2 param=$3 csv=$4
   local sp=""
-  [ -n "$csv" ] && sp=$(bash "$SAMPLER" start "$csv" 200)
+  [ -n "$csv" ] && sp=$(bash "$SAMPLER" start "$csv" "${INTERVAL_MS:-50}")
   local t0 t1
   t0=$(date +%s%3N)
   $PSQL -c "set maintenance_work_mem='256MB';
@@ -57,29 +57,38 @@ run_config() {
     [ "$sampled" = "yes" ] && csv="$OUT/samples/${cfg}_${i}.csv"
     local ms
     ms=$(build_once "$tbl" "$am" "$param" "$csv")
-    echo "$cfg,$am,$rows,$dims,$param,$sampled,$i,$ms" >> "$RAW"
+    # param 里可能有逗号，写 CSV 前换成分号，否则列会串位
+    echo "$cfg,$am,$rows,$dims,${param//,/;},$sampled,$i,$ms" >> "$RAW"
     printf '    第 %s 次：%s ms\n' "$i" "$ms"
   done
 }
 
 echo "重复次数 = $REPEATS（另有 1 次 warm-up 不计入）"
 
-mk m3_s 3000  128
-mk m3_m 12000 128
-mk m3_l 20000 256
+mk m3_s 20000 128
+mk m3_m 60000 128
+mk m3_l 60000 256
 
 # IVFFlat 三档规模，带采样
-run_config ivf_S m3_s ivfflat 3000  128 "lists=100" yes
-run_config ivf_M m3_m ivfflat 12000 128 "lists=200" yes
-run_config ivf_L m3_l ivfflat 20000 256 "lists=200" yes
+run_config ivf_S m3_s ivfflat 20000 128 "lists=100" yes
+run_config ivf_M m3_m ivfflat 60000 128 "lists=300" yes
+run_config ivf_L m3_l ivfflat 60000 256 "lists=300" yes
 # HNSW 一档（含降级场景另见 M2）
-run_config hnsw_M m3_m hnsw 12000 128 "m=16, ef_construction=64" yes
-# 采样开销对照：同配置不采样
-run_config ivf_M_nosample m3_m ivfflat 12000 128 "lists=200" no
+run_config hnsw_M m3_m hnsw 60000 128 "m=16, ef_construction=64" yes
+# 采样开销对照：**交替**跑，抵消时间漂移
+echo ">>> 采样开销对照（ivf_M，采样/不采样交替各 4 次）"
+build_once m3_m ivfflat "lists=300" "" >/dev/null      # warm-up
+for i in 1 2 3 4; do
+  a=$(build_once m3_m ivfflat "lists=300" "$OUT/samples/ab_on_${i}.csv")
+  b=$(build_once m3_m ivfflat "lists=300" "")
+  echo "ab_on,ivfflat,60000,128,lists=300,yes,$i,$a" >> "$RAW"
+  echo "ab_off,ivfflat,60000,128,lists=300,no,$i,$b" >> "$RAW"
+  printf '    第 %s 轮：有采样 %s ms / 无采样 %s ms\n' "$i" "$a" "$b"
+done
 
 echo
 echo ">>> 统计（min / median / max，单位 ms）"
-awk -F, 'NR>1 {a[$1]=a[$1]" "$8} END {for (c in a) print c, a[c]}' "$RAW" |
+awk -F, 'NR>1 {a[$1]=a[$1]" "$NF} END {for (c in a) print c, a[c]}' "$RAW" |
 while read -r cfg rest; do
   echo "$rest" | tr ' ' '\n' | grep -E '^[0-9]+$' | sort -n > /tmp/_m3v
   n=$(wc -l < /tmp/_m3v)
@@ -91,10 +100,10 @@ done
 sed -i '1i config,n,min_ms,median_ms,max_ms' "$OUT/build_time_stats.csv" 2>/dev/null || true
 
 echo
-echo ">>> 采样开销（ivf_M 有采样 vs 无采样的中位数之差）"
+echo ">>> 采样开销（交替组 ab_on vs ab_off 的中位数之差）"
 awk -F, 'NR>1 && $1=="ivf_M" {s[NR]=$8} END{}' "$RAW" >/dev/null
 med() { grep "^$1," "$OUT/build_time_stats.csv" | cut -d, -f4; }
-a=$(med ivf_M); b=$(med ivf_M_nosample)
+a=$(med ab_on); b=$(med ab_off)
 if [ -n "$a" ] && [ -n "$b" ] && [ "$b" -gt 0 ]; then
   awk -v a="$a" -v b="$b" 'BEGIN{printf "  有采样 %s ms / 无采样 %s ms → 开销 %+.2f%%\n", a, b, (a-b)/b*100}'
 fi

@@ -33,7 +33,8 @@ vecdiag/
 │   ├── 00_schema.sql              schema、ABI 常数（带来源标注）、内存参数解析
 │   ├── 10_ivfflat_memory_model.sql  M1：分项 breakdown + 三检查点 first_hit
 │   ├── 20_legacy_model.sql        旧模型（0.8.0 口径）对照实现
-│   └── 30_hnsw_model.sql          M2：图内存标定系数 + 降级点预测与区间
+│   ├── 30_hnsw_model.sql          M2：图内存标定系数 + 降级点预测与区间
+│   └── 40_progress_model.sql      M3：阶段权重、加权进度曲线、ETA
 ├── tools/             环境搭建、ABI 实测、验证 harness、绘图（纯标准库）
 ├── tests/             验证矩阵、回归断言、上游能力清单
 ├── results/           每轮实测产物：原始 stderr + CSV + SHA256SUMS + env.txt
@@ -52,7 +53,7 @@ vecdiag/
 | M1 IVFFlat 构建内存预测 | 完成 | 20 组矩阵**逐字命中、误差 0**；旧模型对照偏 1.00×–**306×** |
 | M2 HNSW 落盘降级预警 | 核心完成 | 11 组实测降级点**全部落在预测区间内**，点预测平均误差 **1.20%** |
 | 上游测试基线 | 完成 | `installcheck` 14/14；`prove_installcheck` 48 文件 **1250 测例全过** |
-| M3 阶段耗时与进度 | 进行中 | — |
+| M3 阶段耗时与加权进度 | 完成 | 377 采样点**单调性断言通过**；采样开销 **+0.99%**；构建耗时按 K5 报 min/median/max |
 | M4 诊断整合 / 项目报告 | 未开始 | — |
 
 ## 三条不越界的声明

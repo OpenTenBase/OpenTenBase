@@ -70,6 +70,12 @@ select * from vecdiag.ivfflat_predict_table('my_table'::regclass, 1000);
 按模型给的内存下限重建后 NOTICE 消失，且降到建议值一半时 NOTICE 重新出现。
 详见 `docs/M2-hnsw-spill-model.md`。
 
+**M3 · 阶段耗时与加权进度**（`sql/40_progress_model.sql`）
+50 ms 采样进度视图，阶段权重来自实测（IVFFlat 三阶段 0.46 / 0.41 / 0.13，极差 0.29 一并报告）。
+加权进度的单调性由窗口函数结构保证，377 个采样点断言通过。采样开销 **+0.99%**
+（第一次非交替测量得出 −25% 的错误结果，已改为交替测量并把教训写进文档）。
+构建耗时按门禁 K5 重复 3 次报 min/median/max。详见 `docs/M3-progress-and-stage-timing.md`。
+
 **上游测试基线**（`results/t04-20260826/`）：`make installcheck` 14/14 通过；
 `make prove_installcheck` 48 个文件、1250 个测例全部通过。
 
