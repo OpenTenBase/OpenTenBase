@@ -24,6 +24,25 @@ die()  { printf '\n[FAIL] %s\n' "$1" >&2; [ -n "${2:-}" ] && tail -20 "$2" >&2; 
 # 所以即使用 root 登录，实际跑实例的必须是非 root 用户。这里自动降权到 $RUNUSER，
 # 免得开发人员卡在这一步或者去搜"怎么让 PG 以 root 运行"（没有这种办法）。
 if [ "$(id -u)" -eq 0 ]; then
+  # 降权之前先把需要 root 的依赖装好——降权后就装不了了。
+  # 平台假设：CentOS 7 + yum + EPEL/SCL。Rocky/RHEL 8+ 用 gcc-toolset，未测。
+  step "以 root 检查并补齐编译依赖（CentOS 7）"
+  need_pkgs=()
+  [ -f /opt/rh/devtoolset-11/enable ] || need_pkgs+=(devtoolset-11-gcc devtoolset-11-gcc-c++ devtoolset-11-binutils)
+  # PG18 的 configure 要求 OpenSSL >= 1.1.1，CentOS 7 自带 1.0.2k 不满足
+  { [ -d /usr/include/openssl11 ] && [ -d /usr/lib64/openssl11 ]; } || need_pkgs+=(openssl11-devel)
+  for p in bison flex readline-devel zlib-devel libicu-devel perl-ExtUtils-Embed perl-IPC-Run; do
+    rpm -q "$p" >/dev/null 2>&1 || need_pkgs+=("$p")
+  done
+  if [ "${#need_pkgs[@]}" -gt 0 ]; then
+    echo "缺少：${need_pkgs[*]}"
+    rpm -q epel-release >/dev/null 2>&1 || yum -y install epel-release >/dev/null 2>&1 || true
+    yum -y install "${need_pkgs[@]}" || die "依赖安装失败：${need_pkgs[*]}（检查 yum 源与网络）"
+    echo "已安装：${need_pkgs[*]}"
+  else
+    echo "依赖齐全，无需安装"
+  fi
+
   getent passwd "$RUNUSER" >/dev/null 2>&1 || useradd -m -s /bin/bash "$RUNUSER"
   mkdir -p "$ROOT" "$LOGDIR" /data/datasets /data/artifacts
   chown -R "$RUNUSER:$RUNUSER" "$ROOT" /data/artifacts /data/datasets
@@ -38,7 +57,11 @@ mkdir -p "$SRC" "$PGHOME" "$LOGDIR" /data/datasets /data/artifacts
 echo "运行身份：$(id -un)（uid $(id -u)）"
 
 step "切换到 devtoolset-11（GCC 11）"
-[ -f /opt/rh/devtoolset-11/enable ] || die "缺少 devtoolset-11，请先 yum install devtoolset-11-gcc devtoolset-11-gcc-c++"
+if [ ! -f /opt/rh/devtoolset-11/enable ]; then
+  die "缺少 devtoolset-11。以 root 重跑本脚本可自动安装；或手动执行：
+  yum -y install centos-release-scl && yum -y install devtoolset-11-gcc devtoolset-11-gcc-c++
+Rocky/RHEL 8+ 请改用 gcc-toolset-11（本项目未在该平台实测）"
+fi
 # shellcheck disable=SC1091
 source /opt/rh/devtoolset-11/enable
 gcc --version | head -1

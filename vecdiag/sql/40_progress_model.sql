@@ -16,18 +16,39 @@
 
 -- ---------------------------------------------------------------------------
 -- 阶段权重表（由 tools/load_stage_weights.sh 从实测采样序列写入）
+--
+-- size_class：'pooled' 是把各规模汇总的权重（极差大，只能当量级参考）；
+-- 'S'/'M'/'L' 是分档权重。dataset：'synthetic' 或 'sift1m'——
+-- 构建耗时与数据分布有关，所以真实数据与合成数据的权重**并列保存，不互相覆盖**。
 -- ---------------------------------------------------------------------------
 create table if not exists vecdiag.stage_weight (
     am          text    not null,
     phase       text    not null,
+    size_class  text    not null default 'pooled',
+    dataset     text    not null default 'synthetic',
     weight      numeric not null check (weight >= 0),
     n_samples   int     not null,
     dispersion  numeric,                       -- 各次重复之间该阶段占比的极差
     source      text    not null default 'measured',
     run_id      text,
     measured_at timestamptz not null default now(),
-    primary key (am, phase)
+    primary key (am, phase, size_class, dataset)
 );
+
+-- 早期版本的主键只有 (am, phase)，升级时补列并换主键
+do $$
+begin
+    if not exists (select 1 from pg_attribute
+                   where attrelid = 'vecdiag.stage_weight'::regclass
+                     and attname = 'size_class' and not attisdropped) then
+        alter table vecdiag.stage_weight add column size_class text not null default 'pooled';
+        alter table vecdiag.stage_weight add column dataset text not null default 'synthetic';
+        alter table vecdiag.stage_weight drop constraint stage_weight_pkey;
+        alter table vecdiag.stage_weight
+          add primary key (am, phase, size_class, dataset);
+    end if;
+end;
+$$;
 
 comment on table vecdiag.stage_weight is
   '阶段权重 = 该阶段耗时占总构建耗时的比例，来自实测。dispersion 是重复之间的极差，'
@@ -83,7 +104,14 @@ $$;
 -- 单调性用窗口函数 max(...) over (rows unbounded preceding) 强制，
 -- 因此"单调"是结构保证的，不靠事后修数据。
 -- ---------------------------------------------------------------------------
-create or replace function vecdiag.progress_curve(p_run_id text, p_am text)
+-- 旧的两参数版本必须先删：参数个数不同会形成重载，调用时报 "is not unique"
+drop function if exists vecdiag.progress_curve(text, text);
+
+create or replace function vecdiag.progress_curve(
+    p_run_id     text,
+    p_am         text,
+    p_size_class text default 'pooled',
+    p_dataset    text default 'synthetic')
 returns table (
     elapsed_ms   bigint,
     phase        text,
@@ -108,7 +136,8 @@ as $$
     select phase, weight,
            sum(weight) over (order by weight desc, phase
                              rows between unbounded preceding and 1 preceding) as prior_w
-    from vecdiag.stage_weight where am = p_am
+    from vecdiag.stage_weight
+    where am = p_am and size_class = p_size_class and dataset = p_dataset
   ),
   j as (
     select s.elapsed_ms, s.phase, s.intra,
@@ -135,7 +164,7 @@ as $$
   from m;
 $$;
 
-comment on function vecdiag.progress_curve(text, text) is
+comment on function vecdiag.progress_curve(text, text, text, text) is
   'intra_source=time-interpolated 的行说明该阶段的阶段内进度是插值，不是视图计数——'
   '报告里必须写清哪些阶段属于这一类。';
 

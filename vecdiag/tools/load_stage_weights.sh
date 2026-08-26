@@ -11,14 +11,20 @@ set -uo pipefail
 PGHOME=${PGHOME:-/data/pg18/install}
 PGPORT=${PGPORT:-5518}
 PGDB=${PGDB:-postgres}
-SAMPLES=${1:?用法: load_stage_weights.sh <采样目录> <run_id>}
+SAMPLES=${1:?用法: load_stage_weights.sh <采样目录> <run_id> [size_class] [dataset] [文件名过滤]}
 RUN_ID=${2:?缺 run_id}
+SIZE_CLASS=${3:-pooled}
+DATASET=${4:-synthetic}
+FILTER=${5:-}            # 只统计文件名含该子串的采样序列，用于按 S/M/L 分档
 PSQL="$PGHOME/bin/psql -p $PGPORT -d $PGDB -X -q"
 
 # 1) 把每个采样 CSV 灌进 vecdiag.progress_sample（run_id 用文件名，便于逐次复算）
 $PSQL -c "delete from vecdiag.progress_sample where run_id like '${RUN_ID}%';" >/dev/null
+echo "载入范围：size_class=$SIZE_CLASS dataset=$DATASET 文件过滤='${FILTER:-全部}'" 
 for f in "$SAMPLES"/*.csv; do
   base=$(basename "$f" .csv)
+  # 分档统计时只灌入匹配的文件；不匹配的跳过，避免把别档的点混进来
+  if [ -n "$FILTER" ] && [[ "$base" != *"$FILTER"* ]]; then continue; fi
   # 跳过注释行与表头；空 phase 的行不要
   awk -F, 'NR>2 && NF>=9 && $3 != "" {print}' "$f" > /tmp/_ps.csv
   [ -s /tmp/_ps.csv ] || continue
@@ -57,20 +63,23 @@ agg as (
 norm as (
   select am, phase, w / sum(w) over (partition by am) as w, n, disp from agg
 )
-insert into vecdiag.stage_weight (am, phase, weight, n_samples, dispersion, source, run_id)
-select am, phase, round(w, 4), n, round(disp, 4), 'measured', '${RUN_ID}'
+insert into vecdiag.stage_weight
+  (am, phase, size_class, dataset, weight, n_samples, dispersion, source, run_id)
+select am, phase, '${SIZE_CLASS}', '${DATASET}', round(w, 4), n, round(disp, 4),
+       'measured', '${RUN_ID}'
 from norm
-on conflict (am, phase) do update
+on conflict (am, phase, size_class, dataset) do update
   set weight = excluded.weight, n_samples = excluded.n_samples,
       dispersion = excluded.dispersion, run_id = excluded.run_id,
       measured_at = now();
 
 \echo '== 阶段权重（实测）=='
-select am, phase, weight, n_samples as 重复次数, dispersion as 极差
-from vecdiag.stage_weight order by am, weight desc;
+select am, size_class, dataset, phase, weight, n_samples as 重复次数, dispersion as 极差
+from vecdiag.stage_weight order by dataset, size_class, am, weight desc;
 
 \echo '== 每个访问方法的权重之和（应为 1）=='
-select am, sum(weight) as total from vecdiag.stage_weight group by am;
+select am, size_class, dataset, round(sum(weight),4) as total
+from vecdiag.stage_weight group by am, size_class, dataset order by dataset, size_class, am;
 
 \echo '== 逐次重复的阶段占比（用于核对上面的极差，可独立复算）=='
 select run_id, phase, round(count(*)::numeric / sum(count(*)) over (partition by run_id), 4) as share

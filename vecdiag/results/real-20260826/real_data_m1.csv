@@ -1,0 +1,5 @@
+case_id,lists,target,mwm_kb,first_hit,predicted_mb,actual_mb,verdict
+R1,32768,C1,16639,C1,17,17,PASS
+R2,8192,C2,4160,C2,208,208,PASS
+R3,100,C3,7191,C3,10,10,PASS
+R4,1000,C3,126212,C3,222,222,PASS

@@ -23,12 +23,23 @@ PSQL="$PGHOME/bin/psql -p $PGPORT -d $PGDB -X -q -v ON_ERROR_STOP=0"
 RAW="$OUT/build_times.csv"
 echo "config,am,rows,dims,param,sampled,iter,elapsed_ms" > "$RAW"
 
+# DATASET=synthetic（默认）→ 随机向量；DATASET=sift → 从公开数据集 sift_base 取子集。
+# 构建耗时与数据分布有关，所以两种数据的权重要分别测、并列报告，不互相覆盖。
+DATASET=${DATASET:-synthetic}
+SRC_TABLE=${SRC_TABLE:-sift_base}
+
 mk() {
   local tbl=$1 rows=$2 dims=$3
   $PSQL -Atc "select count(*) from pg_class where relname='$tbl';" | grep -q '^1$' && return 0
-  $PSQL -c "create table $tbl (id int, v vector($dims));" >/dev/null 2>&1
-  $PSQL -c "insert into $tbl select i, (select array_agg(random())::vector($dims)
-              from generate_series(1,$dims)) from generate_series(1,$rows) i;" >/dev/null 2>&1
+  if [ "$DATASET" = "sift" ]; then
+    [ "$dims" = "128" ] || { echo "[FAIL] SIFT1M 只有 128 维，配置要求 $dims 维" >&2; return 1; }
+    $PSQL -c "create table $tbl as
+                select id, v from $SRC_TABLE order by id limit $rows;" >/dev/null 2>&1 || return 1
+  else
+    $PSQL -c "create table $tbl (id int, v vector($dims));" >/dev/null 2>&1 || return 1
+    $PSQL -c "insert into $tbl select i, (select array_agg(random())::vector($dims)
+                from generate_series(1,$dims)) from generate_series(1,$rows) i;" >/dev/null 2>&1 || return 1
+  fi
   $PSQL -c "analyze $tbl;" >/dev/null 2>&1
 }
 
@@ -65,16 +76,29 @@ run_config() {
 
 echo "重复次数 = $REPEATS（另有 1 次 warm-up 不计入）"
 
-mk m3_s 20000 128
-mk m3_m 60000 128
-mk m3_l 60000 256
+if [ "$DATASET" = "sift" ]; then
+  # 公开数据集只有 128 维，用行数分档：S 10 万 / M 30 万 / L 100 万
+  mk m3_s 100000  128 || exit 1
+  mk m3_m 300000  128 || exit 1
+  mk m3_l 1000000 128 || exit 1
+else
+  mk m3_s 20000 128
+  mk m3_m 60000 128
+  mk m3_l 60000 256
+fi
 
 # IVFFlat 三档规模，带采样
-run_config ivf_S m3_s ivfflat 20000 128 "lists=100" yes
-run_config ivf_M m3_m ivfflat 60000 128 "lists=300" yes
-run_config ivf_L m3_l ivfflat 60000 256 "lists=300" yes
+if [ "$DATASET" = "sift" ]; then
+  run_config ivf_S m3_s ivfflat 100000  128 "lists=100" yes
+  run_config ivf_M m3_m ivfflat 300000  128 "lists=150" yes
+  run_config ivf_L m3_l ivfflat 1000000 128 "lists=200" yes
+else
+  run_config ivf_S m3_s ivfflat 20000 128 "lists=100" yes
+  run_config ivf_M m3_m ivfflat 60000 128 "lists=300" yes
+  run_config ivf_L m3_l ivfflat 60000 256 "lists=300" yes
+fi
 # HNSW 一档（含降级场景另见 M2）
-run_config hnsw_M m3_m hnsw 60000 128 "m=16, ef_construction=64" yes
+run_config hnsw_M m3_s hnsw 60000 128 "m=16, ef_construction=64" yes
 # 采样开销对照：**交替**跑，抵消时间漂移
 echo ">>> 采样开销对照（ivf_M，采样/不采样交替各 4 次）"
 build_once m3_m ivfflat "lists=300" "" >/dev/null      # warm-up

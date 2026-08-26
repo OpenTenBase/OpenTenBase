@@ -1,0 +1,2 @@
+NOTICE:  index "sift_base_ivf_probe" does not exist, skipping
+ERROR:  memory required is 17 MB, maintenance_work_mem is 16 MB
