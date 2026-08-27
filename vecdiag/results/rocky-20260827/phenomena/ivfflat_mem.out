@@ -1,0 +1,18 @@
+Timing is on.
+DROP TABLE
+Time: 0.789 ms
+CREATE TABLE
+Time: 6.337 ms
+INSERT 0 2000
+Time: 17.684 ms
+ANALYZE
+Time: 7.996 ms
+SET
+Time: 0.173 ms
+ maintenance_work_mem 
+----------------------
+ 1MB
+(1 row)
+
+Time: 1.245 ms
+Time: 2.955 ms

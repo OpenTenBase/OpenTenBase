@@ -1,0 +1,25 @@
+mkdir: 无法创建目录 “/data/artifacts/repro-20260827-125434/phenomena”: Permission denied
+run_id=repro-20260827-125434  输出目录=/data/artifacts/repro-20260827-125434/phenomena
+>>> 现象一：IVFFlat 构建内存不足（预期 ERROR: memory required is N MB）
+/data/opentenbase/OpenTenBase-p2-vecdiag/vecdiag/tools/verify_phenomena.sh:行25: /data/artifacts/repro-20260827-125434/phenomena/ivfflat_mem.out: No such file or directory
+grep: /data/artifacts/repro-20260827-125434/phenomena/ivfflat_mem.err: No such file or directory
+  [WARN] 未捕获到该报错。可能 lists 太小或内存参数未生效，检查 /data/artifacts/repro-20260827-125434/phenomena/ivfflat_mem.err
+>>> 现象二：HNSW 图放不下 maintenance_work_mem 后落盘降级（预期 NOTICE）
+/data/opentenbase/OpenTenBase-p2-vecdiag/vecdiag/tools/verify_phenomena.sh:行45: /data/artifacts/repro-20260827-125434/phenomena/hnsw_spill.out: No such file or directory
+grep: /data/artifacts/repro-20260827-125434/phenomena/hnsw_spill.out: No such file or directory
+grep: /data/artifacts/repro-20260827-125434/phenomena/hnsw_spill.err: No such file or directory
+  [WARN] 未捕获到该 NOTICE。加大行数或维度、或调小 maintenance_work_mem 再试
+         注意 client_min_messages 与 log_min_messages 都要能放过 notice
+>>> 现象三：构建进度可观测（上游已有能力，用于划清边界）
+/data/opentenbase/OpenTenBase-p2-vecdiag/vecdiag/tools/verify_phenomena.sh:行69: /data/artifacts/repro-20260827-125434/phenomena/upstream_gucs.txt: No such file or directory
+  [WARN] GUC 清单为空。确认 LOAD 'vector' 是否成功，不要直接当成'上游没有 GUC'
+/data/opentenbase/OpenTenBase-p2-vecdiag/vecdiag/tools/verify_phenomena.sh:行78: /data/artifacts/repro-20260827-125434/phenomena/progress_view.txt: No such file or directory
+  进度视图定义 -> /data/artifacts/repro-20260827-125434/phenomena/progress_view.txt
+  注意：这两项是 PostgreSQL/pgvector 自带能力，报告中不得宣称原创。
+>>> 清理测试表
+>>> 归档哈希
+/data/opentenbase/OpenTenBase-p2-vecdiag/vecdiag/tools/verify_phenomena.sh: 第 86 行:cd: /data/artifacts/repro-20260827-125434/phenomena: No such file or directory
+cat: SHA256SUMS: No such file or directory
+
+完成。两个 [OK] 都出现则环境就绪。
+所有 stderr 原文已存档，写文档时原样引用，不要转述或翻译。

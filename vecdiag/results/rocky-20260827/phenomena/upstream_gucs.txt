@@ -1,0 +1,8 @@
+LOAD
+hnsw.ef_search = 40
+hnsw.iterative_scan = off
+hnsw.max_scan_tuples = 20000
+hnsw.scan_mem_multiplier = 1
+ivfflat.iterative_scan = off
+ivfflat.max_probes = 32768
+ivfflat.probes = 1

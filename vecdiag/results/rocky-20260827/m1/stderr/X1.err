@@ -1,0 +1,4 @@
+NOTICE:  ivfflat index created with little data
+DETAIL:  This will cause low recall.
+HINT:  Drop the index until the table has more data.
+ERROR:  memory required is 22 MB, maintenance_work_mem is 12 MB

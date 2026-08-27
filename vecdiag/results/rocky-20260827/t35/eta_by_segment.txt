@@ -1,0 +1,4 @@
+ seg | n | mad_pct | signed_bias_ms | pct_underestimate 
+-----+---+---------+----------------+-------------------
+(0 rows)
+

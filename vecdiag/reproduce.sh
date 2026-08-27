@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # vecdiag · 一键复现（从零到全部证据）
 #
-# 目的：审查者在一台干净的 **CentOS 7** 机器上只需要这一条命令，
+# 目的：审查者在一台干净的机器上只需要这一条命令，
 # 就能把仓库里所有结论重新跑一遍并生成自己的证据目录。
 #
-# 平台范围（不要扩大声明）：只在 CentOS 7 + devtoolset-11 上实测过。
-# Rocky/RHEL 8+ 用 gcc-toolset 而不是 devtoolset，bootstrap_env.sh 那条路**没测过**，
-# 需要自行调整工具链启用命令。
+# 平台范围（不要扩大声明）：**CentOS 7 + devtoolset-11** 与 **Rocky Linux 8.10 +
+# gcc-toolset-12** 两台机器上实测过（后者证据在 results/rocky-20260827/）。
+# 其他 RHEL 系发行版未测。
 #
 # 用法（root 执行即可，脚本自己降权到 postgres）：
 #   bash vecdiag/reproduce.sh                 # 全流程
@@ -32,7 +32,24 @@ mkdir -p "$OUT"
 
 if [ "$SKIP_BOOTSTRAP" = "0" ]; then
   step "1/13 搭建 PostgreSQL 18.6 + pgvector 0.8.6（约 15-25 分钟）"
-  bash "$HERE/tools/bootstrap_env.sh" 2>&1 | tee "$OUT/bootstrap.log"
+  # 按发行版选引导脚本：Rocky 8 用实测过的 rocky 变体，其余走 CentOS 7 路线。
+  # 不认识的发行版**拒绝猜测**，明确报错让人来决定——两份脚本各自只在自己
+  # 实测过的平台上跑过（证据：results/bootstrap-logs-20260826 与 results/rocky-20260827）。
+  BS=""
+  if [ -r /etc/os-release ]; then
+    . /etc/os-release
+    case "$ID-$VERSION_ID" in
+      rocky-8*|rhel-8*) BS=bootstrap_env_rocky.sh ;;
+      centos-7*)        BS=bootstrap_env.sh ;;
+    esac
+  fi
+  if [ -n "$BS" ]; then
+    bash "$HERE/tools/$BS" 2>&1 | tee "$OUT/bootstrap.log"
+  else
+    echo "[FAIL] 未识别的平台（ID=$ID VERSION=$VERSION_ID）。已实测：CentOS 7、Rocky 8.10。" >&2
+    echo "       可参考 tools/bootstrap_env_rocky.sh 自行适配后重跑。" >&2
+    exit 2
+  fi
 else
   step "1/13 跳过环境搭建（--skip-bootstrap）"
 fi

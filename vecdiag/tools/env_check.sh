@@ -33,13 +33,17 @@ echo "vm.overcommit_memory: $(cat /proc/sys/vm/overcommit_memory 2>/dev/null)"
 
 line "编译器"
 echo "默认 gcc: $(gcc --version 2>/dev/null | head -1)"
-if [ -f /opt/rh/devtoolset-11/enable ]; then
-  # shellcheck disable=SC1091
-  source /opt/rh/devtoolset-11/enable
-  echo "devtoolset-11 gcc: $(gcc --version | head -1)"
-else
-  echo "devtoolset-11: 未找到 /opt/rh/devtoolset-11/enable"
-fi
+# CentOS 7 用 devtoolset-11，Rocky/RHEL 8+ 用 gcc-toolset-11/12（2026-08-27 实测）。
+# 哪个存在就 source 哪个并如实记录；都不存在就照实写缺，不装。
+for ts in devtoolset-11 gcc-toolset-12 gcc-toolset-11; do
+  if [ -f "/opt/rh/$ts/enable" ]; then
+    # shellcheck disable=SC1091
+    source "/opt/rh/$ts/enable"
+    echo "$ts gcc: $(gcc --version | head -1)"
+    break
+  fi
+done
+[ "${_DONE:-}" = "1" ] || command -v gcc >/dev/null 2>&1 || echo "编译器: 未找到（版本见上）"
 echo "make: $(make --version | head -1)"
 echo "git:  $(git --version)"
 echo "python3: $(python3 --version 2>&1)"

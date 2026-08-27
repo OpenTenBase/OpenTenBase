@@ -73,8 +73,10 @@
 | M5 的构建耗时与召回 | 实测 | 换行数/维度/数据集 → `tools/param_sweep.sh` |
 | 三检查点公式本身 | 源码结构 | 换 pgvector 版本时复核 `ivfbuild.c` / `ivfkmeans.c` 行号 |
 
-平台声明：只在 **CentOS 7 + devtoolset-11 + openssl11** 上实测过。
-Rocky/RHEL 8+ 用 `gcc-toolset` 而非 `devtoolset`，`bootstrap_env.sh` 那条路**没测过**。
+平台声明：在 **CentOS 7 + devtoolset-11 + openssl11** 与 **Rocky Linux 8.10 +
+gcc-toolset-12** 两台机器上实测过（后者见 `results/rocky-20260827/`：
+M1 20/20、M2 外样本 0.03%–0.12%、T4 18/18、TAP 19/19，帕累托结构与召回跨机器保持）。
+其他 RHEL 系发行版未测。
 
 ## 六、AI 使用说明
 

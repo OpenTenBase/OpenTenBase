@@ -1,0 +1,6 @@
+# sampler_start_epoch_ms=1787849863480
+elapsed_ms,pid,phase,blocks_total,blocks_done,tuples_total,tuples_done,relid,index_relid
+4,103559,building index: performing k-means,0,0,0,0,17310,0
+100,103559,building index: performing k-means,0,0,0,0,17310,0
+196,103559,building index: assigning tuples,1429,819,0,0,17310,0
+288,103559,building index: loading tuples,1429,1429,20000,3465,17310,0

@@ -1,0 +1,6 @@
+     seg      | n_intervals | avg_ms_per_tuple | median  
+--------------+-------------+------------------+---------
+ before_spill |         381 |          0.75405 | 0.76744
+ after_spill  |        1457 |          2.98306 | 3.00000
+(2 rows)
+
