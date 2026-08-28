@@ -1,0 +1,5 @@
+ will_spill | predicted_spill_tuples | estimated_graph_mb | recommended_mwm_mb | per_element_bytes | confidence 
+------------+------------------------+--------------------+--------------------+-------------------+------------
+ t          |                  51198 |              117.2 |                135 |           1228.84 | calibrated
+(1 row)
+

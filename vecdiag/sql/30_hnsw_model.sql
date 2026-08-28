@@ -65,6 +65,9 @@ create table if not exists vecdiag.hnsw_coef (
 insert into vecdiag.hnsw_coef (key, value, kind, source_ref, note) values
   ('bytes_per_dim', 4, 'structural', 'pgvector v0.8.6 vector 的 x[] 为 float',
    '实测 dims 128→384 每维增量 4.005 字节，与 sizeof(float) 相符'),
+  -- 初值为 CentOS 7 标定（2026-08-26）。换机器不要沿用：先跑
+  -- tools/hnsw_calib_sweep.sh + load_hnsw_calib.sh，再 select vecdiag.hnsw_refit(true)。
+  -- Rocky 8.10 重拟合参照值：31.69 / 209.8（results/rocky-20260827/m2fit/）。
   ('slot_coef', 31.89, 'fitted', 'hnswutils.c:218-227（邻居数组分配点）',
    'dims=128 上 m∈{8,16,32} 三点线性拟合；机制清楚但每槽字节数未做结构推导'),
   ('base_bytes', 206.4, 'fitted', 'hnswutils.c:245-267（HnswInitElement）',
@@ -211,3 +214,99 @@ comment on function vecdiag.hnsw_spill_range(bigint, int, int, bigint) is
 
 
 
+
+
+-- ---------------------------------------------------------------------------
+-- 系数重拟合（2026-08-27 新增）：换机器后用本机标定网格重新拟合 fitted 两项
+--
+-- 模型：per_element = base + slot_coef·m + 4·dims
+--   4·dims 是结构项（每维一个 float，实测每维增量 4.005B），**不参与拟合**；
+--   base 与 slot_coef 用普通最小二乘在 vecdiag.hnsw_calib 的密网格上拟合
+--   （tools/hnsw_calib_sweep.sh，18 组 + 重复性锚点，m=24 刻意留在网格外）。
+--
+-- p_apply=false（默认）只报告：n、新旧系数、拟合残差（每点偏差%）。
+-- p_apply=true 才写 hnsw_coef，且**残差超 5% 拒绝写入**——系数不是拿来迁就
+-- 坏数据的，测量有问题就先查测量。
+-- ---------------------------------------------------------------------------
+create or replace function vecdiag.hnsw_refit(p_apply boolean default false)
+returns table (
+    n_points        int,
+    dims_values     text,
+    m_values        text,
+    old_slot_coef   numeric,
+    old_base_bytes  numeric,
+    new_slot_coef   numeric,
+    new_base_bytes  numeric,
+    resid_mean_pct  numeric,
+    resid_max_pct   numeric,
+    applied         boolean,
+    note            text
+)
+language plpgsql volatile
+set search_path = pg_catalog, pg_temp
+as $fn$
+declare
+    v_n int; v_sy numeric; v_st numeric; v_yt numeric; v_tt numeric;
+    v_slot numeric; v_base numeric;
+    v_old_slot numeric; v_old_base numeric;
+    v_run text;
+begin
+    select count(*), sum(m), sum(per_element - 4*dims), sum((per_element - 4*dims)*m), sum(m*m)
+      into v_n, v_sy, v_yt, v_st, v_tt
+      from vecdiag.hnsw_calib;
+
+    if v_n < 6 then
+        return query select v_n, '数据不足（<6 点，先跑 tools/hnsw_calib_sweep.sh）', null, null, null,
+                      null, null, null, null, false, '需要至少覆盖两个 dims、多个 m 的网格';
+                      return;
+    end if;
+
+    select value into v_old_slot from vecdiag.hnsw_coef where key = 'slot_coef';
+    select value into v_old_base from vecdiag.hnsw_coef where key = 'base_bytes';
+
+    -- 两参数 OLS 闭式解：y = base + slot·m，其中 y = per_element − 4·dims
+    v_slot := (v_n * v_st - v_sy * v_yt) / (v_n * v_tt - v_sy * v_sy);
+    v_base := (v_yt - v_slot * v_sy) / v_n;
+
+    if p_apply and v_slot <= 0 then
+        return query select v_n, null, null, v_old_slot, v_old_base, v_slot, v_base,
+                      null, null, false, '拟合出的 slot_coef ≤ 0，物理上不可能——标定数据有问题，拒绝写入';
+        return;
+    end if;
+
+    if p_apply then
+        select max(run_id) into v_run from vecdiag.hnsw_calib;
+        if (select max(abs((per_element - (v_base + v_slot * m + 4 * dims))
+                           / per_element * 100)) from vecdiag.hnsw_calib) > 5 then
+            return query select v_n, null, null, v_old_slot, v_old_base, v_slot, v_base, null, null,
+                          false, '最大残差超 5%，拒绝写入——先查标定数据（哪台机器、哪个 run、是否串档）';
+            return;
+        end if;
+        update vecdiag.hnsw_coef set value = round(v_slot, 2), kind = 'fitted',
+               source_ref = '本机密网格 OLS 拟合（tools/hnsw_calib_sweep.sh）',
+               note = format('n=%s 点，run %s，残差见 vecdiag.hnsw_refit() 输出', v_n, v_run)
+         where key = 'slot_coef';
+        update vecdiag.hnsw_coef set value = round(v_base, 1), kind = 'fitted',
+               source_ref = '本机密网格 OLS 拟合（tools/hnsw_calib_sweep.sh）',
+               note = format('n=%s 点，run %s', v_n, v_run)
+         where key = 'base_bytes';
+    end if;
+
+    return query
+    with r as (
+      select (per_element - (v_base + v_slot * m + 4 * dims)) / per_element * 100 as pct
+        from vecdiag.hnsw_calib
+    )
+    select v_n,
+           (select string_agg(distinct dims::text, ',' order by dims::text) from vecdiag.hnsw_calib),
+           (select string_agg(distinct m::text, ',' order by m::text) from vecdiag.hnsw_calib),
+           v_old_slot, v_old_base, round(v_slot, 2), round(v_base, 1),
+           round(avg(abs(pct)), 3), round(max(abs(pct)), 3), p_apply,
+           case when p_apply then '已写入 hnsw_coef；旧值见本行 old_* 列（git 历史里也有）'
+                else '未写入（p_apply=false）。检查残差后用 p_apply=true 生效' end
+    from r;
+end;
+$fn$;
+
+comment on function vecdiag.hnsw_refit(boolean) is
+  '换机器重拟合 M2 的两个 fitted 系数。默认只报告；p_apply=true 且残差 ≤5% 才写 hnsw_coef。';

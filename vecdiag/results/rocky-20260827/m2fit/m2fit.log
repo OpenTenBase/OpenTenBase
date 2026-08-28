@@ -1,0 +1,27 @@
+>>> 密网格标定（18 组 + 2 个重复性锚点，mwm=16384kB 统一）
+  dims=128 m=4  main：第 19662 行降级，per_element=853.3 B
+  dims=128 m=8  main：第 17217 行降级，per_element=974.5 B
+  dims=128 m=12 main：第 15243 行降级，per_element=1100.7 B
+  dims=128 m=16 main：第 13679 行降级，per_element=1226.5 B
+  dims=128 m=20 main：第 12389 行降级，per_element=1354.2 B
+  dims=128 m=32 main：第 9654 行降级，per_element=1737.9 B
+  dims=256 m=4 main：[WARN] 未降级（图放得下）——检查 mwm/rows 配比
+  dims=256 m=8  main：第 11291 行降级，per_element=1485.9 B
+  dims=256 m=12 main：第 10407 行降级，per_element=1612.1 B
+  dims=256 m=16 main：第 9653 行降级，per_element=1738.0 B
+  dims=256 m=20 main：第 8979 行降级，per_element=1868.5 B
+  dims=256 m=32 main：第 7447 行降级，per_element=2252.9 B
+  dims=384 m=4  main：第 8920 行降级，per_element=1880.9 B
+  dims=384 m=8  main：第 8395 行降级，per_element=1998.5 B
+  dims=384 m=12 main：第 7896 行降级，per_element=2124.8 B
+  dims=384 m=16 main：第 7455 行降级，per_element=2250.5 B
+  dims=384 m=20 main：第 7051 行降级，per_element=2379.4 B
+  dims=384 m=32 main：第 6078 行降级，per_element=2760.3 B
+  dims=128 m=16 repeat：第 13671 行降级，per_element=1227.2 B
+  dims=384 m=16 repeat：第 7455 行降级，per_element=2250.5 B
+
+>>> 重复性（同配置两次的 per_element 差）
+  384_m16:  2250.5 2250.5
+  128_m16:  1226.5 1227.2
+>>> 标定数据 -> /data/artifacts/m2fit-rocky1/calib_sweep.csv
+>>> 下一步：bash tools/load_hnsw_calib.sh /data/artifacts/m2fit-rocky1/calib_sweep.csv && psql -c "select * from vecdiag.hnsw_refit(false)"

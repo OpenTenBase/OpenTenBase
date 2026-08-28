@@ -81,6 +81,16 @@ corpus-texmex 的 fvecs/ivecs 格式：
 下一台新机器复跑 `reproduce.sh` 时请留意步骤 3 是否复现该现象；现象本身的证据以
 `phenomena/` 为准。
 
+## M2 系数在本机重拟合（m2fit/）
+
+上表的外样本验证用的是 CentOS 7 拟合的系数（跨机器迁移性证明）。此外还在本机
+做了**独立重拟合**：19 点密网格（dims×m，m=24 留作网格外验证）OLS 拟合得
+`slot_coef=31.69`、`base_bytes=209.8`，残差均值 0.145% / 最大 0.554%——与 CentOS 7
+的 31.89/206.4 相差 −0.6% / +1.6%。写入后全量再验证：V 外样本 −0.17% / **0.00%**（m=24，
+网格外）/ −0.20%，100k 大件 0.12%，异常矩阵 18/18，TAP 19/19。一键重拟合链路：
+`hnsw_calib_sweep.sh → load_hnsw_calib.sh → vecdiag.hnsw_refit(true)`，
+`hnsw_refit` 残差超 5% 拒绝写入。记录见 `m2fit/refit.txt`。
+
 ## 目录
 
 ```
@@ -92,6 +102,7 @@ t27/        T2.7 参数扫描原始 CSV 与统计
 t35/        T3.5 降级对 ETA 的影响（预测/实测/分段速率）
 t44/        异常场景矩阵 18 用例 + 每例原始 stderr
 tap/        prove 输出与摘要
+m2fit/      M2 系数本机重拟合：标定网格、OLS 结果、拟合后再验证全记录
 perf/       perf_compare.sh 生成的统一对比表
 phenomena/  两个诊断对象 + GUC 清单（手动重跑，含哈希）
 env-snapshot/  manifest-basic（configure 参数、版本串）

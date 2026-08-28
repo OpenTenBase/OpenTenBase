@@ -1,0 +1,28 @@
+===== 1/4 hnsw_validate（V 外样本 + E 建议，用新系数）=====
+  [PASS] V1       out-of-sample          预测降级=3614     实测=3620     误差=-0.17    calibrated
+  [PASS] V2       out-of-sample          预测降级=5257     实测=5257     误差=0.00     calibrated
+  [PASS] V3       out-of-sample          预测降级=3413     实测=3420     误差=-0.20    calibrated
+  [PASS] E1       advice-works           预测降级=none     实测=none     误差=—      calibrated
+  [PASS] E2       advice-tight           预测降级=3839     实测=3418     误差=12.32    calibrated
+V1       out-of-sample  12000  256   16  6144    3614        3620          -0.17        calibrated  PASS
+V2       out-of-sample  12000  256   24  10240   5257        5257          0.00         calibrated  PASS
+V3       out-of-sample  6000   128   16  4096    3413        3420          -0.20        calibrated  PASS
+
+===== 2/4 大件外样本（100k×128 m=16 mwm=60MB，同 t35 口径）=====
+>>> 事前预测（M2）：mwm=60MB 下会不会降级、在第几行
+    实测降级行号：51258
+ before_spill |         360 |          0.72873 | 0.72581
+ after_spill  |        1259 |          2.66395 | 2.62857
+
+===== 3/4 异常矩阵（18 用例）=====
+  B1000hi 所需内存+0kB(lists=1000) buildable    → 实际 built          correct
+  B1000lo 所需内存-1kB(lists=1000) will_fail    → 实际 failed         correct
+  correct        18
+[OK] 没有 DANGEROUS 用例
+
+===== 4/4 TAP =====
+ok
+All tests successful.
+Files=1, Tests=19, 106 wallclock secs ( 0.05 usr  0.02 sys +  0.34 cusr  0.25 csys =  0.66 CPU)
+Result: PASS
+===== 全部完成 =====

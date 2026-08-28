@@ -12,6 +12,31 @@
 交付目录  vecdiag/
 ```
 
+## 审查员：拿到仓库后的 10 分钟核验路径
+
+前提：一台 CentOS 7 或 Rocky 8 机器（root 或 sudo），能访问 github.com。
+仓库当前为 **private**——审查者需要先被加为 collaborator（Settings → Collaborators），
+或等提交窗口公开后匿名访问。
+
+```bash
+git clone -b feature/vector-build-diagnostics git@github.com:muzimu217/OpenTenBase.git
+cd OpenTenBase
+bash vecdiag/reproduce.sh          # 全自动 13 步：编译 PG18.6+pgvector → 逐模块验证 → TAP
+```
+
+想先快速看一眼再跑全量（约 2 分钟）：
+
+```bash
+bash vecdiag/tools/bootstrap_env_rocky.sh   # 或 bootstrap_env.sh（CentOS 7）；约 15-25 分钟
+psql … -c 'select * from vecdiag.diagnose();'   # 零参数体检
+bash vecdiag/tools/verify_phenomena.sh quick1   # 两个诊断对象原文复现
+```
+
+跑完后对照 `reproduce.sh` 末尾打印的判定标准逐条核对（每条都能指到
+`/data/artifacts/<run>/` 下的原始文件）。**环境证明**：`results/rocky-20260827/env-snapshot/`
+与 `results/env-snapshot-20260826/` 分别是两台实测机器的 `pg_config --configure`、
+版本串与配置文件；换机器的所有需重测量在 `docs/00-requirements-and-scope.md` 第五节列表。
+
 ## 从哪开始看
 
 | 想知道什么 | 看这里 |
