@@ -37,7 +37,7 @@ per_element ≈ maintenance_work_mem_bytes / N      （N = NOTICE 里的 tuples 
 | 384 | 16 | 16 MB | 7454 | 2250.8 B |
 
 同配置换内存档位，`per_element` 相对离散 **0.03% / 0.05%**——推论成立，因此可以用一次
-标定去预测其它内存档位。完整 8 组样本在 `results/m2-20260826/hnsw_spill.csv`。
+标定去预测其它内存档位。完整 8 组样本在 `results/centos7-20260826/m2-20260826/hnsw_spill.csv`。
 
 ## 3. per_element 解析式
 
@@ -81,7 +81,7 @@ mwm 8192 kB → 第 6838 行降级
 
 ## 5. 验证结果
 
-`tests/test_m2_spill.sql`，数据在 `results/m2-20260826/` 与 `results/m2v-20260826/`：
+`tests/test_m2_spill.sql`，数据在 `results/centos7-20260826/m2-20260826/` 与 `results/centos7-20260826/m2v-20260826/`：
 
 | 指标 | 结果 |
 |---|---|

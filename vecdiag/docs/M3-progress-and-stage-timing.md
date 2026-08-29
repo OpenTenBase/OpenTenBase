@@ -71,7 +71,7 @@ max(raw) over (order by elapsed_ms rows between unbounded preceding and current 
 
 | 配置 | 规模与参数 | min | median | max |
 |---|---|---:|---:|---:|
-合成随机数据（`results/m3-20260826/build_times.csv`）：
+合成随机数据（`results/centos7-20260826/m3-20260826/build_times.csv`）：
 
 | 配置 | 规模与参数 | min | median | max |
 |---|---|---:|---:|---:|
@@ -80,7 +80,7 @@ max(raw) over (order by elapsed_ms rows between unbounded preceding and current 
 | ivf_L | 60000 × 256，lists=300 | 1521 | 1555 | 1641 |
 | hnsw_M | 60000 × 128，m=16，ef=64 | 3673 | 3852 | 3945 |
 
-公开数据集 SIFT1M（`results/m3r-sift1m-20260826/build_times.csv`）：
+公开数据集 SIFT1M（`results/centos7-20260826/m3r-sift1m-20260826/build_times.csv`）：
 
 | 配置 | 规模与参数 | min | median | max |
 |---|---|---:|---:|---:|

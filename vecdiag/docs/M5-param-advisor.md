@@ -31,12 +31,12 @@ select source_kind, fact, source_ref from vecdiag.param_advice_provenance order 
 | 查询侧参数 | HNSW `hnsw.ef_search=40`（上游默认）；IVFFlat `ivfflat.probes=10` |
 | `maintenance_work_mem` | 512 MB（固定住，保证各配置耗时可比） |
 | 重复 | 每配置 3 次，构建耗时报 min/median/max，召回取均值 |
-| run_id | `t27-20260827`，产物 `results/t27-20260827/` |
+| run_id | `t27-20260827`，产物 `results/centos7-20260826/t27-20260827/` |
 
 **关于 ground truth 的口径必须说清**：ANN_SIFT1M 自带的 `sift_groundtruth.ivecs` 是针对
 **全量 100 万底库**算的，用在 10 万行子集上不成立，所以不能直接引用。本模块在库内用
 顺序扫描（`enable_indexscan=off`）重算 exact top-10——这是子集场景下唯一正确的做法。
-`results/t27-20260827/explain_hnsw.txt` 留了 EXPLAIN 证明召回查询确实走了索引，
+`results/centos7-20260826/t27-20260827/explain_hnsw.txt` 留了 EXPLAIN 证明召回查询确实走了索引，
 否则"召回 1.0"可能只是顺序扫描的假象。
 
 **召回属于方向一的指标口径。** 这里只把它当作构建参数取舍的质量轴，不作为方向一的交付成果。

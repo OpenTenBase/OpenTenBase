@@ -85,7 +85,7 @@ comment on function vecdiag.monitor_touch(int, oid, text) is
 -- 第一版监控就是 join pg_class 拿索引名和 relam，结果整个函数永远返回 0 行，
 -- 而空闲时又看不出问题（循环体不执行）。
 --
--- 推断依据（实测计数，results/m3r-sift1m-20260826 与 t35-20260827）：
+-- 推断依据（实测计数，results/centos7-20260826/m3r-sift1m-20260826 与 t35-20260827）：
 --     phase = performing k-means / assigning tuples   → 只有 IVFFlat 有这两个阶段
 --     phase = loading tuples 且 tuples_total > 0       → IVFFlat（254/254 个采样点都有）
 --     phase = loading tuples 且 tuples_total = 0       → HNSW（2458 个采样点全为 0）

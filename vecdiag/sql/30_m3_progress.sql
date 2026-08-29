@@ -140,7 +140,7 @@ comment on table vecdiag.phase_order is
 -- unstable 窗口 K（T3.4）：阶段切换后的前 K 个采样点，ETA 标为 unstable
 --
 -- K=1 是**实测定的，不是拍的**。按"距上次阶段切换的采样点数"分组统计 ETA 平均绝对偏差
--- （L 档 3 次重复，phase-rate 口径，results/m3eta-20260827/）：
+-- （L 档 3 次重复，phase-rate 口径，results/centos7-20260826/index/eta_accuracy.csv（L/M 档全量逐点数据））：
 --     距切换 0 个点：偏差 39.7%   ← 只有切换当下这一个点明显抬升
 --     距切换 1 个点：26.6%
 --     距切换 2 个点：26.8%

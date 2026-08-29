@@ -18,7 +18,7 @@
 | HNSW 图放不下内存 | 只打一个 `NOTICE`，然后转磁盘继续 | 构建不失败，只是**慢几倍**，而且事后才知道 |
 | 不知道还要等多久 | `pg_stat_progress_create_index` 只报"当前在哪个阶段" | 阶段之间没有可比口径，没有剩余时间 |
 
-三类现象都已在本机复现并留档：`results/p0-20260826/`、`results/t35-20260827/`。
+三类现象都已在本机复现并留档：`results/centos7-20260826/p0-20260826/`、`results/centos7-20260826/t35-20260827/`。
 
 ## 二、上游到底缺什么（这是立项依据，必须精确，不能夸大）
 
@@ -27,7 +27,7 @@
 | `IvfflatCheckMemoryUsage()` 在超限时报错 | 构建**开始前**判断会不会超限 | `ivfutils.c:121-129` |
 | HNSW 有 `memoryTotal` 与 `FlushPages()` 落盘机制 | 事前预测**会不会降级、在第几行降级、内存下限该给多少** | `hnswbuild.c:507,530-549,724` |
 | `pg_stat_progress_create_index` 报阶段名与阶段内计数 | 跨阶段可比的百分比、剩余时间预测 | PostgreSQL 自带视图；pgvector 自 0.2.3 起上报子阶段 |
-| 7 个 GUC | 构建侧 GUC：**0 个**（7 个全在查询/扫描侧） | `results/t05-20260826/upstream_inventory.txt` |
+| 7 个 GUC | 构建侧 GUC：**0 个**（7 个全在查询/扫描侧） | `results/centos7-20260826/t05-20260826/upstream_inventory.txt` |
 | README 给参数方向（"调大 X 更好"） | 本机的**量**：调多少、代价多少 | `README.md:268,341,342,736` |
 
 **表述边界**：不能说"上游没有内存管理"——它有。缺的是**事前预测**。

@@ -34,7 +34,7 @@ if [ "$SKIP_BOOTSTRAP" = "0" ]; then
   step "1/13 搭建 PostgreSQL 18.6 + pgvector 0.8.6（约 15-25 分钟）"
   # 按发行版选引导脚本：Rocky 8 用实测过的 rocky 变体，其余走 CentOS 7 路线。
   # 不认识的发行版**拒绝猜测**，明确报错让人来决定——两份脚本各自只在自己
-  # 实测过的平台上跑过（证据：results/bootstrap-logs-20260826 与 results/rocky-20260827）。
+  # 实测过的平台上跑过（证据：results/centos7-20260826/bootstrap-logs-20260826 与 results/rocky-20260827）。
   BS=""
   if [ -r /etc/os-release ]; then
     . /etc/os-release
@@ -120,8 +120,13 @@ step "12/13 T4.3+T4.4 · 异常场景矩阵与保守方向专项（约 5 分钟�
 asp "bash $HERE/tools/anomaly_matrix.sh ${RUN_ID}-t44" 2>&1 \
   | tee "$OUT/t44.log" | grep -E "correct|DANGEROUS|\[OK\]|\[FAIL\]"
 
-step "13/13 T4.5 · TAP 回归 + 统一性能对比表"
+step "13/13 T4.5 · TAP 回归 + M5/M6 回归 + 统一性能对比表"
 asp "bash $HERE/tests/run_tap.sh ${RUN_ID}-tap" 2>&1 | tee "$OUT/tap.log" | tail -6
+for t5 in test_m5_param_advisor test_m6_realtime; do
+  asp "$PGHOME/bin/psql -p $PGPORT -d postgres -X -f $HERE/tests/$t5.sql" \
+    > "$OUT/$t5.txt" 2>&1
+  echo "  $t5 失败断言数：$(grep -cE '\| f$' "$OUT/$t5.txt" || true)"
+done
 asp "REPO=$HERE bash $HERE/tools/perf_compare.sh ${RUN_ID}-perf" 2>&1 \
   | tee "$OUT/perf.log" | tail -4
 

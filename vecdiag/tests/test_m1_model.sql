@@ -4,7 +4,7 @@
 -- 通过标准：所有 ok 列为 t。任何 f 都要当作回归，不许"看起来差不多"就放过。
 --
 -- 这些期望值不是拍的，全部来自 2026-08-26 在 PG18.6 + pgvector 0.8.6 上
--- 捕获的真实报错原文（results/m1-r2-20260826/stderr/）。
+-- 捕获的真实报错原文（results/centos7-20260826/archive/m1-r2-20260826/stderr/）。
 
 \set ON_ERROR_STOP on
 \pset pager off

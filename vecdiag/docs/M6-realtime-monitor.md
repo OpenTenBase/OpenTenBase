@@ -86,5 +86,5 @@ HNSW 的百分比按元组线性推进，而降级后每元组耗时是降级前
 | 降级预警 | 正确给出 `⚠ 预测会降级落盘`（预测第 68275 行，实测 NOTICE 第 66727 行，偏差 2.3%） |
 | 未修正时的对照 | 同一构建、朴素外推在 t=0.6 s 报剩余 20.9 s，实际还剩 104.5 s |
 
-原始序列：`results/live-20260827/live.csv`（含 `am_source` / `elapsed_source` / `eta_basis` 三列，
+原始序列：`results/centos7-20260826/live-20260827/live.csv`（含 `am_source` / `elapsed_source` / `eta_basis` 三列，
 每一行都能看出这个数字是观测来的还是推算来的）。

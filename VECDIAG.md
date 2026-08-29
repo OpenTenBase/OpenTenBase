@@ -34,7 +34,7 @@ bash vecdiag/tools/verify_phenomena.sh quick1   # 两个诊断对象原文复现
 
 跑完后对照 `reproduce.sh` 末尾打印的判定标准逐条核对（每条都能指到
 `/data/artifacts/<run>/` 下的原始文件）。**环境证明**：`results/rocky-20260827/env-snapshot/`
-与 `results/env-snapshot-20260826/` 分别是两台实测机器的 `pg_config --configure`、
+与 `results/centos7-20260826/env-snapshot-20260826/` 分别是两台实测机器的 `pg_config --configure`、
 版本串与配置文件；换机器的所有需重测量在 `docs/00-requirements-and-scope.md` 第五节列表。
 
 ## 从哪开始看
@@ -59,27 +59,32 @@ bash vecdiag/tools/verify_phenomena.sh quick1   # 两个诊断对象原文复现
 
 ```text
 vecdiag/
-├── README.md          模块说明与快速开始
-├── reproduce.sh       一键复现：搭环境 → 装 SQL → 跑全部验证
-├── sql/               按序号加载，每个模块一个文件，可独立装卸
-│   ├── 00_schema.sql              schema、ABI 常数（带来源标注）、内存参数解析
-│   ├── 10_ivfflat_memory_model.sql  M1：分项 breakdown + 三检查点 first_hit
-│   ├── 20_legacy_model.sql        旧模型（0.8.0 口径）对照实现
-│   ├── 30_hnsw_model.sql          M2：图内存标定系数 + 降级点预测与区间
-│   ├── 40_progress_model.sql      M3：阶段顺序（源码常量）、进度曲线、ETA 偏差、降级修正
-│   ├── 50_diagnose.sql            M4：零参数体检 + 结论可用性分层
-│   ├── 60_param_advisor.sql       M5：参数建议表（三类溯源）+ 帕累托前沿
-│   └── 70_realtime.sql            M6：实时监控（零参数，含降级预警与修正 ETA）
-├── tools/             环境搭建、ABI 实测、验证 harness、绘图（纯标准库）
-├── tests/             验证矩阵、SQL 回归断言、上游能力清单、TAP 用例（t/*.pl）
-├── results/           每轮实测产物：原始 stderr + CSV + SHA256SUMS + env.txt
-├── docs/              各模块设计文档与图（figs/ 下为 SVG，可从 CSV 重建）
-├── report/            审查报告；项目报告与 PPT 收尾时放这里
-└── patches/           若最终提交构建期优化补丁，放这里
+├── README.md            模块说明与快速开始
+├── reproduce.sh         一键复现（13 步：搭环境 → 装 SQL → M1-M6 全部验证 → TAP → 对比表）
+│
+├── sql/                 按**两位编号 = 模块号**排序加载（install.sh 依序执行）
+│   ├── 00_schema.sql             基础：schema、ABI 常数（带来源标注）、内存参数解析
+│   ├── 10_m1_ivfflat_memory.sql  M1：三检查点内存模型 + 所需内存下界
+│   ├── 20_m2_hnsw_spill.sql      M2：图内存系数 + 降级点预测/区间 + 一键重拟合
+│   ├── 30_m3_progress.sql        M3：阶段顺序（源码常量）、进度曲线、ETA 偏差、降级修正
+│   ├── 40_m4_diagnose.sql        M4：零参数体检 + 结论可用性三层
+│   ├── 50_m5_param_advisor.sql   M5：参数建议表（三类溯源）+ 帕累托前沿
+│   ├── 60_m6_realtime.sql        M6：实时监控（含降级预警与修正 ETA）
+│   └── 90_legacy_compare.sql     对照用：pgvector 0.8.0 旧公式实现（非主线）
+│
+├── tools/               全部脚本，按用途分类（见 tools/README.md 导览表）
+├── tests/               回归断言：test_m1..m6 六个模块各一份 + matrix_m1.tsv
+│   └── t/               TAP 用例（prove 可跑，含历史缺陷的回归）
+├── results/             证据，**按机器分目录**（见 results/README.md 总索引）
+│   ├── centos7-20260826/   第一台机器全部证据（含 index/ 最终态导出、archive/ 中间轮）
+│   └── rocky-20260827/     第二台机器：13 步复验 + M2 重拟合（含跨机器对照 README）
+├── docs/                M1-M6 模块文档 + 00-需求与范围对照 + figs/（SVG，可从 CSV 重建）
+├── report/              最终提交成品：项目报告 PDF + 答辩 PPT（+ 过程审查报告）
+└── patches/             预留：若最终提交构建期优化补丁
 ```
 
-`sql/` 用数字前缀顺序加载，`tools/install.sh` 会按序执行。新模块只要加一个
-`NN_xxx.sql` 就能装进来，不需要改动已有文件——M3、M4 会按这个方式接入。
+`sql/` 的编号即加载顺序，**十位数与模块号一一对应**（10=M1 … 60=M6），90 是对照实现。
+依赖方向单向：后面的模块只引用前面的。新模块加一个 `NN_mX_*.sql` 即可，无需改已有文件。
 
 ## 已完成与验证状态
 
@@ -107,7 +112,7 @@ vecdiag/
 
 ```
 tools/load_sift1m.sh     下载 → 校验 sha256 → fvecs 流式转换 → COPY 入库（约 3 分钟）
-results/sift_sha256.txt  sift.tar.gz 与 sift_base.fvecs 的校验和，证明用的是原始数据
+results/centos7-20260826/index/sift_sha256.txt  sift.tar.gz 与 sift_base.fvecs 的校验和，证明用的是原始数据
 ```
 
 M1 在 SIFT1M 上抽查 4 组全部逐字命中；M3 的阶段权重在 SIFT1M 上重测了一遍，

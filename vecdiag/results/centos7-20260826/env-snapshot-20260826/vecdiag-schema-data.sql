@@ -335,7 +335,7 @@ CREATE FUNCTION vecdiag.hnsw_predict_spill(p_rows bigint, p_dims integer, p_m in
          -- 标定覆盖 dims∈[128,384]、m∈[8,32]；越界必须标 extrapolated
          case when p_dims between 128 and 384 and p_m between 8 and 32
               then 'calibrated' else 'extrapolated' end,
-         'results/m2-20260826/hnsw_spill.csv（8 组实测，A/C 组自洽性 0.03%/0.05%）'
+         'results/centos7-20260826/m2-20260826/hnsw_spill.csv（8 组实测，A/C 组自洽性 0.03%/0.05%）'
   from q;
 $$;
 

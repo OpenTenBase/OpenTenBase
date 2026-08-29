@@ -15,7 +15,7 @@
 -- 所以降级那一刻 memoryUsed ≈ maintenance_work_mem，于是
 --     per_element = maintenance_work_mem_bytes / N      （N 来自 NOTICE 的 tuples 数）
 -- 这个式子的可检验推论是 per_element 与 maintenance_work_mem 无关。
--- 实测（tools/hnsw_spill_probe.sh，results/m2-20260826/）：
+-- 实测（tools/hnsw_spill_probe.sh，results/centos7-20260826/m2-20260826/）：
 --     dims=128,m=16：4 MB → 1226.4 B/元素；8 MB → 1226.8 B/元素（相对离散 0.03%）
 --     dims=384,m=16：8 MB → 2252.0 B/元素；16 MB → 2250.8 B/元素（相对离散 0.05%）
 -- 推论成立，因此可以用一次标定去预测其他内存档位的降级点。
@@ -127,7 +127,7 @@ as $$
          -- 标定覆盖 dims∈[128,384]、m∈[8,32]；越界必须标 extrapolated
          case when p_dims between 128 and 384 and p_m between 8 and 32
               then 'calibrated' else 'extrapolated' end,
-         'results/m2-20260826/hnsw_spill.csv（8 组实测，A/C 组自洽性 0.03%/0.05%）'
+         'results/centos7-20260826/m2-20260826/hnsw_spill.csv（8 组实测，A/C 组自洽性 0.03%/0.05%）'
   from q;
 $$;
 
@@ -142,7 +142,7 @@ comment on function vecdiag.hnsw_predict_spill(bigint, int, int, bigint, numeric
 -- 而 AllocSet 的块是从 8 kB 起**倍增**（上限 8 MB）的，所以 memoryUsed 呈阶梯上升。
 -- 后果：maintenance_work_mem 涨一点但不够容纳下一个块时，降级点几乎不动。
 --
--- 实测证据（dims=128, m=16, results/m2v-20260826/）：
+-- 实测证据（dims=128, m=16, results/centos7-20260826/m2v-20260826/）：
 --     mwm 4096 kB → 第 3420 行降级
 --     mwm 4608 kB → 第 3422 行降级   ← 内存多给 12.5%，降级点只挪了 2 行
 --     mwm 8192 kB → 第 6838 行降级

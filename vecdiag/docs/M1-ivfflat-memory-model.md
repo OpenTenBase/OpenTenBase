@@ -97,14 +97,14 @@ first_hit = 第一个满足 floor(C/1024) > mwm_kb 的检查点        ← ivfut
 | C3 | 11 | S3 S4 S6 F1–F6 X1 X2 |
 | none（真的建成功） | 2 | S1（空表走 RandomCenters）、X3 |
 
-原始 stderr 与 SHA256 在 `results/m1-r2-20260826/`。
+原始 stderr 与 SHA256 在 `results/centos7-20260826/archive/m1-r2-20260826/`。
 
-第三轮（`results/m1-r3-20260826/`）在结果文件里补记了真实 `relpages`，同样 20/20，
+第三轮（`results/centos7-20260826/m1-r3-20260826/`）在结果文件里补记了真实 `relpages`，同样 20/20，
 并据此产出新旧对照 CSV 与图。
 
 ## 5. 新旧模型对照（T1.6 / T1.7）
 
-旧模型 = pgvector **0.8.0** 的原始公式，实现在 `sql/20_legacy_model.sql`，逐项对照
+旧模型 = pgvector **0.8.0** 的原始公式，实现在 `sql/90_legacy_compare.sql`，逐项对照
 in-tree 0.8.0 的 `src/ivfkmeans.c:277-299`。三处结构差异：
 
 1. `numSamples = max(lists*50, 10000)`，**没有 `relpages*MaxHeapTuplesPerPage` 上限**。
@@ -114,7 +114,7 @@ in-tree 0.8.0 的 `src/ivfkmeans.c:277-299`。三处结构差异：
 3. 阈值按字节比较（`totalSize > mwm * 1024L`），0.8.6 改成 `floor(bytes/1024) > mwm_kb`，
    两者最多差 1023 字节。
 
-对照结果（`results/m1-r3-20260826/model_compare.csv`，图 `docs/figs/M1-model-compare.svg`）：
+对照结果（`results/centos7-20260826/m1-r3-20260826/model_compare.csv`，图 `docs/figs/M1-model-compare.svg`）：
 
 | 场景 | 旧模型 / 实测 | 根因 |
 |---|---:|---|

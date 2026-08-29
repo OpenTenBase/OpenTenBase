@@ -57,29 +57,29 @@ select * from vecdiag.ivfflat_predict_table('my_table'::regclass, 1000);
 
 ## 已完成的两个模块
 
-**M1 · IVFFlat 构建内存预测**（`sql/00_schema.sql`、`sql/10_ivfflat_memory_model.sql`）
+**M1 · IVFFlat 构建内存预测**（`sql/00_schema.sql`、`sql/10_m1_ivfflat_memory.sql`）
 20 组验证矩阵 **20/20 逐字命中、误差 0**（红线 <5%），覆盖 C1 三组、C2 四组、C3 十一组、
 以及两组"预测不报错且真的建成功"。新旧模型对照见 `docs/figs/M1-model-compare.svg`：
 旧模型（0.8.0 口径）最大偏 **306 倍**。推导与三个被验证矩阵抓出的模型缺陷记在
 `docs/M1-ivfflat-memory-model.md`。
 
-**M2 · HNSW 落盘降级预警**（`sql/30_hnsw_model.sql`）
+**M2 · HNSW 落盘降级预警**（`sql/20_m2_hnsw_spill.sql`）
 把降级 NOTICE 当观测量反解每元素图内存，**不需要重编 `-DHNSW_MEMORY` 的 `.so`**。
 11 组实测降级点 **全部落在预测区间内**，点预测平均绝对误差 **1.20%**；
 外样本（dims=256、m=24 均未参与标定）误差 ≤0.18%。
 按模型给的内存下限重建后 NOTICE 消失，且降到建议值一半时 NOTICE 重新出现。
 详见 `docs/M2-hnsw-spill-model.md`。
 
-**M3 · 阶段耗时与加权进度**（`sql/40_progress_model.sql`）
+**M3 · 阶段耗时与加权进度**（`sql/30_m3_progress.sql`）
 50 ms 采样进度视图，阶段权重来自实测（IVFFlat 三阶段 0.46 / 0.41 / 0.13，极差 0.29 一并报告）。
 加权进度的单调性由窗口函数结构保证，377 个采样点断言通过。采样开销 **+0.99%**
 （第一次非交替测量得出 −25% 的错误结果，已改为交替测量并把教训写进文档）。
 构建耗时按门禁 K5 重复 3 次报 min/median/max。详见 `docs/M3-progress-and-stage-timing.md`。
 
-**上游测试基线**（`results/t04-20260826/`）：`make installcheck` 14/14 通过；
+**上游测试基线**（`results/centos7-20260826/t04-20260826/`）：`make installcheck` 14/14 通过；
 `make prove_installcheck` 48 个文件、1250 个测例全部通过。
 
-**上游能力清单**（`results/t05-20260826/`）：pgvector 0.8.6 共注册 7 个 GUC，
+**上游能力清单**（`results/centos7-20260826/t05-20260826/`）：pgvector 0.8.6 共注册 7 个 GUC，
 **全部是查询/扫描侧，构建侧一个都没有**——这是本项目的立项依据，也是边界声明的一手证据。
 
 ## 边界声明（不要越界宣传）

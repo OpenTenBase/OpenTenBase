@@ -31,7 +31,7 @@ echo "group,item,baseline_label,baseline,improved_label,improved,unit,delta,evid
 add() { printf '%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$@" >> "$CSV"; }
 
 echo ">>> 组 1：M1 构建内存模型 —— 本模型 vs pgvector 0.8.0 的旧公式"
-MC=$REPO/results/m1-r3-20260826/model_compare.csv
+MC=$REPO/results/centos7-20260826/m1-r3-20260826/model_compare.csv
 if [ -r "$MC" ]; then
   # legacy_over_actual = 旧公式给出的 MB / 实际报错的 MB。旧公式**结构上不会低估**，
   # 所以这一列衡量的是"高估了多少倍"。
@@ -42,7 +42,7 @@ if [ -r "$MC" ]; then
   none_cnt=$(awk -F, 'NR>1 && $8 == "none" {c++} END {print c+0}' "$MC")
   add M1-内存模型 "报错MB逐字命中" "旧公式(0.8.0)" "高估 ${mn}–${mx} 倍" "本模型" \
       "${exact}/${total} 逐字命中（另 ${none_cnt} 例预测不报错且实际未报错）" "倍/例" \
-      "平均高估 ${avg} 倍" "results/m1-r3-20260826/model_compare.csv"
+      "平均高估 ${avg} 倍" "results/centos7-20260826/m1-r3-20260826/model_compare.csv"
 else
   add M1-内存模型 逐例命中 "旧公式(0.8.0)" NA "本模型" NA - - "缺 $MC"
 fi
@@ -56,7 +56,7 @@ $Q -c "select '内存下界'||','||
                   p_rows := 100000, p_dims := 128, p_lists := 500, p_mwm_kb := 1024)),0), 1)||' 倍'
          from vecdiag.ivfflat_min_mwm_kb(100000, 128, 500);" |
   while IFS= read -r line; do
-    [ -n "$line" ] && echo "M1-内存模型,$line,results/t44-20260827/anomaly_matrix.csv（B* 组）" >> "$CSV"
+    [ -n "$line" ] && echo "M1-内存模型,$line,results/centos7-20260826/t44-20260827/anomaly_matrix.csv（B* 组）" >> "$CSV"
   done
 
 echo ">>> 组 3：M3 跨阶段百分比 —— 无计数阶段固定 0.5（修复前）vs 用已完成阶段反推（修复后）"
@@ -82,14 +82,14 @@ $Q -c "with c as (select * from vecdiag.hnsw_eta_corrected('t35-20260827/hnsw_sp
               round(avg(eta_naive_ms - actual_remain_ms)/1000.0,1)||','||'接入M2降级预测'||','||
               round(avg(eta_corrected_ms - actual_remain_ms)/1000.0,1)||','||'秒'||','||
               '少报早 '||round((avg(eta_corrected_ms)-avg(eta_naive_ms))/1000.0,1)||' 秒'||','||
-              'results/t35-20260827/eta_correction.txt'
+              'results/centos7-20260826/t35-20260827/eta_correction.txt'
          from c where not past_spill;" >> "$CSV"
 
 echo ">>> 组 5：M2 降级点 —— 事前预测 vs 实测 NOTICE（含外样本）"
 $Q -c "select 'M2-降级点'||','||'外样本(mwm=60MB，标定用的是4/8/16MB)'||','||'实测NOTICE'||','||51267||','||
               '事前预测'||','||predicted_spill_tuples||','||'行'||','||
               '偏差 '||round(abs(predicted_spill_tuples-51267)::numeric/51267*100,2)||'%'||','||
-              'results/t35-20260827/prediction.txt 与 spill_notice.txt'
+              'results/centos7-20260826/t35-20260827/prediction.txt 与 spill_notice.txt'
          from vecdiag.hnsw_predict_spill(100000, 128, 16, 61440);" >> "$CSV"
 
 echo ">>> 组 6：T2.7 构建参数 —— 代价与收益（同一底库、同一查询侧参数）"
@@ -104,14 +104,14 @@ $Q -c "select 'T2.7-参数'||','||
          from vecdiag.param_pareto order by am, build_median_ms;" >> "$CSV"
 
 echo ">>> 组 7：M3 采样开销 —— 有采样 vs 无采样（交替测量）"
-BT=$REPO/results/m3r-sift1m-20260826/build_time_stats.csv
+BT=$REPO/results/centos7-20260826/m3r-sift1m-20260826/build_time_stats.csv
 if [ -r "$BT" ]; then
   on=$(awk -F, '$1=="ab_on"{print $4}'  "$BT")
   off=$(awk -F, '$1=="ab_off"{print $4}' "$BT")
   if [ -n "${on:-}" ] && [ -n "${off:-}" ] && [ "$off" -gt 0 ]; then
     d=$(awk -v a="$on" -v b="$off" 'BEGIN{printf "%+.2f%%", (a-b)/b*100}')
     add M3-采样开销 "50ms 轮询进度视图" "无采样(中位)" "$off" "有采样(中位)" "$on" ms \
-        "$d（低于本机噪声底，不当成加速）" "results/m3r-sift1m-20260826/build_time_stats.csv"
+        "$d（低于本机噪声底，不当成加速）" "results/centos7-20260826/m3r-sift1m-20260826/build_time_stats.csv"
   fi
 fi
 
@@ -119,7 +119,7 @@ echo ">>> 组 8：上游能力对照 —— 同一个问题，上游给什么 / 
 add 上游对照 "构建前能否知道会 OOM" "pgvector 0.8.6" "只在超限时报错，事后" "本项目" "事前预测，逐例命中" - \
     "上游无事前预测能力" "tests/upstream_inventory.sql"
 add 上游对照 "构建侧 GUC 数量" "pgvector 0.8.6" "0（7 个 GUC 全在查询/扫描侧）" "本项目" "SQL 层 6 个模块" 个 \
-    "需 LOAD 'vector' 后才可见" "results/t05-20260826/upstream_inventory.txt"
+    "需 LOAD 'vector' 后才可见" "results/centos7-20260826/t05-20260826/upstream_inventory.txt"
 add 上游对照 "HNSW 图内存数字" "pgvector 0.8.6" "仅 #ifdef HNSW_MEMORY 下 elog(INFO)" "本项目" "用 NOTICE 反解，无需重编译" - \
     "hnswbuild.c:307" "docs/M2-hnsw-spill-model.md"
 add 上游对照 "跨阶段进度百分比" "PostgreSQL+pgvector" "只报当前阶段名" "本项目" "加权百分比+ETA+可用性分层" - \
