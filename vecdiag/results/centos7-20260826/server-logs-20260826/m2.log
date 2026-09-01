@@ -1,0 +1,25 @@
+>>> A 组：固定 (dims=128, m=16)，只改内存 —— 检验 per_element 是否与内存无关
+  [SPILL] A1         dims=128  m=16  mwm=4096kB  → 第 3420    行降级，per_element ≈ 1226.4 B
+  [SPILL] A2         dims=128  m=16  mwm=8192kB  → 第 6838    行降级，per_element ≈ 1226.8 B
+  [ NO   ] A3         dims=128  m=16  mwm=16384kB → 未降级（图放得下）
+>>> B 组：固定内存与维度，只改 m —— 看邻居列表占比
+  [SPILL] B1         dims=128  m=8   mwm=8192kB  → 第 8617    行降级，per_element ≈ 973.5 B
+  [SPILL] B2         dims=128  m=32  mwm=8192kB  → 第 4824    行降级，per_element ≈ 1738.9 B
+>>> C 组：换维度 —— 看向量本体占比
+  [SPILL] C1         dims=384  m=16  mwm=8192kB  → 第 3725    行降级，per_element ≈ 2252.0 B
+  [SPILL] C2         dims=384  m=16  mwm=16384kB → 第 7454    行降级，per_element ≈ 2250.8 B
+>>> D 组：ef_construction 变化（预期不影响图内存，只影响构建耗时）
+  [SPILL] D1         dims=128  m=16  mwm=8192kB  → 第 6838    行降级，per_element ≈ 1226.8 B
+
+>>> 自洽性检查：A 组三档内存算出的 per_element 应当一致
+  A 组 per_element: 均值 1226.6 B，极差 0.4 B，相对离散 0.03%（2 个样本）
+>>> 结果 -> /data/artifacts/m2-20260826/hnsw_spill.csv
+case_id  rows   dims  m   ef_construction  mwm_kb  spill_tuples  per_element_bytes  spilled
+A1       10000  128   16  64               4096    3420          1226.4             yes
+A2       10000  128   16  64               8192    6838          1226.8             yes
+A3       10000  128   16  64               16384                                    no
+B1       10000  128   8   64               8192    8617          973.5              yes
+B2       10000  128   32  64               8192    4824          1738.9             yes
+C1       8000   384   16  64               8192    3725          2252.0             yes
+C2       8000   384   16  64               16384   7454          2250.8             yes
+D1       10000  128   16  200              8192    6838          1226.8             yes

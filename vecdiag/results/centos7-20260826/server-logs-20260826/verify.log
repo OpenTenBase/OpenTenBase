@@ -1,0 +1,24 @@
+run_id=p0-20260826  输出目录=/data/artifacts/p0-20260826/phenomena
+>>> 现象一：IVFFlat 构建内存不足（预期 ERROR: memory required is N MB）
+  [OK] 捕获到源码级检查点报错：
+    ERROR:  memory required is 22 MB, maintenance_work_mem is 1 MB
+>>> 现象二：HNSW 图放不下 maintenance_work_mem 后落盘降级（预期 NOTICE）
+  [OK] 捕获到图落盘降级 NOTICE：
+    /data/artifacts/p0-20260826/phenomena/hnsw_spill.err:NOTICE:  hnsw graph no longer fits into maintenance_work_mem after 12135 tuples
+    /data/artifacts/p0-20260826/phenomena/hnsw_spill.err-DETAIL:  Building will take significantly more time.
+    /data/artifacts/p0-20260826/phenomena/hnsw_spill.err-HINT:  Increase maintenance_work_mem to speed up builds.
+>>> 现象三：构建进度可观测（上游已有能力，用于划清边界）
+  上游 GUC 清单 -> /data/artifacts/p0-20260826/phenomena/upstream_gucs.txt
+  进度视图定义 -> /data/artifacts/p0-20260826/phenomena/progress_view.txt
+  注意：这两项是 PostgreSQL/pgvector 自带能力，报告中不得宣称原创。
+>>> 清理测试表
+>>> 归档哈希
+5e5d1dc9a299b442d1cc1baaa7aa8cd2451b4c0b3a48fa91eb1d312c8fd2e2ab  ./hnsw_spill.err
+7f3fa674580865b9acec172dd97b4fd2bd4800cd3e72e0c69845bb04ba2043ea  ./hnsw_spill.out
+316479e2c45df9015c71f9b3f83cf3eafcbffb1bfe2e6b41bb0d3e6fd573292f  ./ivfflat_mem.err
+0b59ee5ca0414f91ed8b2c7390f93dce820d865b1b705d8d104d7909a0b8fe96  ./ivfflat_mem.out
+9b1b096ebc029db5940d6becec1e58c97444c18b61ec97f04e756f23cb698c2b  ./progress_view.txt
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./upstream_gucs.txt
+
+完成。两个 [OK] 都出现则环境就绪。
+所有 stderr 原文已存档，写文档时原样引用，不要转述或翻译。

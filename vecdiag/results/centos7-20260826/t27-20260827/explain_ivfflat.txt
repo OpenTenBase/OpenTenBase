@@ -1,0 +1,11 @@
+                 QUERY PLAN                  
+---------------------------------------------
+ Limit
+   InitPlan 1
+     ->  Limit
+           ->  Seq Scan on ps_query
+                 Disabled: true
+   ->  Index Scan using ps_ix on ps_base b
+         Order By: (v <-> (InitPlan 1).col1)
+(7 rows)
+

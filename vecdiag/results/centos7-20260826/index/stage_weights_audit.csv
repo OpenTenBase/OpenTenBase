@@ -1,0 +1,21 @@
+dataset,size_class,am,phase,weight,dispersion,usability
+sift1m,L,ivfflat,building index: performing k-means,0.4302,0.1584,可用
+sift1m,L,ivfflat,building index: loading tuples,0.3042,0.0816,可用
+sift1m,L,ivfflat,building index: assigning tuples,0.2622,0.0829,可用
+sift1m,L,ivfflat,initializing,0.0033,0.0002,可用
+sift1m,M,ivfflat,building index: loading tuples,0.4329,0.0821,可用
+sift1m,M,ivfflat,building index: assigning tuples,0.3369,0.0479,可用
+sift1m,M,ivfflat,building index: performing k-means,0.2083,0.0786,可用
+sift1m,M,ivfflat,initializing,0.0219,0.0000,可用
+sift1m,S,ivfflat,building index: loading tuples,0.7058,0.5144,不可用：本组最大极差 0.5144 超过上限 0.25（该组内某阶段耗时占比不稳定，通常是构建太快、被检查点或 autovacuum 整体拖慢）
+sift1m,S,ivfflat,building index: performing k-means,0.1792,0.3297,不可用：本组最大极差 0.5144 超过上限 0.25（该组内某阶段耗时占比不稳定，通常是构建太快、被检查点或 autovacuum 整体拖慢）
+sift1m,S,ivfflat,building index: assigning tuples,0.1150,0.1847,不可用：本组最大极差 0.5144 超过上限 0.25（该组内某阶段耗时占比不稳定，通常是构建太快、被检查点或 autovacuum 整体拖慢）
+sift1m,pooled,hnsw,building index: loading tuples,1.0000,0.0000,不可用：pooled 把多个规模档混在一起求平均，无物理意义
+sift1m,pooled,ivfflat,building index: loading tuples,0.4136,0.7230,不可用：pooled 把多个规模档混在一起求平均，无物理意义
+sift1m,pooled,ivfflat,building index: assigning tuples,0.2941,0.4310,不可用：pooled 把多个规模档混在一起求平均，无物理意义
+sift1m,pooled,ivfflat,building index: performing k-means,0.2828,0.4613,不可用：pooled 把多个规模档混在一起求平均，无物理意义
+sift1m,pooled,ivfflat,initializing,0.0096,0.0190,不可用：pooled 把多个规模档混在一起求平均，无物理意义
+synthetic,pooled,hnsw,building index: loading tuples,1.0000,0.0000,不可用：pooled 把多个规模档混在一起求平均，无物理意义
+synthetic,pooled,ivfflat,building index: performing k-means,0.4596,0.2821,不可用：pooled 把多个规模档混在一起求平均，无物理意义
+synthetic,pooled,ivfflat,building index: assigning tuples,0.4080,0.2885,不可用：pooled 把多个规模档混在一起求平均，无物理意义
+synthetic,pooled,ivfflat,building index: loading tuples,0.1324,0.1731,不可用：pooled 把多个规模档混在一起求平均，无物理意义

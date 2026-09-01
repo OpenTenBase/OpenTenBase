@@ -1,0 +1,21 @@
+source_kind,fact,source_ref
+measured,hnsw m=16/ef_construction=200：构建中位 40573 ms，索引 79.4 MB，recall@10 0.9893，单查询 0.88 ms,100000 行×128 维 sift1m-subset，mwm=512MB，hnsw.ef_search=40，重复 3 次，run t27-20260827
+measured,hnsw m=16/ef_construction=64：构建中位 18192 ms，索引 79.4 MB，recall@10 0.9790，单查询 0.80 ms,100000 行×128 维 sift1m-subset，mwm=512MB，hnsw.ef_search=40，重复 3 次，run t27-20260827
+measured,hnsw m=32/ef_construction=200：构建中位 70722 ms，索引 98.1 MB，recall@10 0.9943，单查询 1.31 ms,100000 行×128 维 sift1m-subset，mwm=512MB，hnsw.ef_search=40，重复 3 次，run t27-20260827
+measured,hnsw m=32/ef_construction=64：构建中位 36751 ms，索引 98.1 MB，recall@10 0.9917，单查询 1.28 ms,100000 行×128 维 sift1m-subset，mwm=512MB，hnsw.ef_search=40，重复 3 次，run t27-20260827
+measured,hnsw m=8/ef_construction=200：构建中位 23679 ms，索引 71.0 MB，recall@10 0.9583，单查询 0.56 ms,100000 行×128 维 sift1m-subset，mwm=512MB，hnsw.ef_search=40，重复 3 次，run t27-20260827
+measured,hnsw m=8/ef_construction=64：构建中位 8326 ms，索引 71.0 MB，recall@10 0.9427，单查询 0.55 ms,100000 行×128 维 sift1m-subset，mwm=512MB，hnsw.ef_search=40，重复 3 次，run t27-20260827
+measured,ivfflat lists=1000：构建中位 14311 ms，索引 56.3 MB，recall@10 0.8583，单查询 0.76 ms,100000 行×128 维 sift1m-subset，mwm=512MB，ivfflat.probes=10，重复 3 次，run t27-20260827
+measured,ivfflat lists=100：构建中位 1147 ms，索引 52.5 MB，recall@10 0.9860，单查询 6.90 ms,100000 行×128 维 sift1m-subset，mwm=512MB，ivfflat.probes=10，重复 3 次，run t27-20260827
+measured,ivfflat lists=316：构建中位 2226 ms，索引 53.4 MB，recall@10 0.9373，单查询 1.87 ms,100000 行×128 维 sift1m-subset，mwm=512MB，ivfflat.probes=10，重复 3 次，run t27-20260827
+source-code,"hnsw.dims 默认 —，范围 [1, 2000]",pgvector v0.8.6 src/hnsw.h:33（HNSW_MAX_DIM）
+source-code,hnsw.ef_construction 调大 → 不改变索引体积：ef_construction 只影响建图时候选集大小，不进入每元素邻居槽数,hnswutils.c:218-227（邻居数组按 m 分配，与 ef_construction 无关）
+source-code,"hnsw.ef_construction 默认 64，范围 [4, 1000]",pgvector v0.8.6 src/hnsw.h:57-59
+source-code,hnsw.m 调大 → 每元素邻居槽数变多（第 0 层 2m，其余每层 m），图内存与索引体积同时上升,hnswutils.c:218-227
+source-code,"hnsw.m 默认 16，范围 [2, 100]",pgvector v0.8.6 src/hnsw.h:54-56
+source-code,"ivfflat.dims 默认 —，范围 [1, 2000]",pgvector v0.8.6 src/ivfflat.h:37（IVFFLAT_MAX_DIM）
+source-code,"ivfflat.lists 默认 100，范围 [1, 32768]",pgvector v0.8.6 src/ivfflat.h:55-57
+upstream-doc,hnsw.ef_construction 调大 → 召回更好，代价是构建/插入更慢（只给方向，未给量）,pgvector v0.8.6 README.md:268
+upstream-doc,ivfflat.lists 取值 → 起点建议：≤100 万行取 rows/1000，超过 100 万行取 sqrt(rows),pgvector v0.8.6 README.md:341
+upstream-doc,"ivfflat.lists 调大 → 查询更快，代价是召回下降（上游明确写了""at the expense of recall""）",pgvector v0.8.6 README.md:736-739
+upstream-doc,ivfflat.probes 取值 → 起点建议 sqrt(lists)——**lists 调大时 probes 必须同步调大**，否则召回掉,pgvector v0.8.6 README.md:342

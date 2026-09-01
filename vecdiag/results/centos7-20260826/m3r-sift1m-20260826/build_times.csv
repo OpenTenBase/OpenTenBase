@@ -1,0 +1,21 @@
+config,am,rows,dims,param,sampled,iter,elapsed_ms
+ivf_S,ivfflat,100000,128,lists=100,yes,1,2408
+ivf_S,ivfflat,100000,128,lists=100,yes,2,10563
+ivf_S,ivfflat,100000,128,lists=100,yes,3,2806
+ivf_M,ivfflat,300000,128,lists=150,yes,1,2569
+ivf_M,ivfflat,300000,128,lists=150,yes,2,2872
+ivf_M,ivfflat,300000,128,lists=150,yes,3,2764
+ivf_L,ivfflat,1000000,128,lists=200,yes,1,19877
+ivf_L,ivfflat,1000000,128,lists=200,yes,2,16060
+ivf_L,ivfflat,1000000,128,lists=200,yes,3,19001
+hnsw_M,hnsw,60000,128,m=16; ef_construction=64,yes,1,17038
+hnsw_M,hnsw,60000,128,m=16; ef_construction=64,yes,2,17908
+hnsw_M,hnsw,60000,128,m=16; ef_construction=64,yes,3,15263
+ab_on,ivfflat,60000,128,lists=300,yes,1,6695
+ab_off,ivfflat,60000,128,lists=300,no,1,6275
+ab_on,ivfflat,60000,128,lists=300,yes,2,5096
+ab_off,ivfflat,60000,128,lists=300,no,2,5014
+ab_on,ivfflat,60000,128,lists=300,yes,3,5310
+ab_off,ivfflat,60000,128,lists=300,no,3,5175
+ab_on,ivfflat,60000,128,lists=300,yes,4,4991
+ab_off,ivfflat,60000,128,lists=300,no,4,6139

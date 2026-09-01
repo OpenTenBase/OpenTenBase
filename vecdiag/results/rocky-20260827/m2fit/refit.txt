@@ -1,0 +1,30 @@
+M2 系数重拟合记录（Rocky 8.10，2026-08-27，run m2fit-rocky1）
+================================================================
+
+网格：dims ∈ {128,256,384} × m ∈ {4,8,12,16,20,32}，ef_construction=64 固定
+      （已证 ef 不进入图内存），mwm 统一 16384 kB，行数 20000/12000/10000
+      另在 (128,16) 与 (384,16) 各重复一次量化测量重复性。
+      m=24 刻意不在网格内——它是 hnsw_validate V2 用例的取值，必须保持拟合外身份。
+      注：dims=256/m=4 的组合未降级（图 16.3MB 恰好塞进 16MB），该角点缺失，
+      拟合有效点 19 个（重复锚点两次 per_element 差 0.7B / 0.0B）。
+
+vecdiag.hnsw_refit(false) 干跑输出（拟合前库内为 CentOS 7 标定值）：
+  n_points=19  dims=128,256,384  m=4,8,12,16,20,32
+  old_slot_coef=31.89  old_base_bytes=206.4   （CentOS 7 三点拟合，2026-08-26）
+  new_slot_coef=31.69  new_base_bytes=209.8   （本机 19 点 OLS）
+  残差：均值 0.145%，最大 0.554%
+  跨机器稳定性：slot −0.6%，base +1.6%
+
+vecdiag.hnsw_refit(true) 已写入 hnsw_coef（kind=fitted，
+source_ref='本机密网格 OLS 拟合（tools/hnsw_calib_sweep.sh）'）。
+
+拟合后全量再验证（m2fit-validate.log）：
+  hnsw_validate（新系数）  V1 −0.17% / V2(m=24,网格外) 0.00% / V3 −0.20%
+                           E1 建议有效 PASS；E2 12.32%（AllocSet 块台阶离群，同源复现）
+  100k×128 m=16 mwm=60MB   预测 51198 / 实测 51258 → +0.12%
+  异常场景矩阵             18/18 correct，DANGEROUS=0，内存边界精确到 1 kB
+  TAP（prove）             19/19，退出码 0
+
+结论：结构项 4·dims 不变；两个拟合项在本机独立重拟合后与 CentOS 7 的值相差
+<2%，且外样本精度不降反升（V2 从 −0.08% 到 0.00%）。M2 模型跨机器可迁移，
+换机器重拟合一键化：hnsw_calib_sweep.sh → load_hnsw_calib.sh → hnsw_refit(true)。

@@ -1,0 +1,65 @@
+Pager usage is off.
+Border style is 2.
+LOAD
+=== 1. pgvector 注册的全部 GUC ===
++--------------------------+---------+------+------------------------------------------------------------+-------------+
+|           name           | setting | unit |                         short_desc                         |   作用面    |
++--------------------------+---------+------+------------------------------------------------------------+-------------+
+| hnsw.ef_search           | 40      |      | Sets the size of the dynamic candidate list for search     | 查询/扫描侧 |
+| hnsw.iterative_scan      | off     |      | Sets the mode for iterative scans                          | 查询/扫描侧 |
+| hnsw.max_scan_tuples     | 20000   |      | Sets the max number of tuples to visit for iterative scans | 查询/扫描侧 |
+| hnsw.scan_mem_multiplier | 1       |      | Sets the multiple of work_mem to use for iterative scans   | 查询/扫描侧 |
+| ivfflat.iterative_scan   | off     |      | Sets the mode for iterative scans                          | 查询/扫描侧 |
+| ivfflat.max_probes       | 32768   |      | Sets the max number of probes for iterative scans          | 查询/扫描侧 |
+| ivfflat.probes           | 1       |      | Sets the number of probes                                  | 查询/扫描侧 |
++--------------------------+---------+------+------------------------------------------------------------+-------------+
+(7 rows)
+
+=== 2. 构建侧 GUC 数量（预期为 0，这是本项目的立项依据）===
++----------------------+
+| build_side_guc_count |
++----------------------+
+|                    0 |
++----------------------+
+(1 row)
+
+=== 3. pg_stat_progress_create_index 的列（PostgreSQL 自带，非本项目实现）===
++--------+--------------------+---------+
+| attnum |      attname       |  type   |
++--------+--------------------+---------+
+|      1 | pid                | integer |
+|      2 | datid              | oid     |
+|      3 | datname            | name    |
+|      4 | relid              | oid     |
+|      5 | index_relid        | oid     |
+|      6 | command            | text    |
+|      7 | phase              | text    |
+|      8 | lockers_total      | bigint  |
+|      9 | lockers_done       | bigint  |
+|     10 | current_locker_pid | bigint  |
+|     11 | blocks_total       | bigint  |
+|     12 | blocks_done        | bigint  |
+|     13 | tuples_total       | bigint  |
+|     14 | tuples_done        | bigint  |
+|     15 | partitions_total   | bigint  |
+|     16 | partitions_done    | bigint  |
++--------+--------------------+---------+
+(16 rows)
+
+=== 4. 索引访问方法与它们支持的索引选项（构建参数只能走 WITH，不是 GUC）===
++---------+--------+
+| amname  | amtype |
++---------+--------+
+| hnsw    | i      |
+| ivfflat | i      |
++---------+--------+
+(2 rows)
+
+=== 5. vector 扩展的版本与安装位置 ===
++---------+------------+
+| extname | extversion |
++---------+------------+
+| vector  | 0.8.6      |
++---------+------------+
+(1 row)
+

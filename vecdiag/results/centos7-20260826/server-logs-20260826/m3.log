@@ -1,0 +1,34 @@
+重复次数 = 3（另有 1 次 warm-up 不计入）
+>>> ivf_S（ivfflat, 20000行×128维, lists=100, 采样=yes）
+    第 1 次：253 ms
+    第 2 次：204 ms
+    第 3 次：203 ms
+>>> ivf_M（ivfflat, 60000行×128维, lists=300, 采样=yes）
+    第 1 次：1002 ms
+    第 2 次：1039 ms
+    第 3 次：995 ms
+>>> ivf_L（ivfflat, 60000行×256维, lists=300, 采样=yes）
+    第 1 次：1641 ms
+    第 2 次：1521 ms
+    第 3 次：1555 ms
+>>> hnsw_M（hnsw, 60000行×128维, m=16, ef_construction=64, 采样=yes）
+    第 1 次：3852 ms
+    第 2 次：3945 ms
+    第 3 次：3673 ms
+>>> 采样开销对照（ivf_M，采样/不采样交替各 4 次）
+    第 1 轮：有采样 903 ms / 无采样 797 ms
+    第 2 轮：有采样 1004 ms / 无采样 944 ms
+    第 3 轮：有采样 813 ms / 无采样 811 ms
+    第 4 轮：有采样 819 ms / 无采样 821 ms
+
+>>> 统计（min / median / max，单位 ms）
+  ab_off           n=4  min=797  median=811  max=944
+  ivf_L            n=3  min=1521  median=1555  max=1641
+  ivf_M            n=3  min=995  median=1002  max=1039
+  ab_on            n=4  min=813  median=819  max=1004
+  hnsw_M           n=3  min=3673  median=3852  max=3945
+  ivf_S            n=3  min=203  median=204  max=253
+
+>>> 采样开销（交替组 ab_on vs ab_off 的中位数之差）
+  有采样 819 ms / 无采样 811 ms → 开销 +0.99%
+>>> 原始数据 -> /data/artifacts/m3-20260826/build_times.csv；采样序列 -> /data/artifacts/m3-20260826/samples/

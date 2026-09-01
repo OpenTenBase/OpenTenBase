@@ -1,0 +1,4 @@
+LOAD
+ERROR:  column " = " does not exist
+LINE 1: load 'vector'; select name||" = "||setting from pg_settings ...
+                                    ^

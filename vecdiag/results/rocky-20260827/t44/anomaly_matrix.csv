@@ -1,0 +1,19 @@
+case_id,scenario,am,rows,dims,param,mwm_kb,model_says,model_detail,actual,actual_detail,verdict
+A1,低内存-IVFFlat,ivfflat,100000,128,lists=100,1024,will_fail,first_hit=C2 predicted_mb=6,failed,ERROR:  memory required is 6 MB; maintenance_work_mem is 1 MB,correct
+A2,低内存-刚好够,ivfflat,100000,128,lists=100,65536,buildable,first_hit=none predicted_mb=,built,-,correct
+A3,极端lists-上界,ivfflat,10000,128,lists=32768,262144,will_fail,first_hit=C3 predicted_mb=5499,failed,ERROR:  memory required is 5506 MB; maintenance_work_mem is 256 MB,correct
+A4,极端lists-远超行数,ivfflat,1000,128,lists=5000,262144,buildable,first_hit=none predicted_mb=,built,NOTICE:  ivfflat index created with little data,correct
+A5,空表,ivfflat,0,128,lists=100,262144,buildable,first_hit=none predicted_mb=,built,NOTICE:  ivfflat index created with little data,correct
+A6,小表-10行,ivfflat,10,128,lists=100,262144,buildable,first_hit=none predicted_mb=,built,NOTICE:  ivfflat index created with little data,correct
+A7,偏斜-全同向量,ivfflat,20000,128,lists=100,262144,buildable,first_hit=none predicted_mb=,built,-,correct
+A8,unlogged表,ivfflat,20000,128,lists=100,262144,buildable,first_hit=none predicted_mb=,built,-,correct
+A9,HNSW-低内存降级,hnsw,50000,128,m=16,20480,will_spill,graph_mb=58.6 recommended_mwm_mb=68,built_spilled,spill_at=17097,correct
+A10,HNSW-内存充足,hnsw,50000,128,m=16,262144,no_spill,graph_mb=58.6 recommended_mwm_mb=68,built,-,correct
+A11,HNSW-并行构建,hnsw,50000,128,m=16,20480,will_spill,graph_mb=58.6 recommended_mwm_mb=68,built_spilled,spill_at=17086,correct
+A12,HNSW-禁并行,hnsw,50000,128,m=16,20480,will_spill,graph_mb=58.6 recommended_mwm_mb=68,built_spilled,spill_at=17090,correct
+B200hi,所需内存+0kB(lists=200),ivfflat,100000,128,lists=200,13430,buildable,first_hit=none predicted_mb=,built,-,correct
+B200lo,所需内存-1kB(lists=200),ivfflat,100000,128,lists=200,13429,will_fail,first_hit=C3 predicted_mb=14,failed,ERROR:  memory required is 14 MB; maintenance_work_mem is 13 MB,correct
+B500hi,所需内存+0kB(lists=500),ivfflat,100000,128,lists=500,63459,buildable,first_hit=none predicted_mb=,built,-,correct
+B500lo,所需内存-1kB(lists=500),ivfflat,100000,128,lists=500,63458,will_fail,first_hit=C3 predicted_mb=62,failed,ERROR:  memory required is 62 MB; maintenance_work_mem is 61 MB,correct
+B1000hi,所需内存+0kB(lists=1000),ivfflat,50000,128,lists=1000,226527,buildable,first_hit=none predicted_mb=,built,-,correct
+B1000lo,所需内存-1kB(lists=1000),ivfflat,50000,128,lists=1000,226526,will_fail,first_hit=C3 predicted_mb=222,failed,ERROR:  memory required is 222 MB; maintenance_work_mem is 221 MB,correct

@@ -1,0 +1,1 @@
+NOTICE:  hnsw graph no longer fits into maintenance_work_mem after 51290 tuples

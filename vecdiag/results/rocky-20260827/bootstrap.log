@@ -1,0 +1,51 @@
+
+[1m>>> 以 root 检查并补齐编译依赖（Rocky 8.10）[0m
+缺少：gcc-toolset-12 python3
+Last metadata expiration check: 0:53:49 ago on Thu Aug 27 11:39:12 2026.
+Package gcc-toolset-12-12.0-6.el8.x86_64 is already installed.
+Package python36-3.6.8-39.module+el8.10.0+1910+234ad790.x86_64 is already installed.
+Dependencies resolved.
+Nothing to do.
+Complete!
+已安装：gcc-toolset-12 python3
+
+[1m>>> 检测到以 root 运行：改用 postgres 身份继续（PG 不允许 root 跑实例）[0m
+运行身份：postgres（uid 1002）
+发行版：Rocky Linux 8.10 (Green Obsidian)
+
+[1m>>> 启用编译器[0m
+gcc (GCC) 12.2.1 20221121 (Red Hat 12.2.1-7)
+
+[1m>>> 拉取 PostgreSQL 基线源码（REL_18_STABLE）[0m
+PG commit: 4c66f172a09296b08d53526f802ddd2b461bd7e8
+AC_INIT([PostgreSQL], [18.6], [pgsql-bugs@lists.postgresql.org], [], [https://www.postgresql.org/])
+
+[1m>>> 确认基线是纯社区 PG（无 gtm、contrib 无 vector）[0m
+
+[1m>>> 编译安装 PostgreSQL（约 15-25 分钟）[0m
+PostgreSQL 18.6
+
+[1m>>> 安装 contrib/pg_stat_statements[0m
+-rwxr-xr-x 1 postgres postgres 57056 8月  27 11:51 /data/pg18/install/lib/postgresql/pg_stat_statements.so
+
+[1m>>> 初始化数据目录[0m
+
+[1m>>> 启动实例（端口 5518）[0m
+PostgreSQL 18.6 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 12.2.1 20221121 (Red Hat 12.2.1-7), 64-bit
+
+[1m>>> 拉取并编译 pgvector v0.8.6[0m
+pgvector commit: 8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c
+2d9e488f5b5534c84470334cd1dad2a94b015189ecdc370a0e45b81a9416280e  /data/pg18/install/lib/postgresql/vector.so
+
+[1m>>> 启用扩展并核对版本[0m
+vector 0.8.6
+
+[1m>>> 存档环境快照[0m
+os=Rocky Linux 8.10 (Green Obsidian)
+pg_commit=4c66f172a09296b08d53526f802ddd2b461bd7e8
+pgvector_commit=8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c
+pg_configure= '--prefix=/data/pg18/install' '--with-openssl' '--with-icu' '--with-readline' '--enable-tap-tests' 'PKG_CONFIG_PATH=/opt/rh/gcc-toolset-12/root/usr/lib64/pkgconfig'
+PostgreSQL 18.6 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 12.2.1 20221121 (Red Hat 12.2.1-7), 64-bit
+
+[1m搭建完成。[0m 下一步：bash vecdiag/tools/verify_phenomena.sh 确认两个诊断对象可复现。
+连接方式：/data/pg18/install/bin/psql -p 5518 -d postgres

@@ -1,0 +1,12 @@
+run_id      = repro-20260827-125434-m1
+matrix      = /data/opentenbase/OpenTenBase-p2-vecdiag/vecdiag/tests/matrix_m1.tsv
+PGHOME      = /data/pg18/install  PGPORT = 5518
+采集时间     = 2026-08-27T12:56:15-04:00
+
+PASS        = 20
+FAIL        = 0
+BLOCKED     = 0   （未能执行，不得计为通过）
+AUTO-ONLY   = 0      （仅模型输出，不是观测值）
+
+边界声明：mode=real-threshold 的用例是通过压低 maintenance_work_mem 触发同源检查点得到的，
+         只证明后端检查点与预测一致，不证明巨型索引构建成功。

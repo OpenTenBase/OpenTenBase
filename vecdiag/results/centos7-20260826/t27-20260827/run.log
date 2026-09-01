@@ -1,0 +1,54 @@
+>>> 准备子集底库 ps_base（100000 行，取自公开数据集 sift_base 的前 100000 条）
+>>> 灌入公开查询集 sift_query.fvecs 的前 100 条（查询向量不自造）
+100
+>>> 重算 exact top-10 ground truth（顺序扫描，无索引）
+1000
+>>> HNSW m=8 ef_construction=64
+    第 1 次：8510 ms，索引 71.0 MB，降级=no，recall@10=0.9490，单查询 0.644 ms
+    第 2 次：7911 ms，索引 71.0 MB，降级=no，recall@10=0.9420，单查询 0.506 ms
+    第 3 次：8326 ms，索引 71.0 MB，降级=no，recall@10=0.9370，单查询 0.498 ms
+>>> HNSW m=8 ef_construction=200
+    第 1 次：21618 ms，索引 71.0 MB，降级=no，recall@10=0.9590，单查询 0.600 ms
+    第 2 次：23679 ms，索引 71.0 MB，降级=no，recall@10=0.9580，单查询 0.540 ms
+    第 3 次：26010 ms，索引 71.0 MB，降级=no，recall@10=0.9580，单查询 0.542 ms
+>>> HNSW m=16 ef_construction=64
+    第 1 次：16744 ms，索引 79.4 MB，降级=no，recall@10=0.9770，单查询 0.687 ms
+    第 2 次：18192 ms，索引 79.4 MB，降级=no，recall@10=0.9800，单查询 0.840 ms
+    第 3 次：18985 ms，索引 79.4 MB，降级=no，recall@10=0.9800，单查询 0.876 ms
+>>> HNSW m=16 ef_construction=200
+    第 1 次：41038 ms，索引 79.4 MB，降级=no，recall@10=0.9890，单查询 0.888 ms
+    第 2 次：40573 ms，索引 79.4 MB，降级=no，recall@10=0.9900，单查询 0.881 ms
+    第 3 次：38197 ms，索引 79.4 MB，降级=no，recall@10=0.9890，单查询 0.880 ms
+>>> HNSW m=32 ef_construction=64
+    第 1 次：36025 ms，索引 98.1 MB，降级=no，recall@10=0.9930，单查询 1.311 ms
+    第 2 次：36751 ms，索引 98.0 MB，降级=no，recall@10=0.9940，单查询 1.271 ms
+    第 3 次：36968 ms，索引 98.1 MB，降级=no，recall@10=0.9880，单查询 1.259 ms
+>>> HNSW m=32 ef_construction=200
+    第 1 次：70722 ms，索引 98.1 MB，降级=no，recall@10=0.9940，单查询 1.299 ms
+    第 2 次：70783 ms，索引 98.1 MB，降级=no，recall@10=0.9950，单查询 1.311 ms
+    第 3 次：68633 ms，索引 98.1 MB，降级=no，recall@10=0.9940，单查询 1.323 ms
+>>> IVFFlat lists=100（probes=10）
+    第 1 次：1147 ms，索引 52.5 MB，降级=no，recall@10=0.9830，单查询 7.632 ms
+    第 2 次：1159 ms，索引 52.5 MB，降级=no，recall@10=0.9810，单查询 7.888 ms
+    第 3 次：1004 ms，索引 52.5 MB，降级=no，recall@10=0.9940，单查询 5.192 ms
+>>> IVFFlat lists=316（probes=10）
+    第 1 次：2226 ms，索引 53.4 MB，降级=no，recall@10=0.9500，单查询 1.845 ms
+    第 2 次：2023 ms，索引 53.4 MB，降级=no，recall@10=0.9350，单查询 1.858 ms
+    第 3 次：2676 ms，索引 53.4 MB，降级=no，recall@10=0.9270，单查询 1.895 ms
+>>> IVFFlat lists=1000（probes=10）
+    第 1 次：16676 ms，索引 56.3 MB，降级=no，recall@10=0.8550，单查询 0.786 ms
+    第 2 次：14083 ms，索引 56.2 MB，降级=no，recall@10=0.8600，单查询 0.753 ms
+    第 3 次：14311 ms，索引 56.3 MB，降级=no，recall@10=0.8600，单查询 0.750 ms
+>>> 汇总（构建耗时 min/median/max，召回取各次均值）
+am,param,n,build_min_ms,build_median_ms,build_max_ms,index_mb,spilled,recall_at_k,query_ms_mean
+hnsw,m=16;ef_construction=200,3,38197,40573,41038,79.4,no,0.9893,0.88
+hnsw,m=16;ef_construction=64,3,16744,18192,18985,79.4,no,0.9790,0.80
+hnsw,m=32;ef_construction=200,3,68633,70722,70783,98.1,no,0.9943,1.31
+hnsw,m=32;ef_construction=64,3,36025,36751,36968,98.1,no,0.9917,1.28
+hnsw,m=8;ef_construction=200,3,21618,23679,26010,71.0,no,0.9583,0.56
+hnsw,m=8;ef_construction=64,3,7911,8326,8510,71.0,no,0.9427,0.55
+ivfflat,lists=1000,3,14083,14311,16676,56.3,no,0.8583,0.76
+ivfflat,lists=100,3,1004,1147,1159,52.5,no,0.9860,6.90
+ivfflat,lists=316,3,2023,2226,2676,53.4,no,0.9373,1.87
+>>> 原始数据 -> /data/artifacts/t27-20260827/param_sweep.csv；统计 -> /data/artifacts/t27-20260827/param_sweep_stats.csv
+>>> 把统计结果写进参数建议表：bash tools/load_param_facts.sh /data/artifacts/t27-20260827/param_sweep_stats.csv

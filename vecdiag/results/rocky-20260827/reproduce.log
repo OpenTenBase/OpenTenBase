@@ -1,0 +1,214 @@
+
+[1m===== 1/13 跳过环境搭建（--skip-bootstrap） =====[0m
+
+[1m===== 2/13 环境快照（门禁 K1/K2 要求：结果必须能对上环境） =====[0m
+Mem:           7665        1409         856         562        5399        5395
+Swap:          4095           0        4095
+selinux: Disabled
+AC_INIT([PostgreSQL], [18.6], [pgsql-bugs@lists.postgresql.org], [], [https://www.postgresql.org/])
+PostgreSQL 18.6
+PostgreSQL 18.6 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 12.2.1 20221121 (Red Hat 12.2.1-7), 64-bit
+
+[1m===== 3/13 复现两个诊断对象（IVFFlat 内存报错 / HNSW 落盘降级） =====[0m
+  [WARN] 未捕获到该报错。可能 lists 太小或内存参数未生效，检查 /data/artifacts/repro-20260827-125434/phenomena/ivfflat_mem.err
+  [WARN] 未捕获到该 NOTICE。加大行数或维度、或调小 maintenance_work_mem 再试
+  [WARN] GUC 清单为空。确认 LOAD 'vector' 是否成功，不要直接当成'上游没有 GUC'
+完成。两个 [OK] 都出现则环境就绪。
+
+[1m===== 4/13 安装 vecdiag SQL 层 =====[0m
+(4 rows)
+
+安装完成。
+
+[1m===== 5/13 ABI 常数实测（换机器必做，不能沿用他机数值） =====[0m
+---------------------------+-------+-------------
+ max_heap_tuples_per_page  |   291 | measured
+ maxalign_itemsize_dims128 |   520 | measured
+ ivfflat_max_lists         | 32768 | source-code
+ maximum_alignof           |     8 | source-code
+ sizeof_VectorArrayData    |    24 | source-code
+(5 rows)
+
+
+[1m===== 6/13 M1 · 20 组验证矩阵 + 回归用例 =====[0m
+  [PASS     ] S1             target=C3   first_hit=none 预测=none  实际=none  mwm=121 kB
+  [PASS     ] S2             target=C2   first_hit=C2   预测=3     实际=3     mwm=507 kB
+  [PASS     ] S3             target=C3   first_hit=C3   预测=9     实际=9     mwm=5578 kB
+  [PASS     ] S4             target=C3   first_hit=C3   预测=7     实际=7     mwm=4578 kB
+  [PASS     ] S5             target=C2   first_hit=C2   预测=22    实际=22    mwm=507 kB
+  [PASS     ] S6             target=C3   first_hit=C3   预测=11    实际=11    mwm=10756 kB
+  [PASS     ] F1             target=C3   first_hit=C3   预测=10    实际=10    mwm=7191 kB
+  [PASS     ] F2             target=C3   first_hit=C3   预测=14    实际=14    mwm=9304 kB
+  [PASS     ] F3             target=C3   first_hit=C3   预测=43    实际=43    mwm=28399 kB
+  [PASS     ] F4             target=C3   first_hit=C3   预测=15    实际=15    mwm=12291 kB
+  [PASS     ] F5             target=C3   first_hit=C3   预测=37    实际=37    mwm=21378 kB
+  [PASS     ] F6             target=C3   first_hit=C3   预测=88    实际=88    mwm=57716 kB
+  [PASS     ] L1             target=C1   first_hit=C1   预测=2     实际=2     mwm=1039 kB
+  [PASS     ] L2             target=C1   first_hit=C1   预测=3     实际=3     mwm=2079 kB
+  [PASS     ] L3             target=C2   first_hit=C2   预测=25    实际=25    mwm=4160 kB
+  [PASS     ] L4             target=C2   first_hit=C2   预测=29    实际=29    mwm=8320 kB
+  [PASS     ] L5             target=C1   first_hit=C1   预测=17    实际=17    mwm=16639 kB
+  [PASS     ] X1             target=C3   first_hit=C3   预测=22    实际=22    mwm=12846 kB
+  [PASS     ] X2             target=C3   first_hit=C3   预测=17    实际=17    mwm=10759 kB
+  [PASS     ] X3             target=none first_hit=none 预测=none  实际=none  mwm=13350 kB
+PASS        = 20
+FAIL        = 0
+BLOCKED     = 0   （未能执行，不得计为通过）
+AUTO-ONLY   = 0      （仅模型输出，不是观测值）
+  回归用例中的 f（失败）个数：0
+
+[1m===== 7/13 M2 · HNSW 标定与外样本验证 =====[0m
+>>> A 组：固定 (dims=128, m=16)，只改内存 —— 检验 per_element 是否与内存无关
+  [SPILL] A1         dims=128  m=16  mwm=4096kB  → 第 3417    行降级，per_element ≈ 1227.5 B
+  [SPILL] A2         dims=128  m=16  mwm=8192kB  → 第 6837    行降级，per_element ≈ 1226.9 B
+  [ NO   ] A3         dims=128  m=16  mwm=16384kB → 未降级（图放得下）
+  [SPILL] B1         dims=128  m=8   mwm=8192kB  → 第 8616    行降级，per_element ≈ 973.6 B
+  [SPILL] B2         dims=128  m=32  mwm=8192kB  → 第 4826    行降级，per_element ≈ 1738.2 B
+  [SPILL] C1         dims=384  m=16  mwm=8192kB  → 第 3726    行降级，per_element ≈ 2251.4 B
+  [SPILL] C2         dims=384  m=16  mwm=16384kB → 第 7452    行降级，per_element ≈ 2251.4 B
+  [SPILL] D1         dims=128  m=16  mwm=8192kB  → 第 6831    行降级，per_element ≈ 1228.0 B
+>>> 自洽性检查：A 组三档内存算出的 per_element 应当一致
+  A 组 per_element: 均值 1227.2 B，极差 0.6 B，相对离散 0.05%（2 个样本）
+case_id  rows   dims  m   ef_construction  mwm_kb  spill_tuples  per_element_bytes  spilled
+  [PASS] V1       out-of-sample          预测降级=3614     实测=3613     误差=0.03     calibrated
+  [PASS] V2       out-of-sample          预测降级=5254     实测=5258     误差=-0.08    calibrated
+  [PASS] V3       out-of-sample          预测降级=3413     实测=3417     误差=-0.12    calibrated
+  [PASS] E1       advice-works           预测降级=none     实测=none     误差=—      calibrated
+  [PASS] E2       advice-tight           预测降级=3840     实测=3427     误差=12.05    calibrated
+V1       out-of-sample  12000  256   16  6144    3614        3613          0.03         calibrated  PASS
+V2       out-of-sample  12000  256   24  10240   5254        5258          -0.08        calibrated  PASS
+V3       out-of-sample  6000   128   16  4096    3413        3417          -0.12        calibrated  PASS
+E1       advice-works   6000   128   16  9216    none        none                       calibrated  PASS
+E2       advice-tight   6000   128   16  4608    3840        3427          12.05        calibrated  PASS
+>>> 降级点预测平均绝对相对误差 3.07%（4 组有可比值）
+  区间未覆盖（in_range=f）的个数：0
+
+[1m===== 8/13 M3 · 阶段耗时、阶段权重与加权进度 =====[0m
+>>> 采样开销对照（ivf_M，采样/不采样交替各 4 次）
+    第 1 轮：有采样 1514 ms / 无采样 1500 ms
+    第 2 轮：有采样 1494 ms / 无采样 1557 ms
+    第 3 轮：有采样 1510 ms / 无采样 1520 ms
+    第 4 轮：有采样 1516 ms / 无采样 1658 ms
+  ab_off           n=4  min=1500  median=1520  max=1658
+  ivf_L            n=3  min=2610  median=2665  max=2675
+  ivf_M            n=3  min=1457  median=1507  max=1513
+  ab_on            n=4  min=1494  median=1510  max=1516
+  hnsw_M           n=3  min=2528  median=2567  max=2588
+  ivf_S            n=3  min=412  median=414  max=423
+>>> 采样开销（交替组 ab_on vs ab_off 的中位数之差）
+  有采样 1510 ms / 无采样 1520 ms → 开销 -0.66%
+已载入采样点：287
+   am    | size_class |  dataset  |               phase                | weight | 重复次数 |  极差  
+   am    | size_class |  dataset  | total  
+  单调性断言 ok_monotone：
+  回归用例中的 f（失败）个数：0
+
+[1m===== 9/13 M4 · 零参数体检与可用性分层 =====[0m
+  体检发现条数：1
+  回归用例中的 f（失败）个数：0
+
+[1m===== 10/13 T2.7 · 构建参数扫描（代价与收益，约 20-30 分钟） =====[0m
+    第 1 次：16702 ms，索引 71.0 MB，降级=no，recall@10=0.9360，单查询 1.203 ms
+    第 2 次：14597 ms，索引 71.0 MB，降级=no，recall@10=0.9450，单查询 1.015 ms
+    第 3 次：13613 ms，索引 71.0 MB，降级=no，recall@10=0.9360，单查询 0.926 ms
+    第 1 次：35086 ms，索引 71.0 MB，降级=no，recall@10=0.9660，单查询 1.011 ms
+    第 2 次：35477 ms，索引 71.0 MB，降级=no，recall@10=0.9570，单查询 1.043 ms
+    第 3 次：35589 ms，索引 71.0 MB，降级=no，recall@10=0.9580，单查询 0.957 ms
+    第 1 次：27610 ms，索引 79.4 MB，降级=no，recall@10=0.9810，单查询 1.257 ms
+    第 2 次：27081 ms，索引 79.4 MB，降级=no，recall@10=0.9810，单查询 1.419 ms
+    第 3 次：26867 ms，索引 79.4 MB，降级=no，recall@10=0.9820，单查询 1.525 ms
+    第 1 次：59319 ms，索引 79.4 MB，降级=no，recall@10=0.9870，单查询 1.370 ms
+    第 2 次：61845 ms，索引 79.3 MB，降级=no，recall@10=0.9890，单查询 1.369 ms
+    第 3 次：61491 ms，索引 79.4 MB，降级=no，recall@10=0.9900，单查询 1.336 ms
+    第 1 次：50642 ms，索引 98.1 MB，降级=no，recall@10=0.9920，单查询 2.062 ms
+    第 2 次：50817 ms，索引 98.1 MB，降级=no，recall@10=0.9910，单查询 1.896 ms
+    第 3 次：52808 ms，索引 98.0 MB，降级=no，recall@10=0.9910，单查询 2.044 ms
+    第 1 次：117399 ms，索引 98.1 MB，降级=no，recall@10=0.9940，单查询 1.978 ms
+    第 2 次：124906 ms，索引 98.1 MB，降级=no，recall@10=0.9950，单查询 1.917 ms
+    第 3 次：116853 ms，索引 98.1 MB，降级=no，recall@10=0.9940，单查询 1.878 ms
+    第 1 次：2161 ms，索引 52.5 MB，降级=no，recall@10=0.9880，单查询 9.893 ms
+    第 2 次：1662 ms，索引 52.5 MB，降级=no，recall@10=0.9830，单查询 9.266 ms
+    第 3 次：1616 ms，索引 52.5 MB，降级=no，recall@10=0.9890，单查询 9.751 ms
+    第 1 次：3889 ms，索引 53.4 MB，降级=no，recall@10=0.9370，单查询 3.484 ms
+    第 2 次：3588 ms，索引 53.4 MB，降级=no，recall@10=0.9360，单查询 3.289 ms
+    第 3 次：4021 ms，索引 53.5 MB，降级=no，recall@10=0.9280，单查询 3.148 ms
+    第 1 次：25169 ms，索引 56.2 MB，降级=no，recall@10=0.8720，单查询 1.290 ms
+    第 2 次：28698 ms，索引 56.3 MB，降级=no，recall@10=0.8560，单查询 1.223 ms
+    第 3 次：30178 ms，索引 56.3 MB，降级=no，recall@10=0.8660，单查询 1.398 ms
+am,param,n,build_min_ms,build_median_ms,build_max_ms,index_mb,spilled,recall_at_k,query_ms_mean
+>>> 帕累托前沿（on_frontier=false 表示更慢且召回不更高，属于白花时间）
+   am    |   config    | build_median_ms | recall_at_k | on_frontier |                               dominated_by                               
+---------+-------------+-----------------+-------------+-------------+--------------------------------------------------------------------------
+ hnsw    | m=8/ef=64   |           14597 |      0.9390 | t           | 
+ hnsw    | m=16/ef=64  |           27081 |      0.9813 | t           | 
+ hnsw    | m=8/ef=200  |           35477 |      0.9603 | f           | m=16/ef=64（27081 ms, recall 0.9813）
+ hnsw    | m=32/ef=64  |           50817 |      0.9913 | t           | 
+ hnsw    | m=16/ef=200 |           61491 |      0.9887 | f           | m=32/ef=64（50817 ms, recall 0.9913）
+ hnsw    | m=32/ef=200 |          117399 |      0.9943 | t           | 
+ ivfflat | lists=100   |            1662 |      0.9867 | t           | 
+ ivfflat | lists=316   |            3889 |      0.9337 | f           | lists=100（1662 ms, recall 0.9867）
+ ivfflat | lists=1000  |           28698 |      0.8647 | f           | lists=100（1662 ms, recall 0.9867）; lists=316（3889 ms, recall 0.9337）
+(9 rows)
+
+
+[1m===== 11/13 T3.5 · HNSW 降级对 ETA 的影响，以及用 M2 预测修正它 =====[0m
+>>> 事前预测（M2）：mwm=60MB 下会不会降级、在第几行
+    实测降级行号：51290
+ before_spill |         381 |          0.75405 | 0.76744
+ after_spill  |        1457 |          2.98306 | 3.00000
+
+[1m===== 12/13 T4.3+T4.4 · 异常场景矩阵与保守方向专项（约 5 分钟） =====[0m
+  A1     低内存-IVFFlat      will_fail    → 实际 failed         correct
+  A2     低内存-刚好够    buildable    → 实际 built          correct
+  A3     极端lists-上界     will_fail    → 实际 failed         correct
+  A4     极端lists-远超行数 buildable    → 实际 built          correct
+  A5     空表                 buildable    → 实际 built          correct
+  A6     小表-10行           buildable    → 实际 built          correct
+  A7     偏斜-全同向量    buildable    → 实际 built          correct
+  A8     unlogged表            buildable    → 实际 built          correct
+  A9     HNSW-低内存降级   will_spill   → 实际 built_spilled  correct
+  A10    HNSW-内存充足      no_spill     → 实际 built          correct
+  A11    HNSW-并行构建      will_spill   → 实际 built_spilled  correct
+  A12    HNSW-禁并行         will_spill   → 实际 built_spilled  correct
+  B200hi 所需内存+0kB(lists=200) buildable    → 实际 built          correct
+  B200lo 所需内存-1kB(lists=200) will_fail    → 实际 failed         correct
+  B500hi 所需内存+0kB(lists=500) buildable    → 实际 built          correct
+  B500lo 所需内存-1kB(lists=500) will_fail    → 实际 failed         correct
+  B1000hi 所需内存+0kB(lists=1000) buildable    → 实际 built          correct
+  B1000lo 所需内存-1kB(lists=1000) will_fail    → 实际 failed         correct
+  correct        18
+[OK] 没有 DANGEROUS 用例
+
+[1m===== 13/13 T4.5 · TAP 回归 + 统一性能对比表 =====[0m
+ok 19 - 所有 vecdiag 函数都固定了 search_path
+1..19
+ok
+All tests successful.
+Files=1, Tests=19, 105 wallclock secs ( 0.04 usr  0.01 sys +  0.37 cusr  0.26 csys =  0.68 CPU)
+Result: PASS
+| 上游对照 | 构建侧 GUC 数量 | pgvector 0.8.6 | 0（7 个 GUC 全在查询/扫描侧） | 本项目 | SQL 层 6 个模块 | 个 | 需 LOAD 'vector' 后才可见 | `results/t05-20260826/upstream_inventory.txt` |
+| 上游对照 | HNSW 图内存数字 | pgvector 0.8.6 | 仅 #ifdef HNSW_MEMORY 下 elog(INFO) | 本项目 | 用 NOTICE 反解，无需重编译 | - | hnswbuild.c:307 | `docs/M2-hnsw-spill-model.md` |
+| 上游对照 | 跨阶段进度百分比 | PostgreSQL+pgvector | 只报当前阶段名 | 本项目 | 加权百分比+ETA+可用性分层 | - | 阶段内计数只有部分阶段有 | `docs/M3-progress-and-stage-timing.md` |
+>>> 对比表 -> /data/artifacts/repro-20260827-125434-perf/perf_compare.csv 与 /data/artifacts/repro-20260827-125434-perf/perf_compare.md
+
+[1m===== 完成 =====[0m
+证据目录：/data/artifacts/repro-20260827-125434 以及 /data/artifacts/repro-20260827-125434-{abi,m1,m2,m2v,m3}/
+判定标准（任一条不满足就不要认这轮结果）：
+  · M1 矩阵 20 组全部 PASS，BLOCKED 必须为 0
+  · M1 / M2 / M3 的回归用例里都不应出现 f
+  · ABI 实测的 MAXALIGN(itemsize) 在 dims=128 下应为 520
+  · M2 的 11 组实测降级点全部落在预测区间内（in_range 全 t）
+  · M3 的加权进度单调性断言 ok_monotone = t，且每个访问方法的权重求和为 1
+  · M3 的采样开销 < 2%（交替测量得出；顺序测量会得到无意义的负值）
+  · M4 体检的每条输出都带齐问题/原因/调整方法/验证方式四要素，且修复建议可直接执行
+  · 阶段权重的消费视图 vecdiag.stage_weight_usable 里不含 pooled、不含超限组；
+    被排除的组仍留在 vecdiag.stage_weight_audit 里并附不可用原因（证据不删、结论不混）
+  · T2.7 的参数表里每个数字都能在 vecdiag.param_advice_provenance 里查到来源类型
+    （source-code / upstream-doc / measured 三类，缺来源即不合格）
+  · T3.5 的降级点预测与实测 NOTICE 偏差 < 1%；接入修正后的 ETA 全程平均绝对偏差
+    应显著低于朴素外推（本机 59.10% → 9.02%）
+  · T4.4 异常矩阵里 DANGEROUS 必须为 0（"模型说能建、实际建不起来"一个都不许有）；
+    T4.3 的临界内存用例必须是 need kB 建成、need−1 kB 报错
+  · T4.5 的 prove 退出码为 0，不通过项在 tap_summary.txt 里为空
+换机器时注意：ABI 常数与编译器/块大小绑定，两台机器的结果必须分开归档，
+不要把本仓库 results/ 里的数字当成新机器上的结论。

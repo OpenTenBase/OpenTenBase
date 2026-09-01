@@ -1,0 +1,351 @@
+checking build system type... x86_64-pc-linux-gnu
+checking host system type... x86_64-pc-linux-gnu
+checking which template to use... linux
+checking whether NLS is wanted... no
+checking for default port number... 5432
+checking for block size... 8kB
+checking for segment size... 1GB
+checking for WAL block size... 8kB
+checking for gcc... gcc
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables... 
+checking whether we are cross compiling... no
+checking for suffix of object files... o
+checking whether we are using the GNU C compiler... yes
+checking whether gcc accepts -g... yes
+checking for gcc option to accept ISO C89... none needed
+checking for gcc option to accept ISO C99... none needed
+checking for g++... g++
+checking whether we are using the GNU C++ compiler... yes
+checking whether g++ accepts -g... yes
+checking for gawk... gawk
+checking whether gcc supports -Wdeclaration-after-statement, for CFLAGS... yes
+checking whether gcc supports -Werror=vla, for CFLAGS... yes
+checking whether gcc supports -Werror=unguarded-availability-new, for CFLAGS... no
+checking whether g++ supports -Werror=unguarded-availability-new, for CXXFLAGS... no
+checking whether gcc supports -Wendif-labels, for CFLAGS... yes
+checking whether g++ supports -Wendif-labels, for CXXFLAGS... yes
+checking whether gcc supports -Wmissing-format-attribute, for CFLAGS... yes
+checking whether g++ supports -Wmissing-format-attribute, for CXXFLAGS... yes
+checking whether gcc supports -Wimplicit-fallthrough=3, for CFLAGS... yes
+checking whether g++ supports -Wimplicit-fallthrough=3, for CXXFLAGS... yes
+checking whether gcc supports -Wcast-function-type, for CFLAGS... yes
+checking whether g++ supports -Wcast-function-type, for CXXFLAGS... yes
+checking whether gcc supports -Wshadow=compatible-local, for CFLAGS... yes
+checking whether g++ supports -Wshadow=compatible-local, for CXXFLAGS... yes
+checking whether gcc supports -Wformat-security, for CFLAGS... yes
+checking whether g++ supports -Wformat-security, for CXXFLAGS... yes
+checking whether gcc supports -Wmissing-variable-declarations, for CFLAGS... no
+checking whether gcc supports -fno-strict-aliasing, for CFLAGS... yes
+checking whether g++ supports -fno-strict-aliasing, for CXXFLAGS... yes
+checking whether gcc supports -fwrapv, for CFLAGS... yes
+checking whether g++ supports -fwrapv, for CXXFLAGS... yes
+checking whether gcc supports -fexcess-precision=standard, for CFLAGS... yes
+checking whether g++ supports -fexcess-precision=standard, for CXXFLAGS... no
+checking whether gcc supports -funroll-loops, for CFLAGS_UNROLL_LOOPS... yes
+checking whether gcc supports -ftree-vectorize, for CFLAGS_VECTORIZE... yes
+checking whether gcc supports -Wunused-command-line-argument, for NOT_THE_CFLAGS... no
+checking whether gcc supports -Wcompound-token-split-by-macro, for NOT_THE_CFLAGS... no
+checking whether gcc supports -Wformat-truncation, for NOT_THE_CFLAGS... yes
+checking whether gcc supports -Wstringop-truncation, for NOT_THE_CFLAGS... yes
+checking whether gcc supports -Wcast-function-type-strict, for NOT_THE_CFLAGS... no
+checking whether gcc supports -fvisibility=hidden, for CFLAGS_SL_MODULE... yes
+checking whether g++ supports -fvisibility=hidden, for CXXFLAGS_SL_MODULE... yes
+checking whether g++ supports -fvisibility-inlines-hidden, for CXXFLAGS_SL_MODULE... yes
+checking whether the C compiler still works... yes
+checking how to run the C preprocessor... gcc -E
+checking for pkg-config... /bin/pkg-config
+checking pkg-config is at least version 0.9.0... yes
+checking whether to build with ICU support... yes
+checking for icu-uc icu-i18n... yes
+checking whether to build with Tcl... no
+checking whether to build Perl modules... no
+checking whether to build Python modules... no
+checking whether to build with GSSAPI support... no
+checking whether to build with PAM support... no
+checking whether to build with BSD Authentication support... no
+checking whether to build with LDAP support... no
+checking whether to build with Bonjour support... no
+checking whether to build with SELinux support... no
+checking whether to build with systemd support... no
+checking whether to build with liburing support... no
+checking whether to build with libcurl support... no
+checking whether to build with libnuma support... no
+checking whether to build with XML support... no
+checking whether to build with LZ4 support... no
+checking whether to build with ZSTD support... no
+checking for strip... strip
+checking whether it is possible to strip libraries... yes
+checking for ar... ar
+checking for a BSD-compatible install... /bin/install -c
+checking for tar... /bin/tar
+checking whether ln -s works... yes
+checking for a thread-safe mkdir -p... /bin/mkdir -p
+checking for bison... /bin/bison
+configure: using bison (GNU Bison) 3.0.4
+checking for flex... /bin/flex
+configure: using flex 2.5.37
+checking for perl... /bin/perl
+configure: using perl 5.16.3
+checking for a sed that does not truncate output... /bin/sed
+checking for grep that handles long lines and -e... /bin/grep
+checking for egrep... /bin/grep -E
+checking for ANSI C header files... yes
+checking for sys/types.h... yes
+checking for sys/stat.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for memory.h... yes
+checking for strings.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for unistd.h... yes
+checking whether gcc is Clang... no
+checking whether pthreads work with -pthread... yes
+checking for joinable pthread attribute... PTHREAD_CREATE_JOINABLE
+checking whether more special flags are required for pthreads... no
+checking for PTHREAD_PRIO_INHERIT... yes
+checking pthread.h usability... yes
+checking pthread.h presence... yes
+checking for pthread.h... yes
+checking for strerror_r... yes
+checking whether strerror_r returns int... no
+checking for main in -lm... yes
+checking for library containing setproctitle... no
+checking for library containing dlsym... -ldl
+checking for library containing socket... none required
+checking for library containing getopt_long... none required
+checking for library containing shm_open... -lrt
+checking for library containing shm_unlink... none required
+checking for library containing clock_gettime... none required
+checking for library containing shmget... none required
+checking for library containing backtrace_symbols... none required
+checking for library containing pthread_barrier_wait... -lpthread
+checking for library containing readline... -lreadline
+checking for inflate in -lz... yes
+checking for CRYPTO_new_ex_data in -lcrypto... yes
+checking for SSL_new in -lssl... yes
+checking for SSL_CTX_set_ciphersuites... yes
+checking for SSL_CTX_set_cert_cb... yes
+checking for X509_get_signature_info... yes
+checking for SSL_CTX_set_num_tickets... yes
+checking for SSL_CTX_set_keylog_callback... yes
+checking atomic.h usability... no
+checking atomic.h presence... no
+checking for atomic.h... no
+checking copyfile.h usability... no
+checking copyfile.h presence... no
+checking for copyfile.h... no
+checking execinfo.h usability... yes
+checking execinfo.h presence... yes
+checking for execinfo.h... yes
+checking getopt.h usability... yes
+checking getopt.h presence... yes
+checking for getopt.h... yes
+checking ifaddrs.h usability... yes
+checking ifaddrs.h presence... yes
+checking for ifaddrs.h... yes
+checking mbarrier.h usability... no
+checking mbarrier.h presence... no
+checking for mbarrier.h... no
+checking sys/epoll.h usability... yes
+checking sys/epoll.h presence... yes
+checking for sys/epoll.h... yes
+checking sys/event.h usability... no
+checking sys/event.h presence... no
+checking for sys/event.h... no
+checking sys/personality.h usability... yes
+checking sys/personality.h presence... yes
+checking for sys/personality.h... yes
+checking sys/prctl.h usability... yes
+checking sys/prctl.h presence... yes
+checking for sys/prctl.h... yes
+checking sys/procctl.h usability... no
+checking sys/procctl.h presence... no
+checking for sys/procctl.h... no
+checking sys/signalfd.h usability... yes
+checking sys/signalfd.h presence... yes
+checking for sys/signalfd.h... yes
+checking sys/ucred.h usability... no
+checking sys/ucred.h presence... no
+checking for sys/ucred.h... no
+checking termios.h usability... yes
+checking termios.h presence... yes
+checking for termios.h... yes
+checking ucred.h usability... no
+checking ucred.h presence... no
+checking for ucred.h... no
+checking xlocale.h usability... yes
+checking xlocale.h presence... yes
+checking for xlocale.h... yes
+checking readline/readline.h usability... yes
+checking readline/readline.h presence... yes
+checking for readline/readline.h... yes
+checking readline/history.h usability... yes
+checking readline/history.h presence... yes
+checking for readline/history.h... yes
+checking zlib.h usability... yes
+checking zlib.h presence... yes
+checking for zlib.h... yes
+checking for lz4... /bin/lz4
+checking for zstd... no
+checking for openssl... /bin/openssl
+configure: using openssl: OpenSSL 1.0.2k-fips  26 Jan 2017
+checking openssl/ssl.h usability... yes
+checking openssl/ssl.h presence... yes
+checking for openssl/ssl.h... yes
+checking openssl/err.h usability... yes
+checking openssl/err.h presence... yes
+checking for openssl/err.h... yes
+checking whether byte ordering is bigendian... no
+checking for inline... inline
+checking for C printf format archetype... gnu_printf
+checking for C++ printf format archetype... gnu_printf
+checking for _Static_assert... yes
+checking for typeof... typeof
+checking for __builtin_types_compatible_p... yes
+checking for __builtin_constant_p... yes
+checking for __builtin_mul_overflow... yes
+checking for __builtin_unreachable... yes
+checking for computed goto support... yes
+checking for struct tm.tm_zone... yes
+checking for union semun... no
+checking for socklen_t... yes
+checking for struct sockaddr.sa_len... no
+checking for C/C++ restrict keyword... __restrict
+checking for struct option... yes
+checking whether assembler supports x86_64 popcntq... yes
+checking for special C compiler options needed for large files... no
+checking for _FILE_OFFSET_BITS value needed for large files... no
+checking size of off_t... 8
+checking for int timezone... yes
+checking for backtrace_symbols... yes
+checking for copyfile... no
+checking for copy_file_range... no
+checking for elf_aux_info... no
+checking for getauxval... yes
+checking for getifaddrs... yes
+checking for getpeerucred... no
+checking for inet_pton... yes
+checking for kqueue... no
+checking for localeconv_l... no
+checking for mbstowcs_l... no
+checking for posix_fallocate... yes
+checking for ppoll... yes
+checking for pthread_is_threaded_np... no
+checking for setproctitle... no
+checking for setproctitle_fast... no
+checking for strsignal... yes
+checking for syncfs... yes
+checking for sync_file_range... yes
+checking for uselocale... yes
+checking for wcstombs_l... no
+checking for __builtin_bswap16... yes
+checking for __builtin_bswap32... yes
+checking for __builtin_bswap64... yes
+checking for __builtin_clz... yes
+checking for __builtin_ctz... yes
+checking for __builtin_popcount... yes
+checking for __builtin_frame_address... yes
+checking for _LARGEFILE_SOURCE value needed for large files... no
+checking how gcc reports undeclared, standard C functions... error
+checking for posix_fadvise... yes
+checking whether posix_fadvise is declared... yes
+checking whether fdatasync is declared... yes
+checking whether strlcat is declared... no
+checking whether strlcpy is declared... no
+checking whether strnlen is declared... yes
+checking whether strsep is declared... yes
+checking whether timingsafe_bcmp is declared... no
+checking whether preadv is declared... yes
+checking whether pwritev is declared... yes
+checking whether strchrnul is declared... yes
+checking whether memset_s is declared... no
+checking whether F_FULLFSYNC is declared... no
+checking for explicit_bzero... no
+checking for getopt... yes
+checking for getpeereid... no
+checking for inet_aton... yes
+checking for mkdtemp... yes
+checking for strlcat... no
+checking for strlcpy... no
+checking for strnlen... yes
+checking for strsep... yes
+checking for timingsafe_bcmp... no
+checking for pthread_barrier_wait... yes
+checking for getopt_long... yes
+checking for syslog... yes
+checking syslog.h usability... yes
+checking syslog.h presence... yes
+checking for syslog.h... yes
+checking for opterr... yes
+checking for optreset... no
+checking unicode/ucol.h usability... yes
+checking unicode/ucol.h presence... yes
+checking for unicode/ucol.h... yes
+checking for rl_completion_suppress_quote... yes
+checking for rl_filename_quote_characters... yes
+checking for rl_filename_quoting_function... yes
+checking for append_history... yes
+checking for history_truncate_file... yes
+checking for rl_completion_matches... yes
+checking for rl_filename_completion_function... yes
+checking for rl_reset_screen_size... yes
+checking for rl_variable_bind... yes
+checking test program... ok
+checking size of void *... 8
+checking size of size_t... 8
+checking size of long... 8
+checking size of long long... 8
+checking alignment of short... 2
+checking alignment of int... 4
+checking alignment of long... 8
+checking alignment of int64_t... 8
+checking alignment of double... 8
+checking for __int128... yes
+checking for __int128 alignment bug... ok
+checking alignment of PG_INT128_TYPE... 16
+checking for builtin __sync char locking functions... yes
+checking for builtin __sync int32 locking functions... yes
+checking for builtin __sync int32 atomic operations... yes
+checking for builtin __sync int64 atomic operations... yes
+checking for builtin __atomic int32 atomic operations... yes
+checking for builtin __atomic int64 atomic operations... yes
+checking for __get_cpuid... yes
+checking for __get_cpuid_count... yes
+checking for _xgetbv... yes
+checking for _mm512_popcnt_epi64... yes
+checking for _mm_crc32_u8 and _mm_crc32_u32... yes
+checking for __crc32cb, __crc32ch, __crc32cw, and __crc32cd with CFLAGS=... no
+checking for __crc32cb, __crc32ch, __crc32cw, and __crc32cd with CFLAGS=-march=armv8-a+crc+simd... no
+checking for __crc32cb, __crc32ch, __crc32cw, and __crc32cd with CFLAGS=-march=armv8-a+crc... no
+checking for __builtin_loongarch_crcc_w_b_w, __builtin_loongarch_crcc_w_h_w, __builtin_loongarch_crcc_w_w_w and __builtin_loongarch_crcc_w_d_w... no
+checking which CRC-32C implementation to use... SSE 4.2 with runtime check
+checking for _mm512_clmulepi64_epi128... yes
+checking for vectorized CRC-32C... AVX-512 with runtime check
+checking for library containing sem_init... none required
+checking which semaphore API to use... unnamed POSIX
+checking which random number source to use... OpenSSL
+checking for xmllint... /bin/xmllint
+checking for xsltproc... /bin/xsltproc
+checking for fop... no
+checking for dbtoepub... no
+checking for prove... /bin/prove
+checking for Perl modules required for TAP tests... yes
+checking whether gcc supports -Wl,--as-needed, for LDFLAGS... yes
+checking whether gcc supports -Wl,--export-dynamic, for LDFLAGS_EX_BE... yes
+configure: using compiler=gcc (GCC) 11.2.1 20220127 (Red Hat 11.2.1-9)
+configure: using CFLAGS=-Wall -Wmissing-prototypes -Wpointer-arith -Wdeclaration-after-statement -Werror=vla -Wendif-labels -Wmissing-format-attribute -Wimplicit-fallthrough=3 -Wcast-function-type -Wshadow=compatible-local -Wformat-security -fno-strict-aliasing -fwrapv -fexcess-precision=standard -Wno-format-truncation -Wno-stringop-truncation -O2
+configure: using CPPFLAGS=-I/usr/include/openssl11 -D_GNU_SOURCE 
+configure: using LDFLAGS=-L/usr/lib64/openssl11  -Wl,--as-needed
+configure: creating ./config.status
+config.status: creating GNUmakefile
+config.status: creating src/Makefile.global
+config.status: creating src/include/pg_config.h
+config.status: creating src/interfaces/ecpg/include/ecpg_config.h
+config.status: linking src/backend/port/tas/dummy.s to src/backend/port/tas.s
+config.status: linking src/backend/port/posix_sema.c to src/backend/port/pg_sema.c
+config.status: linking src/backend/port/sysv_shmem.c to src/backend/port/pg_shmem.c
+config.status: linking src/include/port/linux.h to src/include/pg_config_os.h
+config.status: linking src/makefiles/Makefile.linux to src/Makefile.port

@@ -1,0 +1,6 @@
+maxTuples   = relpages*T = 143*291 = 41613
+numSamples  = 41613   （C2 用这个上限值）
+sampled     = 2000      （C3 用实采条数）
+C1 = 520024 B = 507 kB → 报错应为 1 MB
+C2 = 22158808 B = 21639 kB → 报错应为 22 MB
+C3 = 35218832 B = 34393 kB → 报错应为 34 MB

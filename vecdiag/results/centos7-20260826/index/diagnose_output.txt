@@ -1,0 +1,8 @@
+-[ RECORD 1 ]-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+severity | warn
+object   | public.sift_base(v)
+problem  | 按 m=16 建 HNSW 预计在第 218481 行左右发生落盘降级（图放不下内存）
+cause    | 预计图内存 1172.0 MB 超过 maintenance_work_mem=262144 kB。上游此时只打一个 NOTICE 然后转磁盘继续建（hnswbuild.c:530-549），**构建不会失败，只会显著变慢**，所以很容易被忽略
+fix      | 执行 SET maintenance_work_mem = '1348MB'; 再建索引；内存确实给不到这么多时改用更小的 m（如 m=8，图内存约降 21%）
+verify   | SET maintenance_work_mem='1348MB'; 重建后 NOTICE 应当消失；降级点区间可用 select * from vecdiag.hnsw_spill_range(1000241,128,16,262144) 复算。注意 confidence=calibrated
+

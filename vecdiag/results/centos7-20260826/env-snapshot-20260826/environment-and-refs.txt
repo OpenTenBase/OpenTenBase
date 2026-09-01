@@ -1,0 +1,45 @@
+2026-08-26T23:01:47+0800
+Linux vm-b8606e57 3.10.0-1160.80.1.el7.x86_64 #1 SMP Tue Nov 8 15:48:59 UTC 2022 x86_64 x86_64 x86_64 GNU/Linux
+NAME="CentOS Linux"
+VERSION="7 (Core)"
+ID="centos"
+ID_LIKE="rhel fedora"
+VERSION_ID="7"
+PRETTY_NAME="CentOS Linux 7 (Core)"
+ANSI_COLOR="0;31"
+CPE_NAME="cpe:/o:centos:centos:7"
+HOME_URL="https://www.centos.org/"
+BUG_REPORT_URL="https://bugs.centos.org/"
+
+CENTOS_MANTISBT_PROJECT="CentOS-7"
+CENTOS_MANTISBT_PROJECT_VERSION="7"
+REDHAT_SUPPORT_PRODUCT="centos"
+REDHAT_SUPPORT_PRODUCT_VERSION="7"
+
+4
+              total        used        free      shared  buff/cache   available
+Mem:           3788         223         608         629        2956        2673
+Swap:          2047          46        2001
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1        40G   21G   20G  53% /
+/dev/sda1        40G   21G   20G  53% /
+gcc (GCC) 4.8.5 20150623 (Red Hat 4.8.5-44)
+gcc (GCC) 11.2.1 20220127 (Red Hat 11.2.1-9)
+PostgreSQL 18.6
+ '--prefix=/data/pg18/install' '--with-openssl' '--with-icu' '--with-readline' '--enable-tap-tests' 'CPPFLAGS=-I/usr/include/openssl11' 'LDFLAGS=-L/usr/lib64/openssl11' 'PKG_CONFIG_PATH=/opt/rh/devtoolset-11/root/usr/lib64/pkgconfig'
+4c66f172a09296b08d53526f802ddd2b461bd7e8
+8ee86c96f0fd72390f890aa8a336fda6d3ab4c6c
+v0.8.6
+shared_buffers = 128MB			# min 128kB
+log_timezone = 'Asia/Hong_Kong'
+port = 5518
+shared_buffers = 512MB
+work_mem = 16MB
+maintenance_work_mem = 256MB
+max_parallel_maintenance_workers = 2
+max_parallel_workers_per_gather = 2
+log_directory = 'log'
+log_min_messages = notice
+log_statement = 'ddl'
+log_temp_files = 0
+track_io_timing = on

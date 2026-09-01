@@ -1,0 +1,7 @@
+am,phase,ord,source_ref
+hnsw,initializing,1,hnsw.h:75（PROGRESS_CREATEIDX_SUBPHASE_INITIALIZE=1）
+hnsw,building index: loading tuples,2,hnsw.h:76（PROGRESS_HNSW_PHASE_LOAD=2）
+ivfflat,initializing,1,ivfflat.h:61（PROGRESS_CREATEIDX_SUBPHASE_INITIALIZE=1）
+ivfflat,building index: performing k-means,2,ivfflat.h:62（PROGRESS_IVFFLAT_PHASE_KMEANS=2）
+ivfflat,building index: assigning tuples,3,ivfflat.h:63（PROGRESS_IVFFLAT_PHASE_ASSIGN=3）
+ivfflat,building index: loading tuples,4,ivfflat.h:64（PROGRESS_IVFFLAT_PHASE_LOAD=4）

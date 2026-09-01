@@ -1,0 +1,5 @@
+am,phase,weight,n_samples,dispersion,source
+hnsw,building index: loading tuples,1.0000,3,0.0000,measured
+ivfflat,building index: performing k-means,0.4596,13,0.2821,measured
+ivfflat,building index: assigning tuples,0.4080,13,0.2885,measured
+ivfflat,building index: loading tuples,0.1324,11,0.1731,measured

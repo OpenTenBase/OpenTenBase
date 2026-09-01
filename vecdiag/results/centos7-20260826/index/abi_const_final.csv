@@ -1,0 +1,6 @@
+key,value,source,source_ref
+max_heap_tuples_per_page,291,measured,tools/abi_probe.sh run abi-final-20260826（实测 520，与源码推算一致）
+maxalign_itemsize_dims128,520,measured,tools/abi_probe.sh run abi-final-20260826
+ivfflat_max_lists,32768,source-code,pgvector v0.8.6 src/ivfflat.h:57
+maximum_alignof,8,source-code,PostgreSQL MAXIMUM_ALIGNOF on x86-64
+sizeof_VectorArrayData,24,source-code,pgvector v0.8.6 src/ivfflat.h:120-126

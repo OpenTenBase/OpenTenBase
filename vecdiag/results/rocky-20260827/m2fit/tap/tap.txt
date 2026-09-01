@@ -1,0 +1,25 @@
+/data/opentenbase/OpenTenBase-p2-vecdiag/vecdiag/tests/t/001_vecdiag_regression.pl .. 
+ok 1 - vecdiag schema 已安装（否则先跑 tools/install.sh）
+ok 2 - 模型判定 lists=1000 / mwm=1MB 会超限（first_hit=C2）
+ok 3 - 真建索引确实报了内存不足
+ok 4 - 报错里的 MB 与模型预测一致（模型 26 / 实际 26）
+ok 5 - vecdiag.diagnose() 是零参数（迁移场景下可以直接粘贴执行）
+ok 6 - diagnose() 每行四要素齐全（问题/原因/调整方法/验证方式）
+ok 7 - HNSW 在 20MB 下预测会降级落盘
+ok 8 - 实际构建打出了降级 NOTICE
+ok 9 - 降级点预测偏差 < 1%（预测 17066 / 实测 17097 / 偏差 0.18%）
+ok 10 - 实测降级点落在预测区间内
+ok 11 - 阶段顺序表里 initializing 排第 1（顺序来自源码常量，不是按权重大小排）
+ok 12 - IVFFlat 四个阶段的顺序与 ivfflat.h:61-64 一致
+ok 13 # skip 库里没有 m3r-L/ivf_L_1 采样序列，跳过曲线断言
+ok 14 - HNSW 采样序列里 tuples_total 恒为 0（源码事实，ETA 修正函数必须靠外部传行数）
+ok 15 - 拿到所需内存下界 26122 kB
+ok 16 - 报错消息里的 MB（8）小于真正所需（约 25 MB）——照报错设内存会再失败一次，这是 T4.3 抓到的坑
+ok 17 - 所需内存 26122 kB 处确实建成（模型不偏乐观）
+ok 18 - 所需内存 −1 kB（26121 kB）处确实报错（边界精确到 kB）
+ok 19 - 所有 vecdiag 函数都固定了 search_path
+1..19
+ok
+All tests successful.
+Files=1, Tests=19, 106 wallclock secs ( 0.05 usr  0.02 sys +  0.34 cusr  0.25 csys =  0.66 CPU)
+Result: PASS

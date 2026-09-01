@@ -1,0 +1,3 @@
+NOTICE:  hnsw graph no longer fits into maintenance_work_mem after 7896 tuples
+DETAIL:  Building will take significantly more time.
+HINT:  Increase maintenance_work_mem to speed up builds.

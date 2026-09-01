@@ -1,0 +1,6 @@
+case_id,kind,rows,dims,m,mwm_kb,pred_spill,actual_spill,rel_err_pct,confidence,verdict
+V1,out-of-sample,12000,256,16,6144,3614,3613,0.03,calibrated,PASS
+V2,out-of-sample,12000,256,24,10240,5254,5258,-0.08,calibrated,PASS
+V3,out-of-sample,6000,128,16,4096,3413,3417,-0.12,calibrated,PASS
+E1,advice-works,6000,128,16,9216,none,none,,calibrated,PASS
+E2,advice-tight,6000,128,16,4608,3840,3427,12.05,calibrated,PASS
