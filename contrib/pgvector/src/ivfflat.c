@@ -4,6 +4,7 @@
 
 #include "access/amapi.h"
 #include "access/genam.h"
+#include "access/htup_details.h"
 #include "access/reloptions.h"
 #include "commands/progress.h"
 #include "commands/vacuum.h"
@@ -30,6 +31,8 @@ bool		ivfflat_adaptive_scan = false;
 double		ivfflat_target_recall = 0.95;
 int			ivfflat_min_probes = 1;
 double		ivfflat_adaptive_threshold = 1.20;
+bool		ivfflat_query_cache = true;
+int			ivfflat_query_cache_size = 1024;
 static relopt_kind ivfflat_relopt_kind;
 
 static const struct config_enum_entry ivfflat_iterative_scan_options[] = {
@@ -88,6 +91,20 @@ IvfflatInit(void)
 							 &ivfflat_adaptive_threshold,
 							 1.20, 0.10, 10.00,
 							 PGC_USERSET, 0, NULL, NULL, NULL);
+
+	DefineCustomBoolVariable("ivfflat.query_cache",
+							 "Enable query result LRU cache to eliminate redundant computation",
+							 NULL,
+							 &ivfflat_query_cache,
+							 true,
+							 PGC_USERSET, 0, NULL, NULL, NULL);
+
+	DefineCustomIntVariable("ivfflat.query_cache_size",
+							"Maximum number of entries in IVFFlat query LRU cache",
+							NULL,
+							&ivfflat_query_cache_size,
+							1024, 16, 65536,
+							PGC_USERSET, 0, NULL, NULL, NULL);
 
 	MarkGUCPrefixReserved("ivfflat");
 }

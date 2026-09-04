@@ -1273,5 +1273,20 @@ $$ LANGUAGE plpgsql VOLATILE;
 
 COMMENT ON FUNCTION ivfflat_recommend_table(text, text, text, float8, boolean) IS 'inspect table, recommend and optionally apply IVFFlat configuration';
 
+CREATE FUNCTION ivfflat_batch_knn(
+	index_name regclass,
+	queries vector[],
+	k integer,
+	probes integer DEFAULT NULL
+) RETURNS TABLE (
+	query_id integer,
+	heaptid tid,
+	distance float8
+)
+AS 'MODULE_PATHNAME', 'ivfflat_batch_knn'
+LANGUAGE C STRICT;
+
+COMMENT ON FUNCTION ivfflat_batch_knn(regclass, vector[], integer, integer) IS 'execute batch vector KNN search using shared inverted bucket scanning';
+
 
 

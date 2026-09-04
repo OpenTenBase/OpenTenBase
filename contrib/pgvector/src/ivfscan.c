@@ -26,6 +26,164 @@
 #define GetScanList(ptr) pairingheap_container(IvfflatScanList, ph_node, ptr)
 #define GetScanListConst(ptr) pairingheap_const_container(IvfflatScanList, ph_node, ptr)
 
+#define IVFFLAT_CACHE_HASH_SIZE 1024
+#define IVFFLAT_CACHE_MAX_ITEMS 128
+
+typedef struct IvfflatCacheItem
+{
+	ItemPointerData heaptid;
+	double		distance;
+} IvfflatCacheItem;
+
+typedef struct IvfflatCacheEntry
+{
+	Oid			indexRelOid;
+	uint64		vectorHash;
+	int			probes;
+	int			numItems;
+	IvfflatCacheItem items[IVFFLAT_CACHE_MAX_ITEMS];
+	struct IvfflatCacheEntry *prev;
+	struct IvfflatCacheEntry *next;
+	struct IvfflatCacheEntry *hashNext;
+} IvfflatCacheEntry;
+
+static MemoryContext ivfflat_cache_ctx = NULL;
+static IvfflatCacheEntry *cache_hash_table[IVFFLAT_CACHE_HASH_SIZE] = {NULL};
+static IvfflatCacheEntry *cache_lru_head = NULL;
+static IvfflatCacheEntry *cache_lru_tail = NULL;
+static int	cache_entry_count = 0;
+
+static uint64
+IvfflatVectorHash64(Datum value)
+{
+	Vector	   *v = (Vector *) DatumGetPointer(value);
+	int			dim = v->dim;
+	uint64		hash = 0xcbf29ce484222325ULL;
+	const uint32 *p = (const uint32 *) v->x;
+
+	for (int i = 0; i < dim; i++)
+	{
+		hash ^= (uint64) p[i];
+		hash *= 0x100000001b3ULL;
+	}
+	return hash;
+}
+
+static IvfflatCacheEntry *
+IvfflatCacheLookup(Oid indexRelOid, uint64 vectorHash, int probes)
+{
+	uint32		bucket;
+	IvfflatCacheEntry *entry;
+
+	if (cache_lru_head == NULL)
+		return NULL;
+
+	bucket = (uint32) (vectorHash % IVFFLAT_CACHE_HASH_SIZE);
+	entry = cache_hash_table[bucket];
+
+	while (entry != NULL)
+	{
+		if (entry->indexRelOid == indexRelOid &&
+			entry->vectorHash == vectorHash &&
+			entry->probes == probes)
+		{
+			/* Move hit entry to LRU head */
+			if (entry != cache_lru_head)
+			{
+				if (entry->prev)
+					entry->prev->next = entry->next;
+				if (entry->next)
+					entry->next->prev = entry->prev;
+				if (entry == cache_lru_tail)
+					cache_lru_tail = entry->prev;
+
+				entry->prev = NULL;
+				entry->next = cache_lru_head;
+				if (cache_lru_head)
+					cache_lru_head->prev = entry;
+				cache_lru_head = entry;
+				if (cache_lru_tail == NULL)
+					cache_lru_tail = entry;
+			}
+			return entry;
+		}
+		entry = entry->hashNext;
+	}
+	return NULL;
+}
+
+static void
+IvfflatCacheInsert(Oid indexRelOid, uint64 vectorHash, int probes, const ItemPointerData *tids, const double *distances, int numItems)
+{
+	uint32		bucket;
+	IvfflatCacheEntry *entry = NULL;
+
+	if (numItems <= 0)
+		return;
+
+	if (numItems > IVFFLAT_CACHE_MAX_ITEMS)
+		numItems = IVFFLAT_CACHE_MAX_ITEMS;
+
+	if (ivfflat_cache_ctx == NULL)
+	{
+		ivfflat_cache_ctx = AllocSetContextCreateInternal(TopMemoryContext,
+														   "Ivfflat Query LRU Cache Context",
+														   ALLOCSET_DEFAULT_SIZES);
+	}
+
+	bucket = (uint32) (vectorHash % IVFFLAT_CACHE_HASH_SIZE);
+
+	/* If cache is full, evict the LRU tail */
+	if (cache_entry_count >= ivfflat_query_cache_size && cache_lru_tail != NULL)
+	{
+		IvfflatCacheEntry *evict = cache_lru_tail;
+		uint32		evict_bucket = (uint32) (evict->vectorHash % IVFFLAT_CACHE_HASH_SIZE);
+		IvfflatCacheEntry **prev_hash = &cache_hash_table[evict_bucket];
+
+		while (*prev_hash != NULL && *prev_hash != evict)
+			prev_hash = &((*prev_hash)->hashNext);
+
+		if (*prev_hash == evict)
+			*prev_hash = evict->hashNext;
+
+		if (evict->prev)
+			evict->prev->next = NULL;
+		cache_lru_tail = evict->prev;
+		if (cache_lru_head == evict)
+			cache_lru_head = NULL;
+
+		entry = evict;
+	}
+	else
+	{
+		entry = (IvfflatCacheEntry *) MemoryContextAllocZero(ivfflat_cache_ctx, sizeof(IvfflatCacheEntry));
+		cache_entry_count++;
+	}
+
+	entry->indexRelOid = indexRelOid;
+	entry->vectorHash = vectorHash;
+	entry->probes = probes;
+	entry->numItems = numItems;
+	for (int i = 0; i < numItems; i++)
+	{
+		entry->items[i].heaptid = tids[i];
+		entry->items[i].distance = distances[i];
+	}
+
+	/* Insert at head of LRU */
+	entry->prev = NULL;
+	entry->next = cache_lru_head;
+	if (cache_lru_head)
+		cache_lru_head->prev = entry;
+	cache_lru_head = entry;
+	if (cache_lru_tail == NULL)
+		cache_lru_tail = entry;
+
+	/* Insert into hash table */
+	entry->hashNext = cache_hash_table[bucket];
+	cache_hash_table[bucket] = entry;
+}
+
 /*
  * Compare list distances
  */
@@ -351,6 +509,10 @@ ivfflatbeginscan(Relation index, int nkeys, int norderbys)
 	so->listIndex = 0;
 	so->lists = palloc_array_checked(IvfflatScanList, (Size) maxProbes);
 
+	so->fromCache = false;
+	so->vectorHash = 0;
+	so->cacheItemCount = 0;
+
 	MemoryContextSwitchTo(oldCtx);
 
 	scan->opaque = so;
@@ -367,6 +529,9 @@ ivfflatrescan(IndexScanDesc scan, ScanKey keys, int nkeys, ScanKey orderbys, int
 	IvfflatScanOpaque so = (IvfflatScanOpaque) scan->opaque;
 
 	so->first = true;
+	so->fromCache = false;
+	so->vectorHash = 0;
+	so->cacheItemCount = 0;
 	pairingheap_reset(so->listQueue);
 	so->listIndex = 0;
 
@@ -420,12 +585,41 @@ ivfflatgettuple(IndexScanDesc scan, ScanDirection dir)
 			elog(ERROR, "non-MVCC snapshots are not supported with ivfflat");
 
 		value = GetScanValue(scan);
+
+		/* Check query result LRU cache */
+		if (ivfflat_query_cache && value != PointerGetDatum(NULL))
+		{
+			IvfflatCacheEntry *entry;
+
+			so->vectorHash = IvfflatVectorHash64(value);
+			entry = IvfflatCacheLookup(scan->indexRelation->rd_id, so->vectorHash, so->probes);
+			if (entry != NULL)
+			{
+				for (int i = 0; i < entry->numItems; i++)
+				{
+					ExecClearTuple(so->vslot);
+					so->vslot->tts_values[0] = Float8GetDatum(entry->items[i].distance);
+					so->vslot->tts_isnull[0] = false;
+					so->vslot->tts_values[1] = PointerGetDatum(&entry->items[i].heaptid);
+					so->vslot->tts_isnull[1] = false;
+					ExecStoreVirtualTuple(so->vslot);
+					tuplesort_puttupleslot(so->sortstate, so->vslot);
+				}
+				tuplesort_performsort(so->sortstate);
+				so->first = false;
+				so->value = value;
+				so->fromCache = true;
+				goto fetch_tuple_entry;
+			}
+		}
+
 		IvfflatBench("GetScanLists", GetScanLists(scan, value));
 		IvfflatBench("GetScanItems", GetScanItems(scan, value));
 		so->first = false;
 		so->value = value;
 	}
 
+fetch_tuple_entry:
 	while (!tuplesort_gettupleslot(so->sortstate, true, false, so->mslot, NULL))
 	{
 		if (so->listIndex == so->maxProbes)
@@ -435,6 +629,15 @@ ivfflatgettuple(IndexScanDesc scan, ScanDirection dir)
 	}
 
 	heaptid = (ItemPointer) DatumGetPointer(slot_getattr(so->mslot, 2, &isnull));
+
+	/* Collect top candidates for LRU cache insertion */
+	if (!so->fromCache && ivfflat_query_cache && so->cacheItemCount < IVFFLAT_CACHE_MAX_ITEMS)
+	{
+		double dist = DatumGetFloat8(slot_getattr(so->mslot, 1, &isnull));
+		so->cacheTids[so->cacheItemCount] = *heaptid;
+		so->cacheDistances[so->cacheItemCount] = dist;
+		so->cacheItemCount++;
+	}
 
 	scan->xs_heaptid = *heaptid;
 	scan->xs_recheck = false;
@@ -449,6 +652,12 @@ void
 ivfflatendscan(IndexScanDesc scan)
 {
 	IvfflatScanOpaque so = (IvfflatScanOpaque) scan->opaque;
+
+	/* Save candidate items to LRU cache upon query completion */
+	if (!so->fromCache && ivfflat_query_cache && so->cacheItemCount > 0 && so->vectorHash != 0)
+	{
+		IvfflatCacheInsert(scan->indexRelation->rd_id, so->vectorHash, so->probes, so->cacheTids, so->cacheDistances, so->cacheItemCount);
+	}
 
 	/* Free any temporary files */
 	tuplesort_end(so->sortstate);

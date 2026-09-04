@@ -114,6 +114,10 @@ extern bool	ivfflat_adaptive_scan;
 extern double ivfflat_target_recall;
 extern int	ivfflat_min_probes;
 extern double ivfflat_adaptive_threshold;
+extern bool	ivfflat_query_cache;
+extern int	ivfflat_query_cache_size;
+
+Datum		ivfflat_batch_knn(PG_FUNCTION_ARGS);
 
 typedef enum IvfflatIterativeScanMode
 {
@@ -316,6 +320,13 @@ typedef struct IvfflatScanOpaqueData
 	double	   *listDistances;
 	int			listIndex;
 	IvfflatScanList *lists;
+
+	/* Query Cache fields */
+	bool		fromCache;
+	uint64		vectorHash;
+	int			cacheItemCount;
+	ItemPointerData cacheTids[128];
+	double		cacheDistances[128];
 }			IvfflatScanOpaqueData;
 
 typedef IvfflatScanOpaqueData * IvfflatScanOpaque;
