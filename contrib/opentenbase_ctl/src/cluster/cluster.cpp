@@ -1188,23 +1188,7 @@ int delete_command(OpentenbaseConfig *config) {
         });
     }
 
-    // Update total progress bar
-    while (true) {
-        int total_progress = 30;  // Base progress
-        bool all_completed = true;
-        
-        for (size_t i = 0; i < config->nodes.size(); ++i) {
-            if (results[i] == 0) {
-                total_progress += 70 / config->nodes.size();
-            } else {
-                all_completed = false;
-            }
-        }
-        
-        if (all_completed) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-
+    // Wait for all threads to complete
     for (auto& thread : threads) {
         thread.join();
     }
