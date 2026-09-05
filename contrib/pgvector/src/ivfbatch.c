@@ -1,3 +1,16 @@
+/*-------------------------------------------------------------------------
+ *
+ * ivfbatch.c
+ *    Multi-query batch KNN search and shared bucket scanning for IVFFlat index.
+ *
+ * Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1994, Regents of the University of California
+ *
+ * IDENTIFICATION
+ *    contrib/pgvector/src/ivfbatch.c
+ *
+ *-------------------------------------------------------------------------
+ */
 #include "postgres.h"
 
 #include <float.h>

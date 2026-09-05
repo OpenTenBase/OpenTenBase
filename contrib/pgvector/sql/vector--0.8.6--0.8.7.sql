@@ -1,3 +1,17 @@
+/*-------------------------------------------------------------------------
+ *
+ * vector--0.8.6--0.8.7.sql
+ *    SQL definitions for OpenTenBase pgvector 0.8.7 optimizations.
+ *
+ * Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1994, Regents of the University of California
+ *
+ * IDENTIFICATION
+ *    contrib/pgvector/sql/vector--0.8.6--0.8.7.sql
+ *
+ *-------------------------------------------------------------------------
+ */
+
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "ALTER EXTENSION vector UPDATE TO '0.8.7'" to load this file. \quit
 

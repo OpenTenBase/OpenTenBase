@@ -131,6 +131,8 @@ ivfflat_recommend_params(PG_FUNCTION_ARGS)
 	bool		apply_to_session = (PG_NARGS() >= 5) ? PG_GETARG_BOOL(4) : false;
 	char	   *metric = text_to_cstring(metric_text);
 
+	(void) dim;
+
 	int			lists;
 	int			probes;
 	int			min_probes;

@@ -385,13 +385,56 @@ SET ivfflat.probes = 10;
 
 A higher value provides better recall at the cost of speed, and it can be set to the number of lists for exact nearest neighbor search (at which point the planner won’t use the index)
 
-Use `SET LOCAL` inside a transaction to set it for a single query
-
 ```sql
 BEGIN;
 SET LOCAL ivfflat.probes = 10;
 SELECT ...
 COMMIT;
+```
+
+### OpenTenBase High-Performance IVFFlat Enhancements
+
+OpenTenBase includes full-stack acceleration features for IVFFlat vector search:
+
+#### 1. Adaptive Early-Exit Scan
+Automatically terminates scanning when centroid distance exceeds the geometric decay boundary of the current best Top-K candidate:
+
+```sql
+SET ivfflat.adaptive_probes = on;            -- enable adaptive pruning (off by default)
+SET ivfflat.adaptive_threshold_ratio = 1.1; -- sensitivity ratio (1.05 ~ 1.30, default 1.10)
+SET ivfflat.min_probes = 2;                  -- minimum probes to inspect before pruning (default 1)
+```
+
+#### 2. Multi-Query Batch KNN Search (`ivfflat_batch_knn`)
+Performs deduplicated inverted-list scanning and shared page loading with single-pass AVX-256 distance broadcast across multiple queries:
+
+```sql
+SELECT * FROM ivfflat_batch_knn(
+    'items_embedding_idx',
+    ARRAY['[1,2,3]'::vector, '[4,5,6]'::vector],
+    10, -- k
+    5   -- probes
+);
+```
+
+#### 3. Cross-Process Global Shared Memory Subtree Cache
+Caches index scan subtree outputs into POSIX shared memory (`/opentenbase_vector_subtree_cache`) across backends and transactions:
+
+```sql
+SET ivfflat.global_cache = on; -- enable global subtree cache
+
+-- View cache statistics
+SELECT * FROM ivfflat_global_cache_stats();
+
+-- Clear global cache
+SELECT ivfflat_global_cache_clear();
+```
+
+#### 4. Automatic Parameter Recommendation Engine
+Recommends balanced or throughput/recall-optimized `lists` and `probes` before index creation:
+
+```sql
+SELECT * FROM ivfflat_recommend_params(10000, 128, 0.95);
 ```
 
 ### Index Build Time

@@ -1,3 +1,16 @@
+/*-------------------------------------------------------------------------
+ *
+ * ivfglobalcache.c
+ *    Cross-process POSIX shared memory plan tree subtree query result cache for IVFFlat.
+ *
+ * Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1994, Regents of the University of California
+ *
+ * IDENTIFICATION
+ *    contrib/pgvector/src/ivfglobalcache.c
+ *
+ *-------------------------------------------------------------------------
+ */
 #include "postgres.h"
 
 #include <fcntl.h>

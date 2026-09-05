@@ -564,6 +564,7 @@ VectorL2SquaredDistance(int dim, float *ax, float *bx)
 	float		distance1 = 0.0f;
 	float		distance2 = 0.0f;
 	float		distance3 = 0.0f;
+	float		total;
 	int			i = 0;
 
 	for (; i + 3 < dim; i += 4)
@@ -579,7 +580,7 @@ VectorL2SquaredDistance(int dim, float *ax, float *bx)
 		distance3 += diff3 * diff3;
 	}
 
-	float		total = (distance0 + distance1) + (distance2 + distance3);
+	total = (distance0 + distance1) + (distance2 + distance3);
 
 	for (; i < dim; i++)
 	{
@@ -629,6 +630,7 @@ VectorInnerProduct(int dim, float *ax, float *bx)
 	float		distance1 = 0.0f;
 	float		distance2 = 0.0f;
 	float		distance3 = 0.0f;
+	float		total;
 	int			i = 0;
 
 	for (; i + 3 < dim; i += 4)
@@ -639,7 +641,7 @@ VectorInnerProduct(int dim, float *ax, float *bx)
 		distance3 += ax[i + 3] * bx[i + 3];
 	}
 
-	float		total = (distance0 + distance1) + (distance2 + distance3);
+	total = (distance0 + distance1) + (distance2 + distance3);
 
 	for (; i < dim; i++)
 		total += ax[i] * bx[i];
@@ -683,6 +685,9 @@ VectorCosineSimilarity(int dim, float *ax, float *bx)
 	float		sim0 = 0.0f, sim1 = 0.0f, sim2 = 0.0f, sim3 = 0.0f;
 	float		na0 = 0.0f, na1 = 0.0f, na2 = 0.0f, na3 = 0.0f;
 	float		nb0 = 0.0f, nb1 = 0.0f, nb2 = 0.0f, nb3 = 0.0f;
+	float		similarity;
+	float		norma;
+	float		normb;
 	int			i = 0;
 
 	for (; i + 3 < dim; i += 4)
@@ -703,9 +708,9 @@ VectorCosineSimilarity(int dim, float *ax, float *bx)
 		nb3 += bx[i + 3] * bx[i + 3];
 	}
 
-	float		similarity = (sim0 + sim1) + (sim2 + sim3);
-	float		norma = (na0 + na1) + (na2 + na3);
-	float		normb = (nb0 + nb1) + (nb2 + nb3);
+	similarity = (sim0 + sim1) + (sim2 + sim3);
+	norma = (na0 + na1) + (na2 + na3);
+	normb = (nb0 + nb1) + (nb2 + nb3);
 
 	for (; i < dim; i++)
 	{
