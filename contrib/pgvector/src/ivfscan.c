@@ -11,6 +11,7 @@
 #include "fmgr.h"
 #include "lib/pairingheap.h"
 #include "ivfflat.h"
+#include "ivfglobalcache.h"
 #include "miscadmin.h"
 #include "pgstat.h"
 #include "storage/bufmgr.h"
@@ -586,30 +587,67 @@ ivfflatgettuple(IndexScanDesc scan, ScanDirection dir)
 
 		value = GetScanValue(scan);
 
-		/* Check query result LRU cache */
-		if (ivfflat_query_cache && value != PointerGetDatum(NULL))
+		/* Check query result LRU cache (L1 Local + L2 Global Shared Memory) */
+		if ((ivfflat_query_cache || ivfflat_global_cache) && value != PointerGetDatum(NULL))
 		{
-			IvfflatCacheEntry *entry;
-
 			so->vectorHash = IvfflatVectorHash64(value);
-			entry = IvfflatCacheLookup(scan->indexRelation->rd_id, so->vectorHash, so->probes);
-			if (entry != NULL)
+
+			/* Tier 1: Process-local L1 cache lookup */
+			if (ivfflat_query_cache)
 			{
-				for (int i = 0; i < entry->numItems; i++)
+				IvfflatCacheEntry *entry = IvfflatCacheLookup(scan->indexRelation->rd_id, so->vectorHash, so->probes);
+				if (entry != NULL)
 				{
-					ExecClearTuple(so->vslot);
-					so->vslot->tts_values[0] = Float8GetDatum(entry->items[i].distance);
-					so->vslot->tts_isnull[0] = false;
-					so->vslot->tts_values[1] = PointerGetDatum(&entry->items[i].heaptid);
-					so->vslot->tts_isnull[1] = false;
-					ExecStoreVirtualTuple(so->vslot);
-					tuplesort_puttupleslot(so->sortstate, so->vslot);
+					for (int i = 0; i < entry->numItems; i++)
+					{
+						ExecClearTuple(so->vslot);
+						so->vslot->tts_values[0] = Float8GetDatum(entry->items[i].distance);
+						so->vslot->tts_isnull[0] = false;
+						so->vslot->tts_values[1] = PointerGetDatum(&entry->items[i].heaptid);
+						so->vslot->tts_isnull[1] = false;
+						ExecStoreVirtualTuple(so->vslot);
+						tuplesort_puttupleslot(so->sortstate, so->vslot);
+					}
+					tuplesort_performsort(so->sortstate);
+					so->first = false;
+					so->value = value;
+					so->fromCache = true;
+					goto fetch_tuple_entry;
 				}
-				tuplesort_performsort(so->sortstate);
-				so->first = false;
-				so->value = value;
-				so->fromCache = true;
-				goto fetch_tuple_entry;
+			}
+
+			/* Tier 2: Cross-process global shared memory subtree cache lookup */
+			if (ivfflat_global_cache)
+			{
+				ItemPointerData globalTids[GLOBAL_SUBTREE_MAX_ITEMS];
+				double globalDistances[GLOBAL_SUBTREE_MAX_ITEMS];
+				int globalNumItems = 0;
+
+				if (IvfflatGlobalCacheLookup(scan->indexRelation->rd_id, so->vectorHash, so->probes,
+											globalTids, globalDistances, &globalNumItems))
+				{
+					for (int i = 0; i < globalNumItems; i++)
+					{
+						ExecClearTuple(so->vslot);
+						so->vslot->tts_values[0] = Float8GetDatum(globalDistances[i]);
+						so->vslot->tts_isnull[0] = false;
+						so->vslot->tts_values[1] = PointerGetDatum(&globalTids[i]);
+						so->vslot->tts_isnull[1] = false;
+						ExecStoreVirtualTuple(so->vslot);
+						tuplesort_puttupleslot(so->sortstate, so->vslot);
+					}
+					tuplesort_performsort(so->sortstate);
+
+					/* Backfill L1 local cache for future queries in this session */
+					if (ivfflat_query_cache)
+						IvfflatCacheInsert(scan->indexRelation->rd_id, so->vectorHash, so->probes,
+										   globalTids, globalDistances, globalNumItems);
+
+					so->first = false;
+					so->value = value;
+					so->fromCache = true;
+					goto fetch_tuple_entry;
+				}
 			}
 		}
 
@@ -631,7 +669,7 @@ fetch_tuple_entry:
 	heaptid = (ItemPointer) DatumGetPointer(slot_getattr(so->mslot, 2, &isnull));
 
 	/* Collect top candidates for LRU cache insertion */
-	if (!so->fromCache && ivfflat_query_cache && so->cacheItemCount < IVFFLAT_CACHE_MAX_ITEMS)
+	if (!so->fromCache && (ivfflat_query_cache || ivfflat_global_cache) && so->cacheItemCount < IVFFLAT_CACHE_MAX_ITEMS)
 	{
 		double dist = DatumGetFloat8(slot_getattr(so->mslot, 1, &isnull));
 		so->cacheTids[so->cacheItemCount] = *heaptid;
@@ -654,9 +692,13 @@ ivfflatendscan(IndexScanDesc scan)
 	IvfflatScanOpaque so = (IvfflatScanOpaque) scan->opaque;
 
 	/* Save candidate items to LRU cache upon query completion */
-	if (!so->fromCache && ivfflat_query_cache && so->cacheItemCount > 0 && so->vectorHash != 0)
+	if (!so->fromCache && so->cacheItemCount > 0 && so->vectorHash != 0)
 	{
-		IvfflatCacheInsert(scan->indexRelation->rd_id, so->vectorHash, so->probes, so->cacheTids, so->cacheDistances, so->cacheItemCount);
+		if (ivfflat_query_cache)
+			IvfflatCacheInsert(scan->indexRelation->rd_id, so->vectorHash, so->probes, so->cacheTids, so->cacheDistances, so->cacheItemCount);
+
+		if (ivfflat_global_cache)
+			IvfflatGlobalCacheInsert(scan->indexRelation->rd_id, so->vectorHash, so->probes, so->cacheTids, so->cacheDistances, so->cacheItemCount);
 	}
 
 	/* Free any temporary files */

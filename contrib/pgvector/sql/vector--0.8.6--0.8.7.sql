@@ -295,17 +295,24 @@ COMMENT ON OPERATOR >= (sparsevec, sparsevec) IS 'greater than or equal';
 
 COMMENT ON OPERATOR > (sparsevec, sparsevec) IS 'greater than';
 
-CREATE FUNCTION ivfflat_batch_knn(
-	index_name regclass,
-	queries vector[],
-	k integer,
-	probes integer DEFAULT NULL
-) RETURNS TABLE (
-	query_id integer,
-	heaptid tid,
-	distance float8
+CREATE FUNCTION ivfflat_global_cache_stats()
+RETURNS TABLE (
+	max_slots integer,
+	active_slots integer,
+	total_lookups bigint,
+	total_hits bigint,
+	total_inserts bigint,
+	total_evictions bigint,
+	hit_ratio_pct float8
 )
-AS 'MODULE_PATHNAME', 'ivfflat_batch_knn'
-LANGUAGE C STRICT;
+AS 'MODULE_PATHNAME', 'ivfflat_global_cache_stats'
+LANGUAGE C VOLATILE STRICT;
 
-COMMENT ON FUNCTION ivfflat_batch_knn(regclass, vector[], integer, integer) IS 'execute batch vector KNN search using shared inverted bucket scanning';
+COMMENT ON FUNCTION ivfflat_global_cache_stats() IS 'inspect global shared-memory vector subtree cache performance metrics';
+
+CREATE FUNCTION ivfflat_global_cache_clear()
+RETURNS boolean
+AS 'MODULE_PATHNAME', 'ivfflat_global_cache_clear'
+LANGUAGE C VOLATILE STRICT;
+
+COMMENT ON FUNCTION ivfflat_global_cache_clear() IS 'clear all entries in the global shared-memory vector subtree cache';

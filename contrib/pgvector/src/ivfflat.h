@@ -116,8 +116,11 @@ extern int	ivfflat_min_probes;
 extern double ivfflat_adaptive_threshold;
 extern bool	ivfflat_query_cache;
 extern int	ivfflat_query_cache_size;
+extern bool	ivfflat_global_cache;
 
 Datum		ivfflat_batch_knn(PG_FUNCTION_ARGS);
+Datum		ivfflat_global_cache_stats(PG_FUNCTION_ARGS);
+Datum		ivfflat_global_cache_clear(PG_FUNCTION_ARGS);
 
 typedef enum IvfflatIterativeScanMode
 {
