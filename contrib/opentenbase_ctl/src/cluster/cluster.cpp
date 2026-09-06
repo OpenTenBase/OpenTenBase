@@ -1776,23 +1776,21 @@ int is_node_running(NodeInfo* node, OpentenbaseConfig* config) {
     std::string command = "ps -ef | grep " + node->data_path + " | grep -v grep";
     std::string result;
     int ret = 0;
-    ret = execute_command(node->ip, config->server.ssh_port, 
+    ret = execute_command(node->ip, config->server.ssh_port,
         config->server.ssh_user, config->server.ssh_password, command, result);
-    if (ret != 0)
+    if (ret == 0)
     {
-        // Unkown
-        LOG_ERROR_FMT("Command execution to retrieve (%s:%s)status failed", node->name.c_str(), node->ip.c_str());
-        return 2;
-    }
-    
-    if (result.empty())
-    {
-        // Stopped
-        return 1;
-    } else {
-        // Running
+        // Running: the grep pipeline matched at least one process
         return 0;
-    } 
+    }
+    if (ret == 1)
+    {
+        // Stopped: grep exits 1 when no matching process exists
+        return 1;
+    }
+    // Unknown: the probe itself failed (e.g. unreachable host)
+    LOG_ERROR_FMT("Command execution to retrieve (%s:%s)status failed", node->name.c_str(), node->ip.c_str());
+    return 2;
 }
 
 /**
