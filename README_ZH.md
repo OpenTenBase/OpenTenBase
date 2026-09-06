@@ -123,7 +123,7 @@ cd ${INSTALL_PATH}
 ### 集群启动步骤
 
 #### 生成并填写配置文件 
-opentenbase\_config.opentenbase\_ctl 工具可以生成配置文件的模板。您需要在模板中填写集群节点信息。启动 opentenbase\_ctl 工具后，将在当前用户的主目录中生成 opentenbase\_ctl 目录。输入 "prepare config" 命令后，将在 opentenbase\_ctl 目录中生成可直接修改的配置文件模板。
+opentenbase\_ctl 工具可以生成配置文件的模板。您需要在模板中填写集群节点信息。启动 opentenbase\_ctl 工具后，将在当前用户的主目录中生成 opentenbase\_ctl 目录。输入 `prepare config` 命令后，将在 opentenbase\_ctl 目录中生成可直接修改的配置文件模板。
 
 * opentenbase\_config.ini 中各字段说明
 ```
