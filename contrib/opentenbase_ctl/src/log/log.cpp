@@ -13,7 +13,7 @@
 #include <mutex>
 
 // Global log level
-static const char* current_log_level = LOG_LEVEL_INFO;
+static std::string current_log_level = LOG_LEVEL_INFO;
 static std::string current_timestamp;
 
 // Log directory path
@@ -40,7 +40,7 @@ get_timestamp() {
 // Check if should record this level log
 static bool 
 should_log(const char* level) {
-    if (strcmp(level, LOG_LEVEL_DEBUG) == 0 && strcmp(current_log_level, LOG_LEVEL_DEBUG) != 0) {
+    if (strcmp(level, LOG_LEVEL_DEBUG) == 0 && strcmp(current_log_level.c_str(), LOG_LEVEL_DEBUG) != 0) {
         return false;
     }
     return true;
@@ -128,7 +128,7 @@ log_warn(const char* message, const char* file, int line) {
 // Format log function implementation
 void 
 log_debug_fmt(const char* format, const char* file, int line, ...) {
-    if (strcmp(current_log_level, LOG_LEVEL_DEBUG) != 0) {
+    if (strcmp(current_log_level.c_str(), LOG_LEVEL_DEBUG) != 0) {
         return;
     }
     char buffer[4096];
