@@ -35,7 +35,7 @@ contrib_targets += vector
 # The main install script is generated from sql/vector.sql
 configure_file(
   input: 'sql/vector.sql',
-  output: 'vector--0.8.6.sql',
+  output: 'vector--0.8.7.sql',
   copy: true,
   install: true,
   install_dir: contrib_data_dir,
@@ -83,6 +83,7 @@ install_data(
   'sql/vector--0.8.3--0.8.4.sql',
   'sql/vector--0.8.4--0.8.5.sql',
   'sql/vector--0.8.5--0.8.6.sql',
+  'sql/vector--0.8.6--0.8.7.sql',
   kwargs: contrib_data_args,
 )
 
