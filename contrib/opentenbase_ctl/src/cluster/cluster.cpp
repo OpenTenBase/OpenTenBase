@@ -737,14 +737,14 @@ int init_node(NodeInfo* node, OpentenbaseConfig* install) {
     } else if (is_slave_gtm(node->type)) {
 
         if (init_and_start_slave_gtm(node, install) != 0) {
-            LOG_ERROR_FMT("Failed to init slave gtm node %s in %s", node->name, node->ip);
+            LOG_ERROR_FMT("Failed to init slave gtm node %s in %s", node->name.c_str(), node->ip.c_str());
             return -1;
         }
         
     } else if (is_slave_cn(node->type) || is_slave_dn(node->type))
     {
         if (redo_and_start_slave_node(node, install) != 0) {
-            LOG_ERROR_FMT("Failed to init slave node %s in %s", node->name, node->ip);
+            LOG_ERROR_FMT("Failed to init slave node %s in %s", node->name.c_str(), node->ip.c_str());
             return -1;
         }
         
@@ -1564,7 +1564,7 @@ int guc_command(OpentenbaseConfig *config_info) {
         ret = excute_show_guc_concurrency(config_info, config_info->nodes);
         if (ret != 0)
         {
-            LOG_ERROR_FMT("Failed to show config item %s", config_info->guc.guc_name);
+            LOG_ERROR_FMT("Failed to show config item %s", config_info->guc.guc_name.c_str());
             return -1;
         }
     } else if(Constants::GUC_OP_CHANGE == op_name){
@@ -1573,7 +1573,7 @@ int guc_command(OpentenbaseConfig *config_info) {
         ret = excute_change_guc_concurrency(config_info, config_info->nodes);
         if (ret != 0)
         {
-            LOG_ERROR_FMT("Failed to change config item %s", config_info->guc.guc_name);
+            LOG_ERROR_FMT("Failed to change config item %s", config_info->guc.guc_name.c_str());
             return -1;
         }
 
@@ -1584,7 +1584,7 @@ int guc_command(OpentenbaseConfig *config_info) {
         ret = excute_del_guc_concurrency(config_info, config_info->nodes);
         if (ret != 0)
         {
-            LOG_ERROR_FMT("Failed to delete config item %s", config_info->guc.guc_name);
+            LOG_ERROR_FMT("Failed to delete config item %s", config_info->guc.guc_name.c_str());
             return -1;
         }
 
@@ -1615,22 +1615,22 @@ int get_instance_status(OpentenbaseConfig *config) {
             switch (results[i]) {
                 case 0:
                     std::cout << "Node " << config->nodes[i].name << "(" << config->nodes[i].ip << ") is Running " << std::endl;
-                    LOG_INFO_FMT("node(%s:%s) is running", config->nodes[i].name, config->nodes[i].ip);
+                    LOG_INFO_FMT("node(%s:%s) is running", config->nodes[i].name.c_str(), config->nodes[i].ip.c_str());
                     runningCount++;
                     break;
                 case 1:
                     std::cout << "Node " << config->nodes[i].name << "(" << config->nodes[i].ip << ") is Stopped " << std::endl;
-                    LOG_INFO_FMT("node(%s:%s) is Stopped", config->nodes[i].name, config->nodes[i].ip);
+                    LOG_INFO_FMT("node(%s:%s) is Stopped", config->nodes[i].name.c_str(), config->nodes[i].ip.c_str());
                     stoppedCount++;
                     break;
                 case 2:
                     std::cout << "Node " << config->nodes[i].name << "(" << config->nodes[i].ip << ") is Unknown " << std::endl;
-                    LOG_INFO_FMT("node(%s:%s) is Unknown", config->nodes[i].name, config->nodes[i].ip);
+                    LOG_INFO_FMT("node(%s:%s) is Unknown", config->nodes[i].name.c_str(), config->nodes[i].ip.c_str());
                     unkownCount++;
                     break;
                 default:
                     std::cout << "Node " << config->nodes[i].name << "(" << config->nodes[i].ip << ") is Unknown " << std::endl;
-                    LOG_INFO_FMT("node(%s:%s) is Unknown", config->nodes[i].name, config->nodes[i].ip);
+                    LOG_INFO_FMT("node(%s:%s) is Unknown", config->nodes[i].name.c_str(), config->nodes[i].ip.c_str());
                     unkownCount++;
             }
         });
@@ -1677,19 +1677,19 @@ int get_node_status(NodeInfo *node, OpentenbaseConfig *config) {
     switch (result) {
         case 0:
             std::cout << "Node " << node->name << "(" << node->ip << ") is Running " << std::endl;
-            LOG_INFO_FMT("node(%s:%s) is running", node->name, node->ip);
+            LOG_INFO_FMT("node(%s:%s) is running", node->name.c_str(), node->ip.c_str());
             break;
         case 1:
             std::cout << "Node " << node->name << "(" << node->ip << ") is Stopped " << std::endl;
-            LOG_INFO_FMT("node(%s:%s) is Stopped", node->name, node->ip);
+            LOG_INFO_FMT("node(%s:%s) is Stopped", node->name.c_str(), node->ip.c_str());
             break;
         case 2:
             std::cout << "Node " << node->name << "(" << node->ip << ") is Unknown " << std::endl;
-            LOG_INFO_FMT("node(%s:%s) is Unknown", node->name, node->ip);
+            LOG_INFO_FMT("node(%s:%s) is Unknown", node->name.c_str(), node->ip.c_str());
             break;
         default:
             std::cout << "Node " << node->name << "(" << node->ip << ") is Unknown " << std::endl;
-            LOG_INFO_FMT("node(%s:%s) is Unknown", node->name, node->ip);
+            LOG_INFO_FMT("node(%s:%s) is Unknown", node->name.c_str(), node->ip.c_str());
     }
 
     // connection info
