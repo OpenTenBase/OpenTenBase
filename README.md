@@ -145,7 +145,7 @@ bin  include  lib  opentenbase-5.21.8-i.x86_64.tar.gz  share
 ### Cluster startup steps
 
 #### Generate and fill in configuration file opentenbase\_config.ini .
-opentenbase\_ctl tool can generate a template for the configuration file. You need to fill in the cluster node information in the template. After the opentenbase\_ctl tool is started, opentenbase\_ctl directory will be generated in the current user's home directory. After entering " prepare config" command, the configuration file template that can be directly modified will be generated in opentenbase\_ctl directory.
+opentenbase\_ctl tool can generate a template for the configuration file. You need to fill in the cluster node information in the template. After the opentenbase\_ctl tool is started, opentenbase\_ctl directory will be generated in the current user's home directory. After entering the `prepare config` command, the configuration file template that can be directly modified will be generated in opentenbase\_ctl directory.
 
 * Description of each field in opentenbase\_config.ini
 ```
