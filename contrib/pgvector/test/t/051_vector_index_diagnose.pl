@@ -76,6 +76,25 @@ is($stdout, '1', 'diagnose warns about a tiny ef_search');
 is($ret, 0, $stderr);
 cmp_ok($stdout, '==', 0, 'diagnose reports no warnings for a healthy index');
 
+# The same call can also measure recall, so a single query gives the full
+# picture: parameters, memory and the actual result quality
+($ret, $stdout, $stderr) = $node->psql("postgres", qq(
+	SET hnsw.ef_search = 1;
+	SELECT count(*) FROM vector_index_diagnose('tst_v_idx', true)
+	WHERE aspect = 'recall (measured)' AND severity = 'warning'
+	  AND detail LIKE 'recall\@10 = 0.%';
+));
+is($ret, 0, $stderr);
+is($stdout, '1', 'diagnose measures recall in the same call when asked');
+
+($ret, $stdout, $stderr) = $node->psql("postgres", qq(
+	SELECT count(*) FROM vector_index_diagnose('tst_v_idx', true)
+	WHERE aspect = 'recall (measured)' AND severity = 'ok'
+	  AND detail LIKE 'recall\@10 = 1.%';
+));
+is($ret, 0, $stderr);
+is($stdout, '1', 'the measured recall is ok once ef_search is healthy again');
+
 # probes = 1 on an ivfflat index is the other classic low recall trap
 $node->safe_psql("postgres",
 	"CREATE INDEX ON tst USING ivfflat (v vector_l2_ops) WITH (lists = 20);");

@@ -482,7 +482,7 @@ COMMENT ON FUNCTION vector_index_recall_check(regclass, int, int) IS
 
 -- One entry point that walks the common reasons a vector index ends up slow,
 -- memory hungry or low on recall, and says what to do about each one.
-CREATE FUNCTION vector_index_diagnose(idx regclass)
+CREATE FUNCTION vector_index_diagnose(idx regclass, measure_recall boolean DEFAULT false, k int DEFAULT 10, samples int DEFAULT 20)
 RETURNS TABLE(aspect text, severity text, detail text, suggestion text)
 LANGUAGE plpgsql
 STABLE
@@ -624,13 +624,27 @@ BEGIN
 		END IF;
 	END IF;
 
-	RETURN QUERY SELECT 'recall', 'info',
-		'recall has not been measured',
-		format('Run SELECT * FROM vector_index_recall_check(%s) to compare index results against exact search.', idx);
+	IF measure_recall THEN
+		RETURN QUERY
+		SELECT 'recall (measured)',
+		       CASE r.assessment
+		           WHEN 'good' THEN 'ok'
+		           WHEN 'acceptable' THEN 'info'
+		           ELSE 'warning'
+		       END,
+		       format('recall@%s = %s over %s sample queries (%s)',
+		              k, r.recall, r.samples_used, r.assessment),
+		       r.suggestion
+		FROM vector_index_recall_check(idx, k, samples) r;
+	ELSE
+		RETURN QUERY SELECT 'recall', 'info',
+			'recall has not been measured',
+			format('Pass measure_recall => true to measure it in the same call, or run vector_index_recall_check(%s) on its own.', idx);
+	END IF;
 END;
 $fn$;
 
-COMMENT ON FUNCTION vector_index_diagnose(regclass) IS
+COMMENT ON FUNCTION vector_index_diagnose(regclass, boolean, int, int) IS
 	'check a vector index for the common causes of slow builds, high memory and low recall';
 
 -- vector opclasses
