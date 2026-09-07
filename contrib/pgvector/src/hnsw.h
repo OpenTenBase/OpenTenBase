@@ -335,16 +335,10 @@ typedef struct HnswBuildStats
 	bool		valid;			/* set once a build has completed */
 }			HnswBuildStats;
 
-HnswBuildStats *HnswGetLastBuildStats(void);
-
 /*
- * Memory estimation for HNSW builds (see src/hnswmem.c).
- *
- * These tell the user, before the build starts, how much memory the graph is
- * going to need and what maintenance_work_mem should be set to.
+ * Warn before the build starts when the graph is unlikely to fit in the
+ * current maintenance_work_mem (see src/hnswmem.c).
  */
-extern Size HnswEstimateBuildMemory(int64 rows, int dims, int m);
-extern int	HnswSuggestMaintenanceWorkMemKB(Size estimatedBytes);
 extern void HnswReportMemoryAdvice(Relation heap, Relation index);
 
 typedef struct HnswBuildState

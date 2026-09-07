@@ -94,12 +94,6 @@
  */
 static HnswBuildStats hnsw_last_build_stats = {0};
 
-HnswBuildStats *
-HnswGetLastBuildStats(void)
-{
-	return &hnsw_last_build_stats;
-}
-
 /*
  * Remember the highest amount of graph memory seen so far.
  */
@@ -1196,7 +1190,6 @@ BuildGraph(HnswBuildState * buildstate)
 	INSTR_TIME_SET_CURRENT(load_elapsed);
 	INSTR_TIME_SUBTRACT(load_elapsed, load_start);
 	buildstate->stats.load_ms = INSTR_TIME_GET_MILLISEC(load_elapsed);
-	HnswTrackMemory(buildstate);
 
 	/*
 	 * Capture the graph-level numbers before the parallel build is torn down:
@@ -1338,7 +1331,7 @@ PG_FUNCTION_INFO_V1(vector_index_build_report);
 Datum
 vector_index_build_report(PG_FUNCTION_ARGS)
 {
-	HnswBuildStats *stats = HnswGetLastBuildStats();
+	HnswBuildStats *stats = &hnsw_last_build_stats;
 	TupleDesc	tupdesc;
 	Datum		values[10];
 	bool		nulls[10];

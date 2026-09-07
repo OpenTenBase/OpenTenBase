@@ -21,17 +21,13 @@
  */
 #include "postgres.h"
 
-#include <math.h>
-
 #include "access/htup_details.h"
 #include "access/relation.h"
-#include "catalog/pg_type.h"
 #include "fmgr.h"
 #include "funcapi.h"
 #include "hnsw.h"
 #include "miscadmin.h"
 #include "utils/builtins.h"
-#include "utils/memutils.h"
 #include "utils/memutils_memorychunk.h"
 #include "utils/rel.h"
 
@@ -67,7 +63,7 @@ static bool HnswIsVectorType(Oid typid);
 /*
  * Estimate the graph memory needed to build an HNSW index.
  */
-Size
+static Size
 HnswEstimateBuildMemory(int64 rows, int dims, int m)
 {
 	Size		vectorSize;
@@ -121,7 +117,7 @@ HnswEstimateBuildMemory(int64 rows, int dims, int m)
  * estimate. Rounded up to the next power of two in MB so the advice is a value
  * people would actually type, with a sensible floor of 64MB.
  */
-int
+static int
 HnswSuggestMaintenanceWorkMemKB(Size estimatedBytes)
 {
 	int64		neededMb;
