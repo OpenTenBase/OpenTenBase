@@ -15,9 +15,11 @@
  *	3. an array of per-level neighbor pointers	HnswInitNeighbors()
  *	4. one HnswNeighborArray per level			HnswInitNeighbors()
  *
- * The numbers were checked against measured builds (see the calibration table
- * in VECTOR_INDEX_TASK2_PLAN.md): the raw model lands within about 1% of the
- * observed graph size across a sweep of row counts, dimensions and m values.
+ * The numbers were checked against measured builds. Reproduce them with
+ * bench/run_bench.sh and see doc/vector-index-tuning.md for the derivation and
+ * the reference results. The raw model lands within about 1% of the observed
+ * graph size across a sweep of row counts, dimensions and m values; the safety
+ * margin below then makes the published estimate conservative.
  */
 #include "postgres.h"
 

@@ -772,6 +772,43 @@ SELECT ...
 COMMIT;
 ```
 
+## Build Diagnostics
+
+Five helpers are available for understanding a vector index: how long its build
+took, how much memory it needs, and whether it actually returns good results.
+
+| Function | Returns | Typical use |
+| --- | --- | --- |
+| `vector_index_build_report()` | per-phase timings, memory peak and budget, whether the graph spilled to disk | right after `CREATE INDEX`, in the same session |
+| `vector_index_memory_estimate(rows, dims, m)` | estimated bytes and a suggested `maintenance_work_mem` | capacity planning, no index needed |
+| `vector_index_memory_advise(table, m)` | same, with rows and dimensions read from the table | deciding what to set before (re)building |
+| `vector_index_diagnose(index [, measure_recall [, k [, samples]]])` | one row per finding — parameters, memory and recall — each with a suggestion | "is this index set up sensibly?" |
+| `vector_index_recall_check(index [, k [, samples]])` | measured recall@k against exact search | verifying a parameter change |
+
+A build that outgrows `maintenance_work_mem` materializes the graph to disk part
+way through, which makes it much slower. Ask before building:
+
+```sql
+SELECT * FROM vector_index_memory_advise('my_table');
+```
+
+`vector_index_diagnose()` accepts `measure_recall => true` to measure recall in
+the same call, so one query reports parameters, memory and result quality
+together:
+
+```sql
+SELECT * FROM vector_index_diagnose('my_index', true);
+```
+
+Note that `vector_index_build_report()` describes the build performed by the
+current session, so run `CREATE INDEX` and read the report in the same
+connection.
+
+See [doc/vector-index-tuning.md](doc/vector-index-tuning.md) for how to read the
+output, how the memory estimate is derived, parameter recommendations, and two
+pitfalls to avoid when measuring recall. Numbers can be reproduced with
+[bench/run_bench.sh](bench/run_bench.sh).
+
 ## Languages
 
 Use pgvector from any language with a Postgres client. You can even generate and store vectors in one language and query them in another.

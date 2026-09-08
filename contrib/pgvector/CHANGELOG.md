@@ -1,3 +1,14 @@
+## 0.8.7 (2026-09-08)
+
+- Added `vector_index_build_report()` for per-phase build timings, memory peak and whether the graph spilled to disk
+- Added `vector_index_memory_estimate()` and `vector_index_memory_advise()` to estimate build memory and suggest a `maintenance_work_mem` value
+- Added `vector_index_diagnose()` to report parameter, memory and recall problems with a suggestion for each
+- Added `vector_index_recall_check()` to measure recall@k against exact search
+- Added `flushing graph` and `finalizing` phases to HNSW build progress reporting
+- Reported the estimated number of heap tuples for HNSW builds so completion percentage is visible
+- Added a notice before the build when the graph is unlikely to fit in `maintenance_work_mem`
+- Added `doc/vector-index-tuning.md` and `bench/run_bench.sh` for tuning guidance and reproducing the reported numbers
+
 ## 0.8.6 (2026-07-29)
 
 - Fixed buffer overflow with IVFFlat index build on 32-bit systems - [more info](https://github.com/pgvector/pgvector/issues/1006)
