@@ -127,22 +127,57 @@ E[extra levels] = 1 / (m - 1)
 For the default `m = 16` that is about 0.067, i.e. the overwhelming majority of
 elements sit at level 0.
 
-### 3.3 Safety margin
+### 3.3 Safety margin, and why two different accuracies are quoted
 
 The graph lives in a generation memory context that hands memory out in blocks,
 so the real total is a little above the sum of the individual allocations. The
 estimate therefore applies a **one-sided 10% margin**: it can only ever be
-inflated, never reduced, so a user who follows the advice should not spill.
+inflated, never reduced.
 
-Measured against real builds the estimate lands close to the observed peak and
-errs on the high side (see [section 8](#8-environment-of-the-reference-run):
-estimate 128.6 MB vs measured 118 MB).
+That produces two numbers that are easy to confuse, so they are always reported
+separately:
 
-### 3.4 Scope and limits
+| Quantity | What it is | How to get it |
+| --- | --- | --- |
+| **raw model** | the model in 3.1–3.2 with no margin | published estimate / 1.1 |
+| **published estimate** | what `vector_index_memory_estimate()` reports | raw model x 1.1 |
+
+Measured against real builds ([section 8](#8-environment-of-the-reference-run),
+reproduced by `bench/run_bench.sh`):
+
+| rows | dims | m | published estimate (B) | raw model (B) | measured peak (B) | raw dev | with margin |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 10000 | 128 | 16 | 13486000 | 12259999 | 12582784 | +2.63% | -6.7% |
+| 100000 | 128 | 16 | 134860000 | 122599999 | 123731840 | +0.92% | -8.3% |
+| 100000 | 768 | 16 | 416460000 | 378599999 | 379584384 | +0.26% | -8.9% |
+| 500000 | 128 | 32 | 955350000 | 868499999 | 869269376 | +0.09% | -9.0% |
+
+* **raw dev** (0.09% – 2.63%, under 1% for all but the smallest configuration)
+  is the accuracy of the **model itself** — this is the figure quoted in the
+  source comment.
+* **with margin** (-6.7% … -9.0%) compares the measured peak against what the
+  tools actually report. It is **negative on purpose**: the published estimate
+  sits above the measured peak, not below it. The margin is the reason the two
+  accuracies differ, and it is one-sided so that following the advice does not
+  spill.
+
+A reader who only sees "-8.3%" might read it as "the estimate is 8% wrong"; it
+is not — it is the intended headroom. The model error is the "raw dev" column.
+
+### 3.4 Units
+
+`estimated_bytes` is authoritative and is reported in bytes. The convenience
+string `estimated_pretty` uses **binary** units and is labelled accordingly
+(MiB/GiB), which is not the same convention as PostgreSQL's `pg_size_pretty()`
+(decimal kB/MB/GB). Benchmark tables quote bytes.
+
+### 3.5 Scope and limits
 
 * only the **`vector`** type is modelled, i.e. `sizeof(float4)` per dimension.
   `halfvec` (2 bytes per dimension) and `sparsevec` need different factors and
   are **not** covered.
+* the model covers **HNSW only**. IVFFlat build memory is not predicted
+  (see [4.2](#42-ivfflat)).
 * the number of rows comes from `pg_class.reltuples`, so `ANALYZE` first.
 * `ef_construction` mainly affects build *time*, not the size of the graph, so
   it is not part of the estimate.
@@ -168,9 +203,28 @@ dropped recall@10 to **0.1**, which `vector_index_recall_check()` reports as
 | `lists` | `rows / 1000` up to 1M rows, `sqrt(rows)` above |
 | `ivfflat.probes` | start at `lists / 10` |
 
-`probes = 1` with more than a handful of lists almost always means poor recall;
+`probes = 1` with more than a handful of lists usually means poor recall;
 `vector_index_diagnose()` warns about it. `probes >= lists` means every list is
 visited, at which point an exact scan is simpler and just as fast.
+
+**Two honest caveats about IVFFlat here.**
+
+1. *Build memory is not predicted.* An IVFFlat build can fail outright during
+   k-means with `ERROR: memory required is N MB, maintenance_work_mem is M MB`.
+   We hit this while building a 100k-row index with `lists = 1000`
+   (222 MB required). The tools here do **not** predict it, because the memory
+   model in [section 3](#3-how-the-memory-estimate-is-derived) covers HNSW only.
+   Treat IVFFlat memory prediction as future work, and raise
+   `maintenance_work_mem` when a build with many lists fails this way.
+
+2. *The probes warning was not reproduced as a recall regression.* On the
+   synthetic uniform dataset used by `bench/run_bench.sh`, `recall_check`
+   measured recall@10 = `1.0000` at `probes = 1` and also at `probes = 10`.
+   The diagnose path correctly warns on `probes = 1`, but the measured recall
+   did not drop, so the benchmark demonstrates the diagnose behaviour rather
+   than a probes-driven regression. A probes-sensitive case needs a realistic
+   clustered dataset, since production embeddings are clustered. We could not
+   reproduce one here, so no number is claimed for it.
 
 ### 4.3 Dimensions
 
@@ -255,18 +309,42 @@ in [`bench/report.md`](../bench/report.md).
 
 | Configuration | `maintenance_work_mem` | total ms | load ms | flush ms | memory peak | spilled to disk |
 | --- | --- | --- | --- | --- | --- | --- |
-| baseline | 64MB | 14155.6 | 14029.2 | 129.9 | 65 MiB | yes |
-| as recommended | 256MB | 5821.7 | 5490.4 | 234.5 | 118 MiB | no |
+| baseline | 64MB | 14155.6 | 14029.2 | 129.9 | 68157312 B (65 MiB) | yes |
+| as recommended | 256MB | 5821.7 | 5490.4 | 234.5 | 123731840 B (118 MiB) | no |
 
 * following the recommendation made the build **about 2.4x faster** and removed
   the mid-build spill;
-* the estimate was 134,860,000 bytes (128.6 MB) against a measured peak of
-  123,731,840 bytes — the measured value is 8.3% below the estimate, i.e. the
-  estimate is conservative, as intended;
+* the published estimate was 134,860,000 bytes (128.6 MiB) against a measured
+  peak of 123,731,840 bytes (118 MiB) — the measured value is 8.3% below the
+  published estimate, which is the intended one-sided margin, not model error;
+  the model error itself is 0.92%, see the sweep in
+  [section 3.3](#33-safety-margin-and-why-two-different-accuracies-are-quoted).
+  The sweep covers 10k–500k rows, 128 and 768 dimensions, m = 16 and 32
+  (model error 0.09% – 2.63%).
 * recall@10 over 20 sample queries was `1.0000` (`good`) after rebuilding with
   the recommended setting.
 
-## 9. See also
+## 9. Anomaly behaviour
+
+Every case below is asserted by a TAP test; the table shows what a user
+actually sees. `bench/run_bench.sh` regenerates this table in its report.
+
+| Case | Statement | Reported |
+| --- | --- | --- |
+| rows out of range | `vector_index_memory_estimate(0, 128, 16)` | `ERROR: rows must be positive` |
+| dims out of range | `vector_index_memory_estimate(1000, 99999, 16)` | `ERROR: dims must be between 1 and 2000` |
+| m out of range | `vector_index_memory_estimate(1000, 128, 1)` | `ERROR: m must be between 2 and 100` |
+| table never analyzed | `vector_index_memory_advise('t')` | `ERROR: row count unknown`, plus a hint to run `ANALYZE` |
+| no vector column | `vector_index_memory_advise('t')` | `ERROR: table does not have a vector column` |
+| not an hnsw/ivfflat index | `vector_index_diagnose('btree_idx')` | `ERROR: index ... uses the btree access method, expected hnsw or ivfflat` |
+| k out of range | `vector_index_recall_check('idx', 0, 20)` | `ERROR: k must be between 1 and 1000` |
+| samples out of range | `vector_index_recall_check('idx', 10, 0)` | `ERROR: samples must be between 1 and 1000` |
+| index unusable for the query | `vector_index_recall_check('idx', ...)` | `ERROR: the planner cannot use index ... for this query shape`, see [6](#6-two-pitfalls-when-measuring-recall)
+
+Note the empty-table case is *not* an error: building on an empty table is
+valid and `vector_index_build_report()` reports `tuples_done = 0`。
+
+## 10. See also
 
 * [`bench/run_bench.sh`](../bench/run_bench.sh) and
   [`bench/README.md`](../bench/README.md) — how to reproduce the numbers

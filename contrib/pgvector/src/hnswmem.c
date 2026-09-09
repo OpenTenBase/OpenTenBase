@@ -15,11 +15,13 @@
  *	3. an array of per-level neighbor pointers	HnswInitNeighbors()
  *	4. one HnswNeighborArray per level			HnswInitNeighbors()
  *
- * The numbers were checked against measured builds. Reproduce them with
- * bench/run_bench.sh and see doc/vector-index-tuning.md for the derivation and
- * the reference results. The raw model lands within about 1% of the observed
- * graph size across a sweep of row counts, dimensions and m values; the safety
- * margin below then makes the published estimate conservative.
+ * Accuracy is measured in bench/report.md (reproduce with bench/run_bench.sh);
+ * doc/vector-index-tuning.md has the derivation. Across the swept
+ * configurations (10k-500k rows, 128 and 768 dimensions, m = 16 and 32) the
+ * raw model lands within 0.09% and 2.63% of the observed graph size — under 1%
+ * for all but the smallest configuration. The safety margin below then makes
+ * the published estimate larger than the measured peak on purpose, so a user
+ * who follows the advice should not spill.
  */
 #include "postgres.h"
 
@@ -188,12 +190,17 @@ HnswReportMemoryAdvice(Relation heap, Relation index)
 static void
 HnswFormatBytes(Size bytes, char *buf, size_t buflen)
 {
+	/*
+	 * Binary units, labelled as such. Note this is deliberately different from
+	 * PostgreSQL's pg_size_pretty(), which is decimal; the byte column in the
+	 * benchmark report is the authoritative value.
+	 */
 	if (bytes >= (Size) 1024 * 1024 * 1024)
-		snprintf(buf, buflen, "%.1f GB", bytes / (1024.0 * 1024.0 * 1024.0));
+		snprintf(buf, buflen, "%.1f GiB", bytes / (1024.0 * 1024.0 * 1024.0));
 	else if (bytes >= (Size) 1024 * 1024)
-		snprintf(buf, buflen, "%.1f MB", bytes / (1024.0 * 1024.0));
+		snprintf(buf, buflen, "%.1f MiB", bytes / (1024.0 * 1024.0));
 	else
-		snprintf(buf, buflen, "%.1f kB", bytes / 1024.0);
+		snprintf(buf, buflen, "%.1f KiB", bytes / 1024.0);
 }
 
 /*

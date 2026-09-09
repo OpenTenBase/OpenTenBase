@@ -463,7 +463,7 @@ BEGIN
 		assessment := 'low';
 		suggestion := CASE am
 			WHEN 'hnsw' THEN format('Recall is low. Raise the search width with SET hnsw.ef_search = %s (currently %s) and re-run this check; if it stays low, rebuild the index with a larger m.',
-									greatest(cur_ef * 4, 200), cur_ef)
+									greatest(cur_ef * 4, 40), cur_ef)
 			ELSE format('Recall is low. Search more lists with SET ivfflat.probes = %s (currently %s) and re-run this check; if it stays low, rebuild the index with a different lists value.',
 						greatest(cur_probes * 4, 10), cur_probes)
 		END;
