@@ -42,6 +42,7 @@ SUBDIRS = \
 		pgstattuple	\
 		pg_visibility	\
 		pg_walinspect	\
+		pgvector	\
 		postgres_fdw	\
 		seg		\
 		spi		\
