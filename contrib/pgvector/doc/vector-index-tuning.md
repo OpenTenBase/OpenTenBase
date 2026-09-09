@@ -173,11 +173,27 @@ string `estimated_pretty` uses **binary** units and is labelled accordingly
 
 ### 3.5 Scope and limits
 
-* only the **`vector`** type is modelled, i.e. `sizeof(float4)` per dimension.
-  `halfvec` (2 bytes per dimension) and `sparsevec` need different factors and
-  are **not** covered.
 * the model covers **HNSW only**. IVFFlat build memory is not predicted
   (see [4.2](#42-ivfflat)).
+* **`vector` and `halfvec` are both modelled**, through `bytes_per_dim`: 4 for
+  `vector` (one `float4` per dimension) and 2 for `halfvec`.
+  `vector_index_memory_advise()` reads the column type and picks the right
+  value itself, so no argument is needed there.
+
+  **Warning:** the default is 4. Calling `vector_index_memory_estimate()` on a
+  `halfvec` workload without passing `bytes_per_dim => 2` therefore
+  **overestimates**, and because the vector dominates the total at high
+  dimensions the result can be close to **double** the real figure — for 100k
+  rows of 768 dimensions, 416,460,000 bytes instead of 247,500,000. Use
+  `vector_index_memory_advise()` (type-aware), or pass the argument:
+
+  ```sql
+  SELECT * FROM vector_index_memory_estimate(100000, 768, 16, 2);
+  ```
+
+  Values other than 2 and 4 are rejected.
+* `sparsevec` is **not** covered: its size depends on how many components are
+  non-zero, which is a property of the data rather than of the dimensions.
 * the number of rows comes from `pg_class.reltuples`, so `ANALYZE` first.
 * `ef_construction` mainly affects build *time*, not the size of the graph, so
   it is not part of the estimate.
@@ -229,8 +245,14 @@ visited, at which point an exact scan is simpler and just as fast.
 ### 4.3 Dimensions
 
 Above roughly 1000 dimensions both distance computation and memory grow
-painfully. Consider reducing the dimensionality, or the `halfvec` type to halve
-the vector memory.
+painfully. Consider reducing the dimensionality, or switching to `halfvec`,
+which stores 2 bytes per dimension instead of 4.
+
+The tools follow the type: `vector_index_memory_advise()` detects a `halfvec`
+column and reports the smaller estimate automatically, and
+`vector_index_diagnose()` works on a `halfvec` index as well. Only the
+standalone `vector_index_memory_estimate()` needs to be told, via
+`bytes_per_dim => 2` (see [3.5](#35-scope-and-limits)).
 
 ## 5. Troubleshooting by symptom
 
@@ -240,12 +262,34 @@ the vector memory.
 | **build eats memory / risks spilling** | `vector_index_memory_advise('table')` | raise `maintenance_work_mem`, or lower `m`, or use `halfvec` |
 | **recall is low** | `vector_index_diagnose('index', true)` | raise `hnsw.ef_search` (or `ivfflat.probes`); if that is not enough, rebuild with a larger `m` or a corrected `lists` |
 | **queries are slow** | is `hnsw.ef_search` (or `ivfflat.probes`) very high? | lower it and re-measure recall; that is the recall/latency trade-off knob |
+| **the index is ignored / never used** | `vector_index_diagnose('index')` | an invalid index is reported with severity **error** plus a `REINDEX` suggestion, and recall is reported as not measured rather than as a number |
 | **nothing looks wrong** | `vector_index_diagnose('index', true)` | it also reports unknown statistics (never `ANALYZE`d) and tables too small to benefit from an index |
 
-## 6. Two pitfalls when measuring recall
+Severity is `ok`, `info`, `warning` or `error`. Only an invalid index is
+`error`: it is the one case where nothing else in the report is meaningful
+until the index is rebuilt. It is what a failed `CREATE INDEX CONCURRENTLY`
+leaves behind.
 
-`vector_index_recall_check()` compares an index scan against an exact
-(brute-force) scan. Both halves have a trap:
+## 6. Measuring recall, and why the function beats doing it by hand
+
+Upstream's `## Monitoring` section shows how to compare an index scan against an
+exact one by hand. `vector_index_recall_check()` performs the same comparison,
+and adds three things a hand-written query does not:
+
+1. **It produces a real exact baseline.** A manual comparison usually flips
+   `enable_seqscan` off and assumes the other side is exact. For KNN queries it
+   is not — see pitfall 1 below.
+2. **It refuses to report a number it cannot stand behind.** If the index cannot
+   be used for the query shape, it raises an error rather than returning the
+   misleading `1.0` a manual comparison would silently produce — pitfall 2.
+3. **It returns advice, not just a number.** Besides recall@k it reports an
+   assessment (`good` / `acceptable` / `low`) and a concrete next step, so the
+   result can be acted on without knowing the thresholds by heart. And
+   `vector_index_diagnose(index, true)` folds the same measurement into a full
+   report, as in [section 4 of the benchmark report](../bench/report.md).
+
+Both pitfalls below have the same failure mode: a naive comparison reports a
+perfect score.
 
 1. **`enable_seqscan = off` does not give you an exact baseline.** For a KNN
    query (`ORDER BY v <-> q LIMIT k`) the planner prefers the index anyway,

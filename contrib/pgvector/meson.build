@@ -166,6 +166,8 @@ tests += {
       't/049_hnsw_build_progress.pl',
       't/050_hnsw_memory_estimate.pl',
       't/051_vector_index_diagnose.pl',
+      't/052_hnsw_parallel_build.pl',
+      't/053_hnsw_diagnose_edges.pl',
     ],
   },
 }

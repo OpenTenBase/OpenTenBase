@@ -33,14 +33,15 @@ CREATE FUNCTION vector_index_memory_estimate(
 	rows bigint,
 	dims int,
 	m int DEFAULT 16,
+	bytes_per_dim int DEFAULT 4,
 	OUT estimated_bytes bigint,
 	OUT estimated_pretty text,
 	OUT suggested_work_mem text)
 RETURNS record
 	AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE PARALLEL SAFE;
 
-COMMENT ON FUNCTION vector_index_memory_estimate(bigint, int, int) IS
-	'estimate the memory needed to build an HNSW index';
+COMMENT ON FUNCTION vector_index_memory_estimate(bigint, int, int, int) IS
+	'estimate the memory needed to build an HNSW index (bytes_per_dim: 4 for vector, 2 for halfvec)';
 
 -- The same estimate, worked out for an existing table: the row count comes
 -- from pg_class and the dimension from the vector column.
@@ -191,7 +192,7 @@ BEGIN
 		assessment := 'low';
 		suggestion := CASE am
 			WHEN 'hnsw' THEN format('Recall is low. Raise the search width with SET hnsw.ef_search = %s (currently %s) and re-run this check; if it stays low, rebuild the index with a larger m.',
-									greatest(cur_ef * 4, 200), cur_ef)
+									greatest(cur_ef * 4, 40), cur_ef)
 			ELSE format('Recall is low. Search more lists with SET ivfflat.probes = %s (currently %s) and re-run this check; if it stays low, rebuild the index with a different lists value.',
 						greatest(cur_probes * 4, 10), cur_probes)
 		END;
@@ -210,7 +211,7 @@ COMMENT ON FUNCTION vector_index_recall_check(regclass, int, int) IS
 
 -- One entry point that walks the common reasons a vector index ends up slow,
 -- memory hungry or low on recall, and says what to do about each one.
-CREATE FUNCTION vector_index_diagnose(idx regclass)
+CREATE FUNCTION vector_index_diagnose(idx regclass, measure_recall boolean DEFAULT false, k int DEFAULT 10, samples int DEFAULT 20)
 RETURNS TABLE(aspect text, severity text, detail text, suggestion text)
 LANGUAGE plpgsql
 STABLE
@@ -230,9 +231,10 @@ DECLARE
 	suggested text;
 	work_mem_kb bigint;
 	ideal_lists double precision;
+	idx_valid boolean;
 BEGIN
-	SELECT am.amname, pi.indrelid, a.attname, a.atttypmod
-	  INTO am, tbl, col, dims
+	SELECT am.amname, pi.indrelid, a.attname, a.atttypmod, pi.indisvalid
+	  INTO am, tbl, col, dims, idx_valid
 	  FROM pg_class ci
 	  JOIN pg_am am ON am.oid = ci.relam
 	  JOIN pg_index pi ON pi.indexrelid = ci.oid
@@ -244,6 +246,17 @@ BEGIN
 	END IF;
 	IF am NOT IN ('hnsw', 'ivfflat') THEN
 		RAISE EXCEPTION 'index % uses the % access method, expected hnsw or ivfflat', idx, am;
+	END IF;
+
+	/*
+	 * An invalid index is the one case that deserves an error: nothing below
+	 * is meaningful while the index cannot be used at all. This is what a
+	 * failed CREATE INDEX CONCURRENTLY leaves behind.
+	 */
+	IF NOT idx_valid THEN
+		RETURN QUERY SELECT 'index validity', 'error',
+			format('index %s is marked invalid and cannot be used for searches', idx),
+			format('Rebuild it with REINDEX INDEX %s.', idx);
 	END IF;
 
 	SELECT c.reltuples
@@ -352,11 +365,33 @@ BEGIN
 		END IF;
 	END IF;
 
-	RETURN QUERY SELECT 'recall', 'info',
-		'recall has not been measured',
-		format('Run SELECT * FROM vector_index_recall_check(%s) to compare index results against exact search.', idx);
+	/*
+	 * Do not attempt a measurement on an invalid index: the scan would raise,
+	 * and the validity row above already explains why.
+	 */
+	IF NOT idx_valid THEN
+		RETURN QUERY SELECT 'recall (measured)', 'error',
+			'not measured: the index is marked invalid',
+			format('Rebuild it with REINDEX INDEX %s, then re-run.', idx);
+	ELSIF measure_recall THEN
+		RETURN QUERY
+		SELECT 'recall (measured)',
+		       CASE r.assessment
+		           WHEN 'good' THEN 'ok'
+		           WHEN 'acceptable' THEN 'info'
+		           ELSE 'warning'
+		       END,
+		       format('recall@%s = %s over %s sample queries (%s)',
+		              k, r.recall, r.samples_used, r.assessment),
+		       r.suggestion
+		FROM vector_index_recall_check(idx, k, samples) r;
+	ELSE
+		RETURN QUERY SELECT 'recall', 'info',
+			'recall has not been measured',
+			format('Pass measure_recall => true to measure it in the same call, or run vector_index_recall_check(%s) on its own.', idx);
+	END IF;
 END;
 $fn$;
 
-COMMENT ON FUNCTION vector_index_diagnose(regclass) IS
+COMMENT ON FUNCTION vector_index_diagnose(regclass, boolean, int, int) IS
 	'check a vector index for the common causes of slow builds, high memory and low recall';

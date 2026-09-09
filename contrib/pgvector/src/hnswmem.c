@@ -55,20 +55,23 @@ PG_FUNCTION_INFO_V1(vector_index_memory_advise);
 #define HNSW_MEM_SAFETY_MARGIN	0.10
 
 /*
- * Bytes per dimension. Only the float4 `vector` type is modelled; halfvec
- * (2 bytes) and sparsevec would need a different factor.
+ * Bytes per dimension, by stored type. `vector` keeps one float4 (4 bytes) per
+ * dimension, `halfvec` keeps a half precision value (2 bytes). `sparsevec` is
+ * not modelled: its size depends on how many components are non-zero, which is
+ * a property of the data rather than of the dimensions.
  */
-#define HNSW_BYTES_PER_DIM		sizeof(float4)
+#define HNSW_BYTES_PER_DIM_VECTOR		((int) sizeof(float4))
+#define HNSW_BYTES_PER_DIM_HALFVEC		2
 
 static void HnswFormatBytes(Size bytes, char *buf, size_t buflen);
 static void HnswFormatWorkMem(int kb, char *buf, size_t buflen);
-static bool HnswIsVectorType(Oid typid);
+static int	HnswVectorBytesPerDim(Oid typid);
 
 /*
  * Estimate the graph memory needed to build an HNSW index.
  */
 static Size
-HnswEstimateBuildMemory(int64 rows, int dims, int m)
+HnswEstimateBuildMemory(int64 rows, int dims, int m, int bytesPerDim)
 {
 	Size		vectorSize;
 	Size		elementSize;
@@ -82,8 +85,15 @@ HnswEstimateBuildMemory(int64 rows, int dims, int m)
 	if (rows <= 0 || dims <= 0 || m <= 0)
 		return 0;
 
-	/* The vector itself: a varlena header plus one float4 per dimension */
-	vectorSize = HNSW_ALLOC_SIZE(VARHDRSZ + ((Size) dims) * HNSW_BYTES_PER_DIM);
+	if (bytesPerDim != HNSW_BYTES_PER_DIM_VECTOR &&
+		bytesPerDim != HNSW_BYTES_PER_DIM_HALFVEC)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("bytes_per_dim must be %d (vector) or %d (halfvec)",
+						HNSW_BYTES_PER_DIM_VECTOR, HNSW_BYTES_PER_DIM_HALFVEC)));
+
+	/* The vector itself: a varlena header plus the stored width per dimension */
+	vectorSize = HNSW_ALLOC_SIZE(VARHDRSZ + ((Size) dims) * bytesPerDim);
 
 	/* The in-memory representation of the element */
 	elementSize = HNSW_ALLOC_SIZE(sizeof(HnswElementData));
@@ -147,6 +157,7 @@ HnswReportMemoryAdvice(Relation heap, Relation index)
 {
 	double		reltuples;
 	int			dims;
+	int			bytesPerDim;
 	int			m;
 	Size		estimated;
 	Size		budget;
@@ -164,8 +175,12 @@ HnswReportMemoryAdvice(Relation heap, Relation index)
 	if (dims <= 0)
 		return;
 
+	bytesPerDim = HnswVectorBytesPerDim(TupleDescAttr(index->rd_att, 0)->atttypid);
+	if (bytesPerDim == 0)
+		return;					/* not a type the model covers */
+
 	m = HnswGetM(index);
-	estimated = HnswEstimateBuildMemory((int64) reltuples, dims, m);
+	estimated = HnswEstimateBuildMemory((int64) reltuples, dims, m, bytesPerDim);
 	budget = (Size) maintenance_work_mem * 1024;
 
 	if (estimated <= budget)
@@ -216,21 +231,39 @@ HnswFormatWorkMem(int kb, char *buf, size_t buflen)
 }
 
 /*
- * Is this type the float4 `vector` type that the model describes?
+ * How many bytes per dimension a type stores, or 0 when the type is not
+ * modelled. Recognises `vector` (float4) and `halfvec` (half precision), both
+ * of which HNSW can index. Anything else, including `sparsevec`, returns 0.
  */
-static bool
-HnswIsVectorType(Oid typid)
+static int
+HnswVectorBytesPerDim(Oid typid)
 {
 	char	   *tname = format_type_be(typid);
+	char	   *base;
+	char	   *dot;
 
-	return (strncmp(tname, "vector", 6) == 0 &&
-			(tname[6] == '\0' || tname[6] == '('));
+	/*
+	 * format_type_be() schema-qualifies the name unless the type is visible in
+	 * the search path, and it does so for index columns in particular —
+	 * "public.vector(32)" rather than "vector(32)".  Compare the bare name.
+	 */
+	dot = strrchr(tname, '.');
+	base = (dot != NULL) ? dot + 1 : tname;
+
+	if (strncmp(base, "vector", 6) == 0 && (base[6] == '\0' || base[6] == '('))
+		return HNSW_BYTES_PER_DIM_VECTOR;
+
+	if (strncmp(base, "halfvec", 7) == 0 && (base[7] == '\0' || base[7] == '('))
+		return HNSW_BYTES_PER_DIM_HALFVEC;
+
+	return 0;
 }
 
 /*
- * SQL: vector_index_memory_estimate(rows, dims, m)
+ * SQL: vector_index_memory_estimate(rows, dims, m [, bytes_per_dim])
  *
  * Pure arithmetic, so it can be called without building anything.
+ * bytes_per_dim defaults to 4 (`vector`); pass 2 for `halfvec`.
  */
 Datum
 vector_index_memory_estimate(PG_FUNCTION_ARGS)
@@ -238,6 +271,7 @@ vector_index_memory_estimate(PG_FUNCTION_ARGS)
 	int64		rows = PG_GETARG_INT64(0);
 	int32		dims = PG_GETARG_INT32(1);
 	int32		m = PG_GETARG_INT32(2);
+	int32		bytesPerDim = PG_GETARG_INT32(3);
 	Size		estimated;
 	int			suggested;
 	TupleDesc	tupdesc;
@@ -261,7 +295,7 @@ vector_index_memory_estimate(PG_FUNCTION_ARGS)
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("m must be between %d and %d", HNSW_MIN_M, HNSW_MAX_M)));
 
-	estimated = HnswEstimateBuildMemory(rows, dims, m);
+	estimated = HnswEstimateBuildMemory(rows, dims, m, bytesPerDim);
 	suggested = HnswSuggestMaintenanceWorkMemKB(estimated);
 
 	HnswFormatBytes(estimated, estBuf, sizeof(estBuf));
@@ -298,6 +332,7 @@ vector_index_memory_advise(PG_FUNCTION_ARGS)
 	Relation	rel;
 	TupleDesc	tupdesc;
 	int			dims = 0;
+	int			bytesPerDim = 0;
 	double		reltuples;
 	Size		estimated;
 	Size		budget;
@@ -324,7 +359,8 @@ vector_index_memory_advise(PG_FUNCTION_ARGS)
 		if (att->attisdropped)
 			continue;
 
-		if (HnswIsVectorType(att->atttypid))
+		bytesPerDim = HnswVectorBytesPerDim(att->atttypid);
+		if (bytesPerDim != 0)
 		{
 			dims = att->atttypmod;
 			break;
@@ -337,7 +373,7 @@ vector_index_memory_advise(PG_FUNCTION_ARGS)
 	if (dims <= 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("table does not have a vector column")));
+				 errmsg("table does not have a vector or halfvec column")));
 
 	if (reltuples <= 0)
 		ereport(ERROR,
@@ -346,7 +382,7 @@ vector_index_memory_advise(PG_FUNCTION_ARGS)
 				 errhint("Run ANALYZE on the table first, or call "
 						 "vector_index_memory_estimate(rows, dims, m) directly.")));
 
-	estimated = HnswEstimateBuildMemory((int64) reltuples, dims, m);
+	estimated = HnswEstimateBuildMemory((int64) reltuples, dims, m, bytesPerDim);
 	suggested = HnswSuggestMaintenanceWorkMemKB(estimated);
 	budget = (Size) maintenance_work_mem * 1024;
 

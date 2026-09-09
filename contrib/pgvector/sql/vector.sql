@@ -305,14 +305,15 @@ CREATE FUNCTION vector_index_memory_estimate(
 	rows bigint,
 	dims int,
 	m int DEFAULT 16,
+	bytes_per_dim int DEFAULT 4,
 	OUT estimated_bytes bigint,
 	OUT estimated_pretty text,
 	OUT suggested_work_mem text)
 RETURNS record
 	AS 'MODULE_PATHNAME' LANGUAGE C IMMUTABLE PARALLEL SAFE;
 
-COMMENT ON FUNCTION vector_index_memory_estimate(bigint, int, int) IS
-	'estimate the memory needed to build an HNSW index';
+COMMENT ON FUNCTION vector_index_memory_estimate(bigint, int, int, int) IS
+	'estimate the memory needed to build an HNSW index (bytes_per_dim: 4 for vector, 2 for halfvec)';
 
 -- The same estimate, worked out for an existing table: the row count comes
 -- from pg_class and the dimension from the vector column.
@@ -502,9 +503,10 @@ DECLARE
 	suggested text;
 	work_mem_kb bigint;
 	ideal_lists double precision;
+	idx_valid boolean;
 BEGIN
-	SELECT am.amname, pi.indrelid, a.attname, a.atttypmod
-	  INTO am, tbl, col, dims
+	SELECT am.amname, pi.indrelid, a.attname, a.atttypmod, pi.indisvalid
+	  INTO am, tbl, col, dims, idx_valid
 	  FROM pg_class ci
 	  JOIN pg_am am ON am.oid = ci.relam
 	  JOIN pg_index pi ON pi.indexrelid = ci.oid
@@ -516,6 +518,17 @@ BEGIN
 	END IF;
 	IF am NOT IN ('hnsw', 'ivfflat') THEN
 		RAISE EXCEPTION 'index % uses the % access method, expected hnsw or ivfflat', idx, am;
+	END IF;
+
+	/*
+	 * An invalid index is the one case that deserves an error: nothing below
+	 * is meaningful while the index cannot be used at all. This is what a
+	 * failed CREATE INDEX CONCURRENTLY leaves behind.
+	 */
+	IF NOT idx_valid THEN
+		RETURN QUERY SELECT 'index validity', 'error',
+			format('index %s is marked invalid and cannot be used for searches', idx),
+			format('Rebuild it with REINDEX INDEX %s.', idx);
 	END IF;
 
 	SELECT c.reltuples
@@ -624,7 +637,15 @@ BEGIN
 		END IF;
 	END IF;
 
-	IF measure_recall THEN
+	/*
+	 * Do not attempt a measurement on an invalid index: the scan would raise,
+	 * and the validity row above already explains why.
+	 */
+	IF NOT idx_valid THEN
+		RETURN QUERY SELECT 'recall (measured)', 'error',
+			'not measured: the index is marked invalid',
+			format('Rebuild it with REINDEX INDEX %s, then re-run.', idx);
+	ELSIF measure_recall THEN
 		RETURN QUERY
 		SELECT 'recall (measured)',
 		       CASE r.assessment
