@@ -1,0 +1,9 @@
+diff --git a/src/ivfbuild.c b/src/ivfbuild.c
+index b780ae9..a0a0238 100644
+--- a/src/ivfbuild.c
++++ b/src/ivfbuild.c
+@@ -1069 +1069,3 @@ ivfflatbuild(Relation heap, Relation index, IndexInfo *indexInfo)
+-#ifdef IVFFLAT_BENCH
++#ifdef IVFFLAT_BENCH_SEED
++	SeedRandom(IVFFLAT_BENCH_SEED);
++#elif defined(IVFFLAT_BENCH)
