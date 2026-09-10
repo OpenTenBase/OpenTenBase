@@ -113,3 +113,5 @@
 /src/gtm/xlog_test/set_gts
 /src/gtm/xlog_test/set_gts.c
 /src/gtm/xlog_test/xlog_reader
+.codegraph
+.workbuddy
