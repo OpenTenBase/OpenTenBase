@@ -41,6 +41,26 @@ yum -y install git sudo gcc make readline-devel zlib-devel openssl-devel uuid-de
 apt install -y git sudo gcc make libreadline-dev zlib1g-dev libssl-dev libossp-uuid-dev bison flex cmake libssh2-1-dev sshpass libxml2-dev language-pack-zh-hans
 ```
 
+### 手动编译 libpqxx（C++ 客户端库）
+
+连接 OpenTenBase 的 C++ 客户端程序通常基于 [libpqxx](https://github.com/jtv/libpqxx)（libpq 的官方 C++ 接口）编译。若系统未提供合适的 libpqxx 包，编译时会报 `libpqxx/pqxx: No such file or directory` 等错误，此时可手动编译安装（已验证 6.4.8 版本可用）：
+
+```bash
+wget https://github.com/jtv/libpqxx/archive/refs/tags/6.4.8.zip
+unzip libpqxx-6.4.8.zip && cd libpqxx-6.4.8
+mkdir build && cd build
+cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
+make -j$(nproc)
+sudo make install
+sudo ldconfig
+```
+
+若链接时报 `cannot find -lpqxx`，或运行时找不到 `libpqxx-6.4.so`，请确保 `/usr/local/lib` 在库搜索路径中：
+
+```bash
+export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+```
+
 ### 创建用户 'opentenbase'
 
 ```bash
