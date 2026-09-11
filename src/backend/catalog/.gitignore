@@ -2,3 +2,8 @@
 /postgres.description
 /postgres.shdescription
 /schemapg.h
+/all.bki
+/all.description
+/all.shdescription
+/opentenbase_ora.bki
+/opentenbase_ora.description
