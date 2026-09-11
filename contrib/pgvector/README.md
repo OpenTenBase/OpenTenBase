@@ -1302,6 +1302,12 @@ You can check the version in the current database with:
 SELECT extversion FROM pg_extension WHERE extname = 'vector';
 ```
 
+## IVFFlat Build Diagnosis Benchmark
+
+The [`benchmark/`](benchmark/README.md) directory provides an automated IVFFlat
+build, resource, quality, and structure diagnosis workflow. From that directory,
+run `make bootstrap` followed by `make verify` for the complete automated check.
+
 ## Thanks
 
 Thanks to:
