@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+benchmark_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+python_bin=${PYTHON:-$benchmark_root/.venv/bin/python}
+
+if [[ ! -x "$python_bin" ]]; then
+  echo "Python environment not found: $python_bin" >&2
+  echo "Run 'make bootstrap' first, or set PYTHON=/path/to/python." >&2
+  exit 2
+fi
+
+command=${1:-help}
+if (( $# )); then
+  shift
+fi
+
+case "$command" in
+  run)
+    exec "$python_bin" "$benchmark_root/ivfflat_diagnosis/run_matrix.py" "$@"
+    ;;
+  setup)
+    exec "$python_bin" "$benchmark_root/scripts/setup_database.py" "$@"
+    ;;
+  download)
+    exec "$python_bin" "$benchmark_root/scripts/download_dataset.py" \
+      --data-root "$benchmark_root/data" "$@"
+    ;;
+  test)
+    exec "$python_bin" -m unittest discover -s "$benchmark_root/tests" -p 'test_*.py'
+    ;;
+  help|-h|--help)
+    cat <<'EOF'
+Usage: ./benchmark COMMAND [OPTIONS]
+
+Commands:
+  setup       initialize/start the isolated benchmark database
+  download    download a real dataset (--dataset l2|cosine|ip|all)
+  run         run an IVFFlat diagnosis matrix
+  test        run Python unit and failure-path tests
+
+Use './benchmark run --help' for diagnosis options.
+EOF
+    ;;
+  *)
+    echo "Unknown command: $command" >&2
+    exit 2
+    ;;
+esac

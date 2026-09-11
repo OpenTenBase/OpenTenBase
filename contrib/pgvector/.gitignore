@@ -12,3 +12,14 @@ regression.*
 *.obj
 *.lib
 *.exp
+
+# IVFFlat diagnosis benchmark runtime files
+/benchmark/.venv/
+/benchmark/.runtime/
+/benchmark/data/
+/benchmark/pgdata/
+/benchmark/results/
+/benchmark/**/__pycache__/
+/benchmark/**/*.pyc
+/benchmark/*.log
+/benchmark/perf.data*
