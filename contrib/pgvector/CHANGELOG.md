@@ -1,3 +1,7 @@
+## 0.8.7 (unreleased)
+
+- Added read-only IVFFlat list and index structure statistics functions
+
 ## 0.8.6 (2026-07-29)
 
 - Fixed buffer overflow with IVFFlat index build on 32-bit systems - [more info](https://github.com/pgvector/pgvector/issues/1006)

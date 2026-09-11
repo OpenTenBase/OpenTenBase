@@ -421,6 +421,25 @@ The phases for IVFFlat are:
 
 Note: `%` is only populated during the `loading tuples` phase
 
+### Structure Statistics
+
+Inspect per-list physical structure after an IVFFlat build:
+
+```sql
+SELECT * FROM ivfflat_list_stats('items_embedding_idx');
+```
+
+The optional second argument deterministically samples lists. A full scan is required for exact
+tuple, empty-list, and coverage diagnostics.
+
+```sql
+SELECT * FROM ivfflat_list_stats('items_embedding_idx', 0.1);
+SELECT * FROM ivfflat_index_stats('items_embedding_idx');
+```
+
+These functions require `SELECT` on the indexed table. Counts are physical index tuples and do not
+represent an MVCC-visible row count.
+
 ## Filtering
 
 There are a few ways to index nearest neighbor queries with a `WHERE` clause.
