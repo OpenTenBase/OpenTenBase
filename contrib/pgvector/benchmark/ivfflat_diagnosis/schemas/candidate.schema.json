@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "candidate.schema.json",
+  "title": "Project2 P1 Candidate",
+  "type": "object",
+  "required": ["schema_version", "p1_schema_version", "diagnosis_id", "candidate_id", "build_id", "lists", "probes", "build_metrics", "resource_metrics", "structure_metrics", "quality_metrics", "validity", "artifact_refs"],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "p1_schema_version": {"const": "1.0"},
+    "diagnosis_id": {"type": "string"},
+    "candidate_id": {"type": "string"},
+    "build_id": {"type": "string"},
+    "quality_run_id": {"type": ["string", "null"]},
+    "lists": {"type": "integer", "minimum": 1},
+    "probes": {"type": ["integer", "null"]},
+    "build_metrics": {"type": "object"},
+    "resource_metrics": {"type": "object"},
+    "structure_metrics": {"type": "object"},
+    "quality_metrics": {"type": "object"},
+    "validity": {
+      "type": "object",
+      "required": ["status", "eligible_for_comparison", "reasons"],
+      "properties": {
+        "status": {"enum": ["valid", "partial", "invalid", "infeasible"]},
+        "eligible_for_comparison": {"type": "boolean"},
+        "reasons": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "artifact_refs": {"type": "object"}
+  }
+}

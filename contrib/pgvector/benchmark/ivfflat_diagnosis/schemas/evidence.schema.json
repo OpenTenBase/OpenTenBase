@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "evidence.schema.json",
+  "title": "Project2 P1 Evidence",
+  "type": "object",
+  "required": ["schema_version", "p1_schema_version", "diagnosis_id", "evidence_id", "metric", "value", "unit", "source", "build_id", "availability", "artifact_ref"],
+  "properties": {
+    "p1_schema_version": {"const": "1.0"},
+    "diagnosis_id": {"type": "string"},
+    "evidence_id": {"type": "string"},
+    "metric": {"type": "string"},
+    "value": {},
+    "unit": {"type": "string"},
+    "source": {"type": "string"},
+    "build_id": {"type": "string"},
+    "quality_run_id": {"type": ["string", "null"]},
+    "availability": {"enum": ["available", "unavailable", "not_sampled", "unsupported"]},
+    "reason": {"type": ["string", "null"]},
+    "artifact_ref": {"type": "string"}
+  }
+}

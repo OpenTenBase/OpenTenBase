@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opentenbase.example/schemas/project2/structure-summary-1.0.json",
+  "title": "Project2 IVFFlat structure summary",
+  "type": "object",
+  "$defs": {
+    "metric": {
+      "type": "object",
+      "required": ["value", "unit", "source", "availability", "reason", "aggregation", "attribution_scope"],
+      "properties": {
+        "value": {"type": ["number", "integer", "null"]},
+        "unit": {"type": "string"},
+        "source": {"const": "ivfflat_list_stats"},
+        "availability": {"enum": ["available", "unavailable"]},
+        "reason": {"type": ["string", "null"]},
+        "aggregation": {"type": "string"},
+        "attribution_scope": {"const": "index_structure"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "schema_version", "structure_schema_version", "diagnosis_id", "build_id",
+    "timestamp_utc", "source", "availability", "reason", "index_oid",
+    "relfilenode", "sample_rate", "scan_scope", "sampling_method", "scanned_lists",
+    "declared_lists", "distribution", "metrics", "heuristic_version"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "structure_schema_version": {"const": "1.0"},
+    "diagnosis_id": {"type": "string", "minLength": 1},
+    "build_id": {"type": "string", "minLength": 1},
+    "timestamp_utc": {"type": "string", "format": "date-time"},
+    "source": {"const": "structure_summary"},
+    "availability": {"enum": ["available", "unavailable"]},
+    "reason": {"type": ["string", "null"]},
+    "index_oid": {"type": "integer", "minimum": 1},
+    "relfilenode": {"type": "integer", "minimum": 1},
+    "sample_rate": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+    "scan_scope": {"enum": ["full", "sample"]},
+    "sampling_method": {"enum": ["all_lists", "list_id_multiplicative_hash_v1"]},
+    "scanned_lists": {"type": "integer", "minimum": 0},
+    "declared_lists": {"type": ["integer", "null"], "minimum": 1},
+    "distribution": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/metric"}
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/metric"}
+    },
+    "heuristic_version": {"const": "p1-v1"}
+  },
+  "additionalProperties": true
+}

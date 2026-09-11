@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "finding.schema.json",
+  "title": "Project2 P1 Finding",
+  "type": "object",
+  "required": ["schema_version", "p1_schema_version", "ruleset_version", "diagnosis_id", "finding_id", "rule_id", "scope", "candidate_ids", "status", "evidence_ids", "summary", "likely_cause", "confidence", "limitations"],
+  "properties": {
+    "p1_schema_version": {"const": "1.0"},
+    "ruleset_version": {"type": "string"},
+    "status": {"enum": ["triggered", "clear", "unknown", "not_applicable"]},
+    "confidence": {"enum": ["high", "medium", "low"]},
+    "candidate_ids": {"type": "array", "items": {"type": "string"}},
+    "evidence_ids": {"type": "array", "items": {"type": "string"}},
+    "limitations": {"type": "array", "items": {"type": "string"}}
+  }
+}

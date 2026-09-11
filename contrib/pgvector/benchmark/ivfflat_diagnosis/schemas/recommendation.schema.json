@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "recommendation.schema.json",
+  "title": "Project2 P1 Recommendation",
+  "type": "object",
+  "required": ["schema_version", "p1_schema_version", "diagnosis_id", "recommendation_id", "status", "action", "current", "recommended", "finding_ids", "evidence_ids", "expected_effect", "cost", "scope", "verification_workload"],
+  "properties": {
+    "p1_schema_version": {"const": "1.0"},
+    "status": {"enum": ["proposed", "validated", "validation_failed", "not_comparable"]},
+    "action": {"type": "string"},
+    "current": {"type": "object"},
+    "recommended": {"type": "object"},
+    "finding_ids": {"type": "array", "items": {"type": "string"}},
+    "evidence_ids": {"type": "array", "items": {"type": "string"}}
+  }
+}

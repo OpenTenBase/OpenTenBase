@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opentenbase.example/schemas/project2/structure-scan-1.0.json",
+  "title": "Project2 IVFFlat structure collection status",
+  "type": "object",
+  "required": [
+    "schema_version", "structure_schema_version", "diagnosis_id", "build_id",
+    "timestamp_utc", "source", "availability", "reason", "status",
+    "index_oid", "relfilenode", "sample_rate", "scan_scope", "sampling_method", "scanned_lists",
+    "declared_lists", "collector_elapsed_ms", "exact_metrics_available"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "structure_schema_version": {"const": "1.0"},
+    "diagnosis_id": {"type": "string", "minLength": 1},
+    "build_id": {"type": "string", "minLength": 1},
+    "timestamp_utc": {"type": "string", "format": "date-time"},
+    "source": {"const": "structure_collector"},
+    "availability": {"enum": ["available", "unavailable"]},
+    "reason": {"type": ["string", "null"]},
+    "status": {"enum": ["success", "partial", "failed"]},
+    "index_oid": {"type": "integer", "minimum": 1},
+    "relfilenode": {"type": "integer", "minimum": 1},
+    "sample_rate": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+    "scan_scope": {"enum": ["full", "sample"]},
+    "sampling_method": {"enum": ["all_lists", "list_id_multiplicative_hash_v1"]},
+    "scanned_lists": {"type": "integer", "minimum": 0},
+    "declared_lists": {"type": ["integer", "null"], "minimum": 1},
+    "collector_elapsed_ms": {"type": "number", "minimum": 0},
+    "exact_metrics_available": {"type": "boolean"}
+  },
+  "additionalProperties": true
+}
