@@ -1513,6 +1513,15 @@ fi
 if test "$with_openssl" = yes ; then
   AC_CHECK_HEADER(openssl/ssl.h, [], [AC_MSG_ERROR([header file <openssl/ssl.h> is required for OpenSSL])])
   AC_CHECK_HEADER(openssl/err.h, [], [AC_MSG_ERROR([header file <openssl/err.h> is required for OpenSSL])])
+  dnl The low-level SHA-2 functions used by src/common/sha2_openssl.c, and a
+  dnl handful of SSL/DH/RAND helpers, are deprecated in OpenSSL 3.0 but remain
+  dnl present and fully supported; the replacement EVP-based APIs do not exist
+  dnl in the OpenSSL 1.0.x releases this code still supports.  Pin the API
+  dnl compatibility level to 1.1 so that the OpenSSL 3.0 headers declare them
+  dnl without the deprecation attribute.  This keeps the build warning-free
+  dnl (and thus clean under -Werror=deprecated-declarations) on OpenSSL 3.x,
+  dnl and is ignored by OpenSSL 1.0.x, which does not know this macro.
+  CFLAGS="$CFLAGS -DOPENSSL_API_COMPAT=0x10100000L"
 fi
 
 if test "$with_pam" = yes ; then
