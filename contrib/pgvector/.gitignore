@@ -1,0 +1,25 @@
+/dist/
+/log/
+/results/
+/tmp_check/
+/sql/vector--?.?.?.sql
+regression.*
+*.o
+*.so
+*.bc
+*.dll
+*.dylib
+*.obj
+*.lib
+*.exp
+
+# IVFFlat diagnosis benchmark runtime files
+/benchmark/.venv/
+/benchmark/.runtime/
+/benchmark/data/
+/benchmark/pgdata/
+/benchmark/results/
+/benchmark/**/__pycache__/
+/benchmark/**/*.pyc
+/benchmark/*.log
+/benchmark/perf.data*

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "validation.schema.json",
+  "title": "Project2 P1 Validation",
+  "type": "object",
+  "required": ["schema_version", "p1_schema_version", "diagnosis_id", "recommendation_id", "status", "before_candidate_id", "after_candidate_id", "comparability", "material_change_tolerance", "deltas", "reasons"],
+  "properties": {
+    "p1_schema_version": {"const": "1.0"},
+    "status": {"enum": ["validated", "validation_failed", "not_comparable"]},
+    "comparability": {"type": "object"},
+    "deltas": {"type": "object"},
+    "reasons": {"type": "array", "items": {"type": "string"}}
+  }
+}

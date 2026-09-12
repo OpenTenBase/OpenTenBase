@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pareto.schema.json",
+  "title": "Project2 P1 Pareto Result",
+  "type": "object",
+  "required": ["schema_version", "p1_schema_version", "diagnosis_id", "dimensions", "candidates", "pareto_candidate_ids", "best_candidate_id"],
+  "properties": {
+    "p1_schema_version": {"const": "1.0"},
+    "dimensions": {"type": "object"},
+    "candidates": {"type": "array"},
+    "pareto_candidate_ids": {"type": "array", "items": {"type": "string"}},
+    "best_candidate_id": {"type": "null"}
+  }
+}
