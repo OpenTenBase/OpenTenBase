@@ -132,6 +132,45 @@ SELECT opentenbase_graph.reachable('nodes', 'edges', 'src', 'dst', 1, 5, 100) AS
  t
 ```
 
+### 5. `_graph_info` — Global Graph Shape Diagnostics (v1.1+)
+
+```sql
+opentenbase_graph._graph_info(
+    edges_table regclass,
+    src_col     text,
+    dst_col     text
+)
+RETURNS TABLE(
+    node_count        bigint,
+    edge_count        bigint,
+    max_in_degree     bigint,
+    max_out_degree    bigint,
+    max_total_degree  bigint,
+    density           double precision
+)
+```
+
+Returns a single row summarising the global shape of an edges table. Useful
+as a first step when debugging "this query is slow" or before deciding
+whether the dataset is small enough for the v1.0 traversal templates or
+needs Apache AGE.
+
+- `node_count` = distinct nodes appearing as either `src_col` or `dst_col`
+- `edge_count` = row count of the edges table
+- `max_in_degree` / `max_out_degree` = max of `count(*) GROUP BY dst|src`
+- `max_total_degree` = max over all nodes of `in_degree + out_degree`
+- `density` = `edge_count / (node_count * (node_count - 1))` for a directed
+  simple graph; `0` when `node_count < 2`.
+
+**Example:**
+
+```sql
+SELECT * FROM opentenbase_graph._graph_info('edges', 'src', 'dst');
+ node_count | edge_count | max_in_degree | max_out_degree | max_total_degree |      density
+------------+------------+---------------+----------------+------------------+--------------------
+          7 |         12 |             2 |              2 |                4 | 0.2857142857142857
+```
+
 ## Schema Conventions
 
 This extension does **not** create tables of its own — the application owns the schema. A minimal convention is:
