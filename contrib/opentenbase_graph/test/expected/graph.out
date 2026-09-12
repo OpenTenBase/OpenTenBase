@@ -9,6 +9,7 @@ SELECT setval('g_nodes_id_seq', 5);
 
 CREATE TABLE g_edges (src bigint, dst bigint);
 INSERT INTO g_edges VALUES (1, 2), (2, 3), (3, 4), (4, 5);
+
 -- bfs depth 0 (only start node)
 SELECT * FROM opentenbase_graph.bfs('g_nodes', 'g_edges', 'src', 'dst', 1, 0)
 ORDER BY depth, node;
@@ -16,6 +17,7 @@ ORDER BY depth, node;
 -------+------
      0 |    1
 (1 row)
+
 
 -- bfs depth 2 from node 1
 SELECT * FROM opentenbase_graph.bfs('g_nodes', 'g_edges', 'src', 'dst', 1, 2)
@@ -27,6 +29,7 @@ ORDER BY depth, node;
      2 |    3
 (3 rows)
 
+
 -- bfs from middle node
 SELECT * FROM opentenbase_graph.bfs('g_nodes', 'g_edges', 'src', 'dst', 3, 2)
 ORDER BY depth, node;
@@ -37,6 +40,7 @@ ORDER BY depth, node;
      2 |    5
 (3 rows)
 
+
 -- shortest_path: 1 -> 5 along the chain
 SELECT * FROM opentenbase_graph.shortest_path('g_nodes', 'g_edges', 'src', 'dst', 1, 5, 10);
  depth |    path     
@@ -44,11 +48,13 @@ SELECT * FROM opentenbase_graph.shortest_path('g_nodes', 'g_edges', 'src', 'dst'
      4 | {1,2,3,4,5}
 (1 row)
 
+
 -- shortest_path: 5 -> 1 (reverse, no path)
 SELECT * FROM opentenbase_graph.shortest_path('g_nodes', 'g_edges', 'src', 'dst', 5, 1, 10);
  depth | path 
 -------+------
 (0 rows)
+
 
 -- degree of middle node 3
 SELECT * FROM opentenbase_graph.degree('g_edges', 'src', 'dst', 3);
@@ -57,12 +63,14 @@ SELECT * FROM opentenbase_graph.degree('g_edges', 'src', 'dst', 3);
          1 |          1
 (1 row)
 
+
 -- degree of end node 5 (out=0, in=1)
 SELECT * FROM opentenbase_graph.degree('g_edges', 'src', 'dst', 5);
  in_degree | out_degree 
 -----------+------------
          1 |          0
 (1 row)
+
 
 -- reachable: forward direction works
 SELECT opentenbase_graph.reachable('g_nodes', 'g_edges', 'src', 'dst', 1, 5, 10) AS r;
@@ -71,12 +79,14 @@ SELECT opentenbase_graph.reachable('g_nodes', 'g_edges', 'src', 'dst', 1, 5, 10)
  t
 (1 row)
 
+
 -- reachable: reverse direction fails
 SELECT opentenbase_graph.reachable('g_nodes', 'g_edges', 'src', 'dst', 5, 1, 10) AS r;
  r 
 ---
  f
 (1 row)
+
 
 -- branching tree (undirected): 1 - {2, 3}; 2 - {4, 5}; 3 - {6, 7}
 TRUNCATE g_edges;
@@ -87,6 +97,7 @@ INSERT INTO g_edges VALUES
     (2, 5), (5, 2),
     (3, 6), (6, 3),
     (3, 7), (7, 3);
+
 -- bfs depth 2 from root 1
 SELECT * FROM opentenbase_graph.bfs('g_nodes', 'g_edges', 'src', 'dst', 1, 2)
 ORDER BY depth, node;
@@ -101,6 +112,7 @@ ORDER BY depth, node;
      2 |    7
 (7 rows)
 
+
 -- shortest_path from leaf 4 to leaf 7 (via 4 -> 2 -> 1 -> 3 -> 7, depth 4)
 SELECT * FROM opentenbase_graph.shortest_path('g_nodes', 'g_edges', 'src', 'dst', 4, 7, 10);
  depth |    path     
@@ -108,15 +120,18 @@ SELECT * FROM opentenbase_graph.shortest_path('g_nodes', 'g_edges', 'src', 'dst'
      4 | {4,2,1,3,7}
 (1 row)
 
+
 -- cycle detection: 1 -> 2 -> 3 -> 1 (loop)
 TRUNCATE g_edges;
 INSERT INTO g_edges VALUES (1, 2), (2, 3), (3, 1);
+
 -- bfs must terminate and return each node exactly once
 SELECT count(*), count(DISTINCT node) FROM opentenbase_graph.bfs('g_nodes', 'g_edges', 'src', 'dst', 1, 100);
  count | count 
 -------+-------
      3 |     3
 (1 row)
+
 
 -- reachable from 1 to 3 (via cycle, depth 2)
 SELECT opentenbase_graph.reachable('g_nodes', 'g_edges', 'src', 'dst', 1, 3, 10) AS r;
@@ -125,9 +140,50 @@ SELECT opentenbase_graph.reachable('g_nodes', 'g_edges', 'src', 'dst', 1, 3, 10)
  t
 (1 row)
 
+
 -- bad src_col identifier is rejected
 SELECT opentenbase_graph.bfs('g_nodes', 'g_edges', 'src; DROP TABLE x', 'dst', 1, 1);
 ERROR:  invalid src_col identifier: src; DROP TABLE x
 CONTEXT:  PL/pgSQL function opentenbase_graph.bfs(regclass,regclass,text,text,bigint,integer) line 15 at RAISE
+
+-- _graph_info: cycle 1 -> 2 -> 3 -> 1 (3 nodes, 3 edges, max_total=2)
+SELECT * FROM opentenbase_graph._graph_info('g_edges', 'src', 'dst');
+ node_count | edge_count | max_in_degree | max_out_degree | max_total_degree | density 
+------------+------------+---------------+----------------+------------------+---------
+          3 |          3 |             1 |              1 |                2 |     0.5
+(1 row)
+
+
+-- _graph_info: branching tree 1 - {2,3}; 2 - {4,5}; 3 - {6,7}
+-- 7 nodes, 12 edges (undirected double-edges), max_in=3, max_out=3, max_total=6
+TRUNCATE g_edges;
+INSERT INTO g_edges VALUES
+    (1, 2), (2, 1),
+    (1, 3), (3, 1),
+    (2, 4), (4, 2),
+    (2, 5), (5, 2),
+    (3, 6), (6, 3),
+    (3, 7), (7, 3);
+SELECT * FROM opentenbase_graph._graph_info('g_edges', 'src', 'dst');
+ node_count | edge_count | max_in_degree | max_out_degree | max_total_degree |      density       
+------------+------------+---------------+----------------+------------------+--------------------
+          7 |         12 |             3 |              3 |                6 | 0.2857142857142857
+(1 row)
+
+
+-- _graph_info: empty table (0 nodes, 0 edges, density=0)
+TRUNCATE g_edges;
+SELECT * FROM opentenbase_graph._graph_info('g_edges', 'src', 'dst');
+ node_count | edge_count | max_in_degree | max_out_degree | max_total_degree | density 
+------------+------------+---------------+----------------+------------------+---------
+          0 |          0 |             0 |              0 |                0 |       0
+(1 row)
+
+
+-- _graph_info: bad src_col identifier is rejected
+SELECT opentenbase_graph._graph_info('g_edges', 'src; DROP TABLE x', 'dst');
+ERROR:  invalid src_col identifier: src; DROP TABLE x
+CONTEXT:  PL/pgSQL function opentenbase_graph._graph_info(regclass,text,text) line 18 at RAISE
+
 DROP TABLE g_edges;
 DROP TABLE g_nodes;

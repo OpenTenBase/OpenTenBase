@@ -65,5 +65,27 @@ SELECT opentenbase_graph.reachable('g_nodes', 'g_edges', 'src', 'dst', 1, 3, 10)
 -- bad src_col identifier is rejected
 SELECT opentenbase_graph.bfs('g_nodes', 'g_edges', 'src; DROP TABLE x', 'dst', 1, 1);
 
+-- _graph_info: cycle 1 -> 2 -> 3 -> 1 (3 nodes, 3 edges, max_total=2)
+SELECT * FROM opentenbase_graph._graph_info('g_edges', 'src', 'dst');
+
+-- _graph_info: branching tree 1 - {2,3}; 2 - {4,5}; 3 - {6,7}
+-- 7 nodes, 12 edges (undirected double-edges), max_in=3, max_out=3, max_total=6
+TRUNCATE g_edges;
+INSERT INTO g_edges VALUES
+    (1, 2), (2, 1),
+    (1, 3), (3, 1),
+    (2, 4), (4, 2),
+    (2, 5), (5, 2),
+    (3, 6), (6, 3),
+    (3, 7), (7, 3);
+SELECT * FROM opentenbase_graph._graph_info('g_edges', 'src', 'dst');
+
+-- _graph_info: empty table (0 nodes, 0 edges, density=0)
+TRUNCATE g_edges;
+SELECT * FROM opentenbase_graph._graph_info('g_edges', 'src', 'dst');
+
+-- _graph_info: bad src_col identifier is rejected
+SELECT opentenbase_graph._graph_info('g_edges', 'src; DROP TABLE x', 'dst');
+
 DROP TABLE g_edges;
 DROP TABLE g_nodes;

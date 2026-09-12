@@ -1,6 +1,6 @@
 # opentenbase_graph extension
-comment = 'lightweight graph traversal templates (BFS, shortest path, degree)'
-default_version = '1.0'
+comment = 'lightweight graph traversal templates (BFS, shortest path, degree, graph_info)'
+default_version = '1.1'
 module_pathname = '$libdir/opentenbase_graph'
 relocatable = true
 trusted = true

@@ -1,7 +1,7 @@
 # contrib/opentenbase_graph/Makefile
 
 EXTENSION = opentenbase_graph
-DATA = opentenbase_graph--1.0.sql
+DATA = opentenbase_graph--1.0.sql opentenbase_graph--1.0--1.1.sql
 PGFILEDESC = "opentenbase_graph - lightweight graph traversal templates"
 
 REGRESS = graph
