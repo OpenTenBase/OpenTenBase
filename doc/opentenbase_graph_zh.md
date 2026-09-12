@@ -1,8 +1,8 @@
 # opentenbase_graph — 轻量图遍历模板
 
 > 作者：Memsetqwq
-> 版本：1.0
-> 日期：2026-09-10
+> 版本：1.1
+> 日期：2026-09-12
 > 关联：犀牛鸟开源大赛 2026 — 任务三（OpenTenBase 图计算增强）
 > 另见：`doc/proposals/pgvector-pg18-v0.3-graph-design.md`（设计文档）
 
@@ -12,7 +12,7 @@
 
 `opentenbase_graph` 是为 OpenTenBase 提供的轻量图遍历模板扩展。**纯 PL/pgSQL 实现**（无 C 代码），兼容 **PostgreSQL 10 及以上**，包括 OpenTenBase fork 内核（基于 PG10）。
 
-扩展暴露四个函数（三个返回集合、一个布尔），操作应用层自定义的节点/边表。所有标识符参数都用正则白名单（`^[a-zA-Z_][a-zA-Z0-9_]*$`）校验，杜绝 SQL 注入。
+扩展暴露五个函数（四个返回集合、一个布尔），操作应用层自定义的节点/边表。所有标识符参数都用正则白名单（`^[a-zA-Z_][a-zA-Z0-9_]*$`）校验，杜绝 SQL 注入。
 
 ## 安装
 
@@ -21,6 +21,8 @@ CREATE EXTENSION opentenbase_graph;
 ```
 
 四个函数将加载到 `opentenbase_graph` schema 下。
+
+> v1.1 新增第五个函数 `_graph_info`：图形状全局诊断（见 §5）。
 
 ## API
 
@@ -130,6 +132,41 @@ SELECT opentenbase_graph.reachable('nodes', 'edges', 'src', 'dst', 1, 5, 100) AS
  能到
 ------
  t
+```
+
+### 5. `_graph_info` — 图形状全局诊断（v1.1+）
+
+```sql
+opentenbase_graph._graph_info(
+    edges_table regclass,
+    src_col     text,
+    dst_col     text
+)
+RETURNS TABLE(
+    node_count        bigint,
+    edge_count        bigint,
+    max_in_degree     bigint,
+    max_out_degree    bigint,
+    max_total_degree  bigint,
+    density           double precision
+)
+```
+
+返回单行结果，汇总边表的全局形状。用于"查询慢"调试或决定"数据集是否适合 v1.0 模板 vs 需要 AGE"。
+
+- `node_count` = 在 `src_col` 或 `dst_col` 中出现过的去重节点数
+- `edge_count` = 边表行数
+- `max_in_degree` / `max_out_degree` = 按 `dst|src` 分组后 `count(*)` 的最大值
+- `max_total_degree` = 所有节点 `in_degree + out_degree` 的最大值
+- `density` = 有向简单图的 `edge_count / (node_count * (node_count - 1))`；`node_count < 2` 时为 `0`
+
+**示例：**
+
+```sql
+SELECT * FROM opentenbase_graph._graph_info('edges', 'src', 'dst');
+ node_count | edge_count | max_in_degree | max_out_degree | max_total_degree |      density
+------------+------------+---------------+----------------+------------------+--------------------
+          7 |         12 |             2 |              2 |                4 | 0.2857142857142857
 ```
 
 ## 表结构约定
