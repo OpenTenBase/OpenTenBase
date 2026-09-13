@@ -1,0 +1,4 @@
+profile,metric,lists,probes,clients,jobs,repeat,latency_avg_ms,latency_p50_ms,latency_p95_ms,tps,transactions,failed_transactions,query_count,top_k,returned_items,matched_items,expected_items,recall_at_k,min_query_recall,max_query_recall
+page-runs-c1,ip,100,10,1,1,1,7.035,6.933,8.531,142.150077,711,0,1000,10,10000,5139,10000,0.513900,0.000000,1.000000
+page-runs-c1,ip,100,10,1,1,2,6.602,6.559,7.575,151.467858,757,0,1000,10,10000,5139,10000,0.513900,0.000000,1.000000
+page-runs-c1,ip,100,10,1,1,3,6.661,6.585,7.700,150.135502,751,0,1000,10,10000,5139,10000,0.513900,0.000000,1.000000

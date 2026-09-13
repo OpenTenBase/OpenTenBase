@@ -1,0 +1,7 @@
+*
+!.gitignore
+!README.md
+!README_ZH.md
+!submitted/
+!submitted/*.csv
+!submitted/*.md

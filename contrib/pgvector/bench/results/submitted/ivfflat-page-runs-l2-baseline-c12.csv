@@ -1,0 +1,4 @@
+profile,metric,lists,probes,clients,jobs,repeat,latency_avg_ms,latency_p50_ms,latency_p95_ms,tps,transactions,failed_transactions,query_count,top_k,returned_items,matched_items,expected_items,recall_at_k,min_query_recall,max_query_recall
+page-runs-c12,l2,100,10,12,12,1,43.933,44.200,51.670,273.145881,1373,0,1000,10,10000,7384,10000,0.738400,0.000000,1.000000
+page-runs-c12,l2,100,10,12,12,2,43.665,43.683,51.617,274.822589,1381,0,1000,10,10000,7384,10000,0.738400,0.000000,1.000000
+page-runs-c12,l2,100,10,12,12,3,44.119,44.490,51.937,271.991582,1369,0,1000,10,10000,7384,10000,0.738400,0.000000,1.000000
