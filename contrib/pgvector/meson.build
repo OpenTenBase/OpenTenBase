@@ -186,6 +186,7 @@ tests += {
       'test/t/047_hnsw_vacuum_insert.pl',
       'test/t/048_ivfflat_vacuum_insert.pl',
       'test/t/049_ivfflat_list_cache.pl',
+      'test/t/050_ivfflat_iterative_batch.pl',
     ],
   },
 }

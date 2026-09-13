@@ -56,6 +56,7 @@ typedef Pointer Item;
 #define IVFFLAT_MIN_LISTS		1
 #define IVFFLAT_MAX_LISTS		32768
 #define IVFFLAT_DEFAULT_PROBES	1
+#define IVFFLAT_BATCH_GROWTH_LIMIT	16
 #define IVFFLAT_LIST_CACHE_MAGIC	0x49564348
 #define IVFFLAT_LIST_CACHE_VERSION	1
 #define IVFFLAT_LIST_CACHE_MAX_BYTES	(4 * 1024 * 1024)
@@ -332,6 +333,7 @@ typedef struct IvfflatScanOpaqueData
 	const		IvfflatTypeInfo *typeInfo;
 	int			probes;
 	int			maxProbes;
+	int			batchListTarget;
 	int			dimensions;
 	bool		first;
 	Datum		value;

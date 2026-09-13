@@ -20,6 +20,7 @@ filters=(percent_1 percent_0_1)
 modes=(off relaxed_order)
 probe_values="1"
 max_probe_values="100"
+reuse_index=0
 
 print_usage()
 {
@@ -50,6 +51,10 @@ Options:
 
   --max-probes VALUE
       Maximum iterative-scan probe count. Default: 100
+
+  --reuse-index
+      Reuse vector_bench.items_embedding_idx instead of rebuilding it.
+      This requires exactly one metric and one LISTS_VALUES entry.
 
   -h, --help
       Show this help message and exit.
@@ -113,6 +118,10 @@ while (($# > 0)); do
 			fi
 			max_probe_values=$2
 			shift 2
+			;;
+		--reuse-index)
+			reuse_index=1
+			shift
 			;;
 		-h|--help)
 			print_usage
@@ -183,7 +192,7 @@ timestamp=$(date '+%Y%m%d_%H%M%S')
 csv_file="$output_dir/filtered_benchmark_${timestamp}.csv"
 
 printf '%s\n' \
-	'profile,metric,filter_name,filter_limit,lists,probes,iterative_scan,max_probes,clients,jobs,repeat,latency_avg_ms,tps,transactions,failed_transactions,query_count,top_k,returned_items,matched_items,expected_items,recall_at_k,min_query_recall,max_query_recall' \
+	'profile,metric,filter_name,filter_limit,lists,probes,iterative_scan,max_probes,clients,jobs,repeat,latency_avg_ms,latency_p50_ms,latency_p95_ms,tps,transactions,failed_transactions,query_count,top_k,returned_items,matched_items,expected_items,recall_at_k,min_query_recall,max_query_recall' \
 	>"$csv_file"
 
 # Resolve a benchmark executable from an override, PATH, or the build tree.
@@ -277,6 +286,35 @@ create_index()
 	"$psql_command" "${arguments[@]}" >"$log_file" 2>&1
 }
 
+# Verify that reuse mode points at the expected physical index.
+verify_existing_index()
+{
+	local metric=$1
+	local lists=$2
+	local expected_opclass
+	local actual_definition
+
+	expected_opclass=$(operator_class_for_metric "$metric")
+	actual_definition=$("$psql_command" -X -A -t -v ON_ERROR_STOP=1 -c "
+SELECT opc.opcname || ',' || COALESCE(
+           (SELECT option_value
+            FROM pg_options_to_table(index_relation.reloptions)
+            WHERE option_name = 'lists'),
+           '100')
+FROM pg_class AS index_relation
+JOIN pg_index AS index_catalog
+  ON index_catalog.indexrelid = index_relation.oid
+JOIN pg_opclass AS opc
+  ON opc.oid = index_catalog.indclass[0]
+WHERE index_relation.oid = 'vector_bench.items_embedding_idx'::regclass;")
+
+	if [[ "$actual_definition" != "$expected_opclass,$lists" ]]; then
+		printf 'existing index mismatch: expected %s,%s, got %s\n' \
+			"$expected_opclass" "$lists" "${actual_definition:-<none>}" >&2
+		exit 1
+	fi
+}
+
 # Run one warmup or measured filtered pgbench invocation.
 run_pgbench()
 {
@@ -291,28 +329,66 @@ run_pgbench()
 	local phase=$9
 	local repeat_number=${10}
 	local workload_file="$bench_dir/sql/workload_filtered_${metric}.sql"
-	local log_file="$output_dir/logs/pgbench_${metric}_${filter_name}_probes_${probes}_${iterative_scan}_${phase}_${repeat_number}.log"
+	local log_file="$output_dir/logs/pgbench_${timestamp}_${metric}_${filter_name}_probes_${probes}_${iterative_scan}_max_${max_probes}_clients_${clients}_${phase}_${repeat_number}.log"
+	local arguments=(
+		-h "$DB_HOST"
+		-p "$DB_PORT"
+		-U "$DB_USER"
+		-n
+		-M simple
+		-c "$clients"
+		-j "$JOBS"
+		-T "$duration"
+		-D "query_count=$QUERY_COUNT"
+		-D "top_k=$TOP_K"
+		-D "probes=$probes"
+		-D "filter_limit=$filter_limit"
+		-D "iterative_scan=$iterative_scan"
+		-D "max_probes=$max_probes"
+		-f "$workload_file"
+	)
 
-	"$pgbench_command" \
-		-h "$DB_HOST" \
-		-p "$DB_PORT" \
-		-U "$DB_USER" \
-		-n \
-		-M simple \
-		-c "$clients" \
-		-j "$JOBS" \
-		-T "$duration" \
-		-D "query_count=$QUERY_COUNT" \
-		-D "top_k=$TOP_K" \
-		-D "probes=$probes" \
-		-D "filter_limit=$filter_limit" \
-		-D "iterative_scan=$iterative_scan" \
-		-D "max_probes=$max_probes" \
-		-f "$workload_file" \
-		"$DB_NAME" \
+	if [[ "$phase" == measured ]]; then
+		arguments+=(
+			-l
+			--log-prefix="${log_file%.log}_transactions"
+		)
+	fi
+
+	"$pgbench_command" "${arguments[@]}" "$DB_NAME" \
 		>"$log_file" 2>&1
 
 	printf '%s\n' "$log_file"
+}
+
+# Calculate discrete P50 and P95 latency from per-transaction pgbench logs.
+parse_latency_percentiles()
+{
+	local measured_log=$1
+	local transaction_prefix="${measured_log%.log}_transactions"
+	local transaction_logs=("$transaction_prefix".*)
+
+	if ((${#transaction_logs[@]} == 0)) || [[ ! -f "${transaction_logs[0]}" ]]; then
+		printf 'transaction log not found for measured run: %s\n' "$measured_log" >&2
+		exit 1
+	fi
+
+	awk '$3 ~ /^[0-9]+$/ { print $3 / 1000.0 }' "${transaction_logs[@]}" |
+		sort -n |
+		awk '
+			{ latency[++count] = $1 }
+			END {
+				if (count == 0)
+					exit 1
+				p50_rank = int(count * 0.50)
+				if (p50_rank < count * 0.50)
+					p50_rank++
+				p95_rank = int(count * 0.95)
+				if (p95_rank < count * 0.95)
+					p95_rank++
+				printf "%.3f %.3f\n", latency[p50_rank], latency[p95_rank]
+			}
+		'
 }
 
 parse_pgbench_summary()
@@ -394,16 +470,29 @@ measure_recall()
 }
 
 printf 'Profile: %s\n' "$PROFILE_NAME"
+printf 'Reuse index: %s\n' "$reuse_index"
 printf 'Configuration: %s\n' "$config_path"
 printf 'Output CSV: %s\n' "$csv_file"
 printf 'pgbench: %s\n' "$pgbench_command"
 printf 'psql: %s\n' "$psql_command"
 
+if ((reuse_index)); then
+	read -r -a configured_lists <<<"$LISTS_VALUES"
+	if ((${#metrics[@]} != 1 || ${#configured_lists[@]} != 1)); then
+		printf '%s\n' '--reuse-index requires exactly one metric and one LISTS_VALUES entry' >&2
+		exit 1
+	fi
+fi
+
 for metric in "${metrics[@]}"; do
 	operator_class_for_metric "$metric" >/dev/null
 
 	for lists in $LISTS_VALUES; do
-		create_index "$metric" "$lists"
+		if ((reuse_index)); then
+			verify_existing_index "$metric" "$lists"
+		else
+			create_index "$metric" "$lists"
+		fi
 
 		for filter_name in "${filters[@]}"; do
 			filter_limit=$(filter_limit_for_name "$filter_name")
@@ -440,6 +529,8 @@ for metric in "${metrics[@]}"; do
 
 								read -r latency_avg_ms tps transactions failed_transactions \
 									<<<"$(parse_pgbench_summary "$measured_log")"
+								read -r latency_p50_ms latency_p95_ms \
+									<<<"$(parse_latency_percentiles "$measured_log")"
 
 								recall_row=$(measure_recall \
 									"$metric" "$filter_name" "$filter_limit" \
@@ -464,13 +555,14 @@ for metric in "${metrics[@]}"; do
 									<<<"$recall_row"
 
 								printf '%s\n' \
-									"$PROFILE_NAME,$metric,$filter_name,$filter_limit,$lists,$probes,$iterative_scan,$max_probes,$clients,$JOBS,$repeat_number,$latency_avg_ms,$tps,$transactions,$failed_transactions,$recall_query_count,$recall_top_k,$returned_items,$matched_items,$expected_items,$recall_at_k,$min_query_recall,$max_query_recall" \
+									"$PROFILE_NAME,$metric,$filter_name,$filter_limit,$lists,$probes,$iterative_scan,$max_probes,$clients,$JOBS,$repeat_number,$latency_avg_ms,$latency_p50_ms,$latency_p95_ms,$tps,$transactions,$failed_transactions,$recall_query_count,$recall_top_k,$returned_items,$matched_items,$expected_items,$recall_at_k,$min_query_recall,$max_query_recall" \
 									>>"$csv_file"
 
-								printf 'metric=%s filter=%s lists=%s probes=%s mode=%s max_probes=%s clients=%s repeat=%s latency_ms=%s tps=%s recall=%s\n' \
+								printf 'metric=%s filter=%s lists=%s probes=%s mode=%s max_probes=%s clients=%s repeat=%s latency_ms=%s p50_ms=%s p95_ms=%s tps=%s recall=%s\n' \
 									"$metric" "$filter_name" "$lists" "$probes" "$iterative_scan" \
 									"$max_probes" "$clients" "$repeat_number" \
-									"$latency_avg_ms" "$tps" "$recall_at_k"
+									"$latency_avg_ms" "$latency_p50_ms" "$latency_p95_ms" \
+									"$tps" "$recall_at_k"
 							done
 						done
 					done

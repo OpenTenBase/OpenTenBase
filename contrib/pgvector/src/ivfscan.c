@@ -232,14 +232,19 @@ GetScanItems(IndexScanDesc scan, Datum value)
 	IvfflatScanOpaque so = (IvfflatScanOpaque) scan->opaque;
 	TupleDesc	tupdesc = RelationGetDescr(scan->indexRelation);
 	TupleTableSlot *slot = so->vslot;
-	int			batchProbes = 0;
+	int			listsInBatch = 0;
+	int			batchListLimit = so->batchListTarget;
+
+	Assert(batchListLimit > 0);
 
 	tuplesort_reset(so->sortstate);
 
-	/* Search closest probes lists */
-	while (so->listIndex < so->maxProbes && (++batchProbes) <= so->probes)
+	/* Search the next batch of closest lists. */
+	while (so->listIndex < so->maxProbes && listsInBatch < batchListLimit)
 	{
 		BlockNumber searchPage = so->listPages[so->listIndex++];
+
+		listsInBatch++;
 
 		/* Search all entry pages for list */
 		while (BlockNumberIsValid(searchPage))
@@ -283,6 +288,22 @@ GetScanItems(IndexScanDesc scan, Datum value)
 
 			UnlockReleaseBuffer(buf);
 		}
+	}
+
+	/*
+	 * Grow only subsequent relaxed-order batches. Reaching this point does not
+	 * mean more lists will be scanned: the larger value is used only if the
+	 * executor consumes this entire batch and asks for more tuples.
+	 */
+	if (ivfflat_iterative_scan == IVFFLAT_ITERATIVE_SCAN_RELAXED &&
+		so->listIndex < so->maxProbes)
+	{
+		int			remaining = so->maxProbes - so->listIndex;
+		int			grown = so->batchListTarget * 2;
+		int			growthLimit = Min(so->maxProbes,
+								  so->probes * IVFFLAT_BATCH_GROWTH_LIMIT);
+
+		so->batchListTarget = Min(Min(grown, growthLimit), remaining);
 	}
 
 	tuplesort_performsort(so->sortstate);
@@ -376,6 +397,7 @@ ivfflatbeginscan(Relation index, int nkeys, int norderbys)
 	so->first = true;
 	so->probes = probes;
 	so->maxProbes = maxProbes;
+	so->batchListTarget = probes;
 	so->dimensions = dimensions;
 	so->value = PointerGetDatum(NULL);
 
@@ -446,6 +468,7 @@ ivfflatrescan(IndexScanDesc scan, ScanKey keys, int nkeys, ScanKey orderbys, int
 	so->first = true;
 	pairingheap_reset(so->listQueue);
 	so->listIndex = 0;
+	so->batchListTarget = so->probes;
 
 	if (so->normprocinfo != NULL && DatumGetPointer(so->value) != NULL)
 	{
