@@ -57,6 +57,7 @@ typedef Pointer Item;
 #define IVFFLAT_MAX_LISTS		32768
 #define IVFFLAT_DEFAULT_PROBES	1
 #define IVFFLAT_BATCH_GROWTH_LIMIT	16
+#define IVFFLAT_PAGE_RUN_MEMORY_DIVISOR	4
 #define IVFFLAT_LIST_CACHE_MAGIC	0x49564348
 #define IVFFLAT_LIST_CACHE_VERSION	1
 #define IVFFLAT_LIST_CACHE_MAX_BYTES	(4 * 1024 * 1024)
@@ -328,6 +329,19 @@ typedef enum IvfflatScanDistanceKind
 	IVFFLAT_DISTANCE_HALFVEC_IP
 } IvfflatScanDistanceKind;
 
+typedef struct IvfflatScanCandidate
+{
+	double		distance;
+	ItemPointerData heaptid;
+} IvfflatScanCandidate;
+
+typedef struct IvfflatScanPageRun
+{
+	int			start;
+	int			count;
+	int			current;
+} IvfflatScanPageRun;
+
 typedef struct IvfflatScanOpaqueData
 {
 	const		IvfflatTypeInfo *typeInfo;
@@ -345,6 +359,16 @@ typedef struct IvfflatScanOpaqueData
 	TupleTableSlot *vslot;
 	TupleTableSlot *mslot;
 	BufferAccessStrategy bas;
+	bool		usePageRuns;
+	bool		pageRunsDisabled;
+	IvfflatScanCandidate *runCandidates;
+	int			candidateCount;
+	int			candidateCapacity;
+	IvfflatScanPageRun *pageRuns;
+	int			runCount;
+	int			runCapacity;
+	int		   *runHeap;
+	int			heapCount;
 
 	/* Support functions */
 	FmgrInfo   *procinfo;

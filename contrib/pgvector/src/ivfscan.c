@@ -16,6 +16,8 @@
 #include "miscadmin.h"
 #include "pgstat.h"
 #include "storage/bufmgr.h"
+#include "storage/itemptr.h"
+#include "utils/float.h"
 #include "utils/memutils.h"
 #include "utils/rel.h"
 #include "utils/snapmgr.h"
@@ -87,6 +89,217 @@ ComputeScanDistance(IvfflatScanOpaque so, Datum a, Datum b)
 	}
 
 	return DatumGetFloat8(FunctionCall2Coll(so->procinfo, so->collation, a, b));
+}
+
+static int
+CompareScanCandidates(const IvfflatScanCandidate *a,
+					  const IvfflatScanCandidate *b)
+{
+	int			compare = float8_cmp_internal(a->distance, b->distance);
+
+	if (compare != 0)
+		return compare;
+
+	return ItemPointerCompare(&a->heaptid, &b->heaptid);
+}
+
+static int
+CompareScanCandidatesForQsort(const void *a, const void *b, void *arg)
+{
+	return CompareScanCandidates((const IvfflatScanCandidate *) a,
+								 (const IvfflatScanCandidate *) b);
+}
+
+static void
+SortPageRun(IvfflatScanCandidate *candidates, int count)
+{
+	if (count <= 32)
+	{
+		for (int i = 1; i < count; i++)
+		{
+			IvfflatScanCandidate candidate = candidates[i];
+			int			j = i;
+
+			while (j > 0 &&
+				   CompareScanCandidates(&candidate, &candidates[j - 1]) < 0)
+			{
+				candidates[j] = candidates[j - 1];
+				j--;
+			}
+			candidates[j] = candidate;
+		}
+	}
+	else
+		qsort_interruptible(candidates, count, sizeof(IvfflatScanCandidate),
+							CompareScanCandidatesForQsort, NULL);
+}
+
+static bool
+PageRunMemoryFits(int candidateCapacity, int runCapacity)
+{
+	Size		bytes;
+	Size		limit = ((Size) work_mem * 1024) /
+		IVFFLAT_PAGE_RUN_MEMORY_DIVISOR;
+
+	bytes = mul_size((Size) candidateCapacity, sizeof(IvfflatScanCandidate));
+	bytes = add_size(bytes,
+					 mul_size((Size) runCapacity, sizeof(IvfflatScanPageRun)));
+	bytes = add_size(bytes, mul_size((Size) runCapacity, sizeof(int)));
+
+	return bytes <= limit;
+}
+
+static bool
+EnsurePageRunCapacity(IvfflatScanOpaque so, int requiredCandidates,
+					  int requiredRuns)
+{
+	int			candidateCapacity = so->candidateCapacity;
+	int			runCapacity = so->runCapacity;
+
+	if (candidateCapacity == 0)
+		candidateCapacity = 128;
+	while (candidateCapacity < requiredCandidates)
+		candidateCapacity = pg_nextpower2_32(requiredCandidates);
+
+	if (runCapacity == 0)
+		runCapacity = 16;
+	while (runCapacity < requiredRuns)
+		runCapacity = pg_nextpower2_32(requiredRuns);
+
+	if (!PageRunMemoryFits(candidateCapacity, runCapacity))
+		return false;
+
+	if (candidateCapacity != so->candidateCapacity)
+	{
+		if (so->runCandidates == NULL)
+			so->runCandidates = MemoryContextAlloc(so->tmpCtx,
+				mul_size((Size) candidateCapacity, sizeof(IvfflatScanCandidate)));
+		else
+			so->runCandidates = repalloc_array(so->runCandidates,
+				IvfflatScanCandidate, candidateCapacity);
+		so->candidateCapacity = candidateCapacity;
+	}
+
+	if (runCapacity != so->runCapacity)
+	{
+		if (so->pageRuns == NULL)
+		{
+			so->pageRuns = MemoryContextAlloc(so->tmpCtx,
+				mul_size((Size) runCapacity, sizeof(IvfflatScanPageRun)));
+			so->runHeap = MemoryContextAlloc(so->tmpCtx,
+				mul_size((Size) runCapacity, sizeof(int)));
+		}
+		else
+		{
+			so->pageRuns = repalloc_array(so->pageRuns,
+				IvfflatScanPageRun, runCapacity);
+			so->runHeap = repalloc_array(so->runHeap, int, runCapacity);
+		}
+		so->runCapacity = runCapacity;
+	}
+
+	return true;
+}
+
+static void
+PutCandidateTuplesort(IvfflatScanOpaque so,
+					  const IvfflatScanCandidate *candidate)
+{
+	ExecClearTuple(so->vslot);
+	so->vslot->tts_values[0] = Float8GetDatum(candidate->distance);
+	so->vslot->tts_isnull[0] = false;
+	so->vslot->tts_values[1] = PointerGetDatum(&candidate->heaptid);
+	so->vslot->tts_isnull[1] = false;
+	ExecStoreVirtualTuple(so->vslot);
+	tuplesort_puttupleslot(so->sortstate, so->vslot);
+}
+
+static void
+FallbackToTuplesort(IvfflatScanOpaque so)
+{
+	for (int i = 0; i < so->candidateCount; i++)
+		PutCandidateTuplesort(so, &so->runCandidates[i]);
+
+	so->candidateCount = 0;
+	so->runCount = 0;
+	so->heapCount = 0;
+	so->usePageRuns = false;
+	so->pageRunsDisabled = true;
+}
+
+static bool
+RunPrecedes(IvfflatScanOpaque so, int leftRun, int rightRun)
+{
+	IvfflatScanPageRun *left = &so->pageRuns[leftRun];
+	IvfflatScanPageRun *right = &so->pageRuns[rightRun];
+
+	return CompareScanCandidates(
+		&so->runCandidates[left->start + left->current],
+		&so->runCandidates[right->start + right->current]) < 0;
+}
+
+static void
+SiftPageRunHeap(IvfflatScanOpaque so, int root)
+{
+	for (;;)
+	{
+		int			left = root * 2 + 1;
+		int			right = left + 1;
+		int			best = root;
+
+		if (left < so->heapCount &&
+			RunPrecedes(so, so->runHeap[left], so->runHeap[best]))
+			best = left;
+		if (right < so->heapCount &&
+			RunPrecedes(so, so->runHeap[right], so->runHeap[best]))
+			best = right;
+		if (best == root)
+			break;
+
+		{
+			int			tmp = so->runHeap[root];
+
+			so->runHeap[root] = so->runHeap[best];
+			so->runHeap[best] = tmp;
+		}
+		root = best;
+	}
+}
+
+static void
+BuildPageRunHeap(IvfflatScanOpaque so)
+{
+	so->heapCount = so->runCount;
+	for (int i = 0; i < so->runCount; i++)
+	{
+		so->pageRuns[i].current = 0;
+		so->runHeap[i] = i;
+	}
+	for (int i = so->heapCount / 2; i-- > 0;)
+		SiftPageRunHeap(so, i);
+}
+
+static bool
+GetPageRunCandidate(IvfflatScanOpaque so, ItemPointer heaptid)
+{
+	IvfflatScanPageRun *run;
+	int			runIndex;
+
+	if (so->heapCount == 0)
+		return false;
+
+	runIndex = so->runHeap[0];
+	run = &so->pageRuns[runIndex];
+	*heaptid = so->runCandidates[run->start + run->current].heaptid;
+	run->current++;
+
+	if (run->current == run->count)
+		so->runHeap[0] = so->runHeap[--so->heapCount];
+
+	if (so->heapCount > 0)
+		SiftPageRunHeap(so, 0);
+
+	return true;
 }
 
 /* Add a list to the bounded pairing heap. */
@@ -231,13 +444,16 @@ GetScanItems(IndexScanDesc scan, Datum value)
 {
 	IvfflatScanOpaque so = (IvfflatScanOpaque) scan->opaque;
 	TupleDesc	tupdesc = RelationGetDescr(scan->indexRelation);
-	TupleTableSlot *slot = so->vslot;
 	int			listsInBatch = 0;
 	int			batchListLimit = so->batchListTarget;
 
 	Assert(batchListLimit > 0);
 
 	tuplesort_reset(so->sortstate);
+	so->usePageRuns = !so->pageRunsDisabled;
+	so->candidateCount = 0;
+	so->runCount = 0;
+	so->heapCount = 0;
 
 	/* Search the next batch of closest lists. */
 	while (so->listIndex < so->maxProbes && listsInBatch < batchListLimit)
@@ -252,11 +468,19 @@ GetScanItems(IndexScanDesc scan, Datum value)
 			Buffer		buf;
 			Page		page;
 			OffsetNumber maxoffno;
+			int			runStart;
 
 			buf = ReadBufferExtended(scan->indexRelation, MAIN_FORKNUM, searchPage, RBM_NORMAL, so->bas);
 			LockBuffer(buf, BUFFER_LOCK_SHARE);
 			page = BufferGetPage(buf);
 			maxoffno = PageGetMaxOffsetNumber(page);
+			runStart = so->candidateCount;
+
+			if (so->usePageRuns &&
+				!EnsurePageRunCapacity(so,
+					so->candidateCount + maxoffno,
+					so->runCount + 1))
+				FallbackToTuplesort(so);
 
 			for (OffsetNumber offno = FirstOffsetNumber; offno <= maxoffno; offno = OffsetNumberNext(offno))
 			{
@@ -264,24 +488,26 @@ GetScanItems(IndexScanDesc scan, Datum value)
 				Datum		datum;
 				bool		isnull;
 				ItemId		itemid = PageGetItemId(page, offno);
+				IvfflatScanCandidate candidate;
 
 				itup = (IndexTuple) PageGetItem(page, itemid);
 				datum = index_getattr(itup, 1, tupdesc, &isnull);
+				candidate.distance = ComputeScanDistance(so, datum, value);
+				candidate.heaptid = itup->t_tid;
 
-				/*
-				 * Add virtual tuple
-				 *
-				 * Use procinfo from the index instead of scan key for
-				 * performance
-				 */
-				ExecClearTuple(slot);
-				slot->tts_values[0] = Float8GetDatum(ComputeScanDistance(so, datum, value));
-				slot->tts_isnull[0] = false;
-				slot->tts_values[1] = PointerGetDatum(&itup->t_tid);
-				slot->tts_isnull[1] = false;
-				ExecStoreVirtualTuple(slot);
+				if (so->usePageRuns)
+					so->runCandidates[so->candidateCount++] = candidate;
+				else
+					PutCandidateTuplesort(so, &candidate);
+			}
 
-				tuplesort_puttupleslot(so->sortstate, slot);
+			if (so->usePageRuns && so->candidateCount > runStart)
+			{
+				IvfflatScanPageRun *run = &so->pageRuns[so->runCount++];
+
+				run->start = runStart;
+				run->count = so->candidateCount - runStart;
+				SortPageRun(&so->runCandidates[runStart], run->count);
 			}
 
 			searchPage = IvfflatPageGetOpaque(page)->nextblkno;
@@ -306,7 +532,10 @@ GetScanItems(IndexScanDesc scan, Datum value)
 		so->batchListTarget = Min(Min(grown, growthLimit), remaining);
 	}
 
-	tuplesort_performsort(so->sortstate);
+	if (so->usePageRuns)
+		BuildPageRunHeap(so);
+	else
+		tuplesort_performsort(so->sortstate);
 
 #if defined(IVFFLAT_MEMORY)
 	elog(INFO, "memory: %zu MB", MemoryContextMemAllocated(CurrentMemoryContext, true) / (1024 * 1024));
@@ -437,6 +666,16 @@ ivfflatbeginscan(Relation index, int nkeys, int norderbys)
 	/* Need separate slots for puttuple and gettuple */
 	so->vslot = MakeSingleTupleTableSlot(so->tupdesc, &TTSOpsVirtual);
 	so->mslot = MakeSingleTupleTableSlot(so->tupdesc, &TTSOpsMinimalTuple);
+	so->usePageRuns = true;
+	so->pageRunsDisabled = false;
+	so->runCandidates = NULL;
+	so->candidateCount = 0;
+	so->candidateCapacity = 0;
+	so->pageRuns = NULL;
+	so->runCount = 0;
+	so->runCapacity = 0;
+	so->runHeap = NULL;
+	so->heapCount = 0;
 
 	/*
 	 * Reuse same set of shared buffers for scan
@@ -469,6 +708,10 @@ ivfflatrescan(IndexScanDesc scan, ScanKey keys, int nkeys, ScanKey orderbys, int
 	pairingheap_reset(so->listQueue);
 	so->listIndex = 0;
 	so->batchListTarget = so->probes;
+	so->candidateCount = 0;
+	so->runCount = 0;
+	so->heapCount = 0;
+	so->pageRunsDisabled = false;
 
 	if (so->normprocinfo != NULL && DatumGetPointer(so->value) != NULL)
 	{
@@ -526,17 +769,30 @@ ivfflatgettuple(IndexScanDesc scan, ScanDirection dir)
 		so->value = value;
 	}
 
-	while (!tuplesort_gettupleslot(so->sortstate, true, false, so->mslot, NULL))
+	for (;;)
 	{
+		bool		found;
+
+		if (so->usePageRuns)
+			found = GetPageRunCandidate(so, &scan->xs_heaptid);
+		else
+			found = tuplesort_gettupleslot(so->sortstate, true, false,
+										   so->mslot, NULL);
+
+		if (found)
+			break;
+
 		if (so->listIndex == so->maxProbes)
 			return false;
 
 		IvfflatBench("GetScanItems", GetScanItems(scan, so->value));
 	}
 
-	heaptid = (ItemPointer) DatumGetPointer(slot_getattr(so->mslot, 2, &isnull));
-
-	scan->xs_heaptid = *heaptid;
+	if (!so->usePageRuns)
+	{
+		heaptid = (ItemPointer) DatumGetPointer(slot_getattr(so->mslot, 2, &isnull));
+		scan->xs_heaptid = *heaptid;
+	}
 	scan->xs_recheck = false;
 	scan->xs_recheckorderby = false;
 	return true;

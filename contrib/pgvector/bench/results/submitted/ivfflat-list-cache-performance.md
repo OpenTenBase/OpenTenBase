@@ -7,7 +7,7 @@ Date: 2026-09-11
 ## Summary
 
 This experiment compares the type-aware distance-dispatch baseline at commit
-`0b16fb5bd0` with an IVFFlat list-directory cache candidate. The candidate
+with an IVFFlat list-directory cache candidate. The candidate
 caches immutable list centers and entry start pages in the backend-local
 relation cache (`rd_amcache`). It does not cache query results or heap TIDs.
 
@@ -15,10 +15,6 @@ Across the four measured configurations, median average latency decreased by
 0.95% to 2.97% and median TPS increased by 0.97% to 3.06%. Recall@10, returned
 item counts, matched item counts, and failed transaction counts were unchanged
 in all 12 baseline/candidate pairs.
-
-The result supports the cache as a small, low-risk scan-path optimization. It
-does not support a claim larger than about 3% from this experiment, and the
-short 15-second samples should be followed by a longer confirmation run.
 
 ## Compared builds
 

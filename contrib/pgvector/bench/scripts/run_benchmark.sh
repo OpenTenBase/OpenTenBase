@@ -135,9 +135,15 @@ source "$config_path"
 set +a
 
 VECTOR_TYPE=${VECTOR_TYPE:-vector}
+QUERY_SHAPE=${QUERY_SHAPE:-transaction}
 
 if [[ "$VECTOR_TYPE" != vector && "$VECTOR_TYPE" != halfvec ]]; then
 	printf 'VECTOR_TYPE must be vector or halfvec: %s\n' "$VECTOR_TYPE" >&2
+	exit 1
+fi
+
+if [[ "$QUERY_SHAPE" != transaction && "$QUERY_SHAPE" != single ]]; then
+	printf 'QUERY_SHAPE must be transaction or single: %s\n' "$QUERY_SHAPE" >&2
 	exit 1
 fi
 
@@ -276,7 +282,7 @@ export PGOPTIONS="$pgoptions"
 
 
 printf '%s\n' \
-	'profile,metric,lists,probes,clients,jobs,repeat,latency_avg_ms,tps,transactions,failed_transactions,query_count,top_k,returned_items,matched_items,expected_items,recall_at_k,min_query_recall,max_query_recall' \
+	'profile,metric,lists,probes,clients,jobs,repeat,latency_avg_ms,latency_p50_ms,latency_p95_ms,tps,transactions,failed_transactions,query_count,top_k,returned_items,matched_items,expected_items,recall_at_k,min_query_recall,max_query_recall' \
 	>"$csv_file"
 
 # Return the operator class associated with a distance metric.
@@ -370,7 +376,26 @@ run_pgbench()
 	local phase=$5
 	local repeat_number=$6
 	local workload_file="$bench_dir/sql/workload_${metric}.sql"
-	local log_file="$output_dir/logs/pgbench_${metric}_clients_${clients}_probes_${probes}_${phase}_${repeat_number}.log"
+	local log_file="$output_dir/logs/pgbench_${timestamp}_${metric}_clients_${clients}_probes_${probes}_${phase}_${repeat_number}.log"
+	local arguments=(
+		-h "$DB_HOST"
+		-p "$DB_PORT"
+		-U "$DB_USER"
+		-n
+		-M simple
+		-c "$clients"
+		-j "$JOBS"
+		-T "$duration"
+		-D "query_count=$QUERY_COUNT"
+		-D "top_k=$TOP_K"
+		-D "probes=$probes"
+		-f "$workload_file"
+	)
+
+	if [[ "$QUERY_SHAPE" == single ]]; then
+		workload_file="$bench_dir/sql/workload_single_${metric}.sql"
+		arguments[${#arguments[@]}-1]="$workload_file"
+	fi
 
 	if [[ ! -s "$workload_file" ]]; then
 		printf 'workload SQL file is missing or empty: %s\n' \
@@ -378,23 +403,48 @@ run_pgbench()
 		exit 1
 	fi
 
-	"$pgbench_command" \
-		-h "$DB_HOST" \
-		-p "$DB_PORT" \
-		-U "$DB_USER" \
-		-n \
-		-M simple \
-		-c "$clients" \
-		-j "$JOBS" \
-		-T "$duration" \
-		-D "query_count=$QUERY_COUNT" \
-		-D "top_k=$TOP_K" \
-		-D "probes=$probes" \
-		-f "$workload_file" \
-		"$DB_NAME" \
+	if [[ "$phase" == measured ]]; then
+		arguments+=(
+			-l
+			--log-prefix="${log_file%.log}_transactions"
+		)
+	fi
+
+	PGOPTIONS="$PGOPTIONS -c ivfflat.probes=$probes -c enable_indexscan=on -c enable_bitmapscan=off" \
+		"$pgbench_command" "${arguments[@]}" "$DB_NAME" \
 		>"$log_file" 2>&1
 
 	printf '%s\n' "$log_file"
+}
+
+# Calculate discrete P50 and P95 latency from per-transaction pgbench logs.
+parse_latency_percentiles()
+{
+	local measured_log=$1
+	local transaction_prefix="${measured_log%.log}_transactions"
+	local transaction_logs=("$transaction_prefix".*)
+
+	if ((${#transaction_logs[@]} == 0)) || [[ ! -f "${transaction_logs[0]}" ]]; then
+		printf 'transaction log not found for measured run: %s\n' "$measured_log" >&2
+		exit 1
+	fi
+
+	awk '$3 ~ /^[0-9]+$/ { print $3 / 1000.0 }' "${transaction_logs[@]}" |
+		sort -n |
+		awk '
+			{ latency[++count] = $1 }
+			END {
+				if (count == 0)
+					exit 1
+				p50_rank = int(count * 0.50)
+				if (p50_rank < count * 0.50)
+					p50_rank++
+				p95_rank = int(count * 0.95)
+				if (p95_rank < count * 0.95)
+					p95_rank++
+				printf "%.3f %.3f\n", latency[p50_rank], latency[p95_rank]
+			}
+		'
 }
 
 # Run the Recall@K SQL file and return its comma-separated result row.
@@ -465,6 +515,7 @@ parse_recall_row()
 
 printf 'Profile: %s\n' "$PROFILE_NAME"
 printf 'Vector type: %s\n' "$VECTOR_TYPE"
+printf 'Query shape: %s\n' "$QUERY_SHAPE"
 printf 'Reuse index: %s\n' "$reuse_index"
 printf 'Configuration: %s\n' "$config_path"
 printf 'Output CSV: %s\n' "$csv_file"
@@ -551,6 +602,8 @@ for metric in "${metrics[@]}"; do
 
 					read -r latency_avg_ms tps transactions failed_transactions \
 						<<<"$summary_values"
+					read -r latency_p50_ms latency_p95_ms \
+						<<<"$(parse_latency_percentiles "$measured_log")"
 
 					if [[ -z "$latency_avg_ms" || -z "$tps" || \
 						-z "$transactions" || -z "$failed_transactions" ]]; then
@@ -582,16 +635,18 @@ for metric in "${metrics[@]}"; do
 						<<<"$recall_row"
 
 					printf '%s\n' \
-						"$PROFILE_NAME,$metric,$lists,$probes,$clients,$JOBS,$repeat_number,$latency_avg_ms,$tps,$transactions,$failed_transactions,$recall_query_count,$recall_top_k,$returned_items,$matched_items,$expected_items,$recall_at_k,$min_query_recall,$max_query_recall" \
+						"$PROFILE_NAME,$metric,$lists,$probes,$clients,$JOBS,$repeat_number,$latency_avg_ms,$latency_p50_ms,$latency_p95_ms,$tps,$transactions,$failed_transactions,$recall_query_count,$recall_top_k,$returned_items,$matched_items,$expected_items,$recall_at_k,$min_query_recall,$max_query_recall" \
 						>>"$csv_file"
 
-					printf 'metric=%s lists=%s probes=%s clients=%s repeat=%s latency_ms=%s tps=%s recall=%s\n' \
+					printf 'metric=%s lists=%s probes=%s clients=%s repeat=%s latency_ms=%s p50_ms=%s p95_ms=%s tps=%s recall=%s\n' \
 						"$metric" \
 						"$lists" \
 						"$probes" \
 						"$clients" \
 						"$repeat_number" \
 						"$latency_avg_ms" \
+						"$latency_p50_ms" \
+						"$latency_p95_ms" \
 						"$tps" \
 						"$recall_at_k"
 				 done
