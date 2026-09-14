@@ -1,21 +1,30 @@
 #include "postgres.h"
 
-#include <math.h>
-
+#include "access/genam.h"
 #include "access/generic_xlog.h"
 #include "commands/vacuum.h"
 #include "hnsw.h"
+#include "nodes/pg_list.h"
 #include "storage/bufmgr.h"
 #include "storage/lmgr.h"
 #include "utils/memutils.h"
+#include "utils/rel.h"
+
+#if PG_VERSION_NUM >= 160000
+#include "varatt.h"
+#endif
+
+#if PG_VERSION_NUM >= 180000
+#define vacuum_delay_point() vacuum_delay_point(false)
+#endif
 
 /*
- * Check if deleted list contains an index TID
+ * Check if deletion list contains an element
  */
 static bool
-DeletedContains(tidhash_hash * deleted, ItemPointer indextid)
+DeletingElement(tidhash_hash * deleting, ItemPointer indextid)
 {
-	return tidhash_lookup(deleted, *indextid) != NULL;
+	return tidhash_lookup(deleting, *indextid) != NULL;
 }
 
 /*
@@ -28,17 +37,20 @@ RemoveHeapTids(HnswVacuumState * vacuumstate)
 {
 	BlockNumber blkno = HNSW_HEAD_BLKNO;
 	HnswElement highestPoint = &vacuumstate->highestPoint;
+	HnswElement fallbackPoint = &vacuumstate->fallbackPoint;
 	Relation	index = vacuumstate->index;
 	BufferAccessStrategy bas = vacuumstate->bas;
-	HnswElement entryPoint = HnswGetEntryPoint(vacuumstate->index);
 	IndexBulkDeleteResult *stats = vacuumstate->stats;
 
-	/* Store separately since highestPoint.level is uint8 */
+	/* Store separately since HnswElement level is uint8 */
 	int			highestLevel = -1;
+	int			fallbackLevel = -1;
 
-	/* Initialize highest point */
+	/* Initialize highest point and fallback point */
 	highestPoint->blkno = InvalidBlockNumber;
 	highestPoint->offno = InvalidOffsetNumber;
+	fallbackPoint->blkno = InvalidBlockNumber;
+	fallbackPoint->offno = InvalidOffsetNumber;
 
 	while (BlockNumberIsValid(blkno))
 	{
@@ -66,6 +78,14 @@ RemoveHeapTids(HnswVacuumState * vacuumstate)
 
 			/* Skip neighbor tuples */
 			if (!HnswIsElementTuple(etup))
+				continue;
+
+			/*
+			 * Skip deleted tuples. It is important they are not added to the
+			 * deletion list to avoid false positives in NeedsUpdated and
+			 * ConfirmRepaired.
+			 */
+			if (etup->deleted)
 				continue;
 
 			if (ItemPointerIsValid(&etup->heaptids[0]))
@@ -101,22 +121,39 @@ RemoveHeapTids(HnswVacuumState * vacuumstate)
 
 			if (!ItemPointerIsValid(&etup->heaptids[0]))
 			{
-				ItemPointerData ip;
+				ItemPointerData indextid;
 				bool		found;
 
-				/* Add to deleted list */
-				ItemPointerSet(&ip, blkno, offno);
+				/* Add to deletion list */
+				ItemPointerSet(&indextid, blkno, offno);
 
-				tidhash_insert(vacuumstate->deleted, ip, &found);
+				tidhash_insert(vacuumstate->deleting, indextid, &found);
 				Assert(!found);
 			}
-			else if (etup->level > highestLevel && !(entryPoint != NULL && blkno == entryPoint->blkno && offno == entryPoint->offno))
+			else if (etup->level > highestLevel)
 			{
-				/* Keep track of highest non-entry point */
+				if (BlockNumberIsValid(highestPoint->blkno))
+				{
+					/* Current highest point becomes fallback */
+					fallbackPoint->blkno = highestPoint->blkno;
+					fallbackPoint->offno = highestPoint->offno;
+					fallbackPoint->level = highestPoint->level;
+					fallbackLevel = highestLevel;
+				}
+
+				/* Keep track of highest point */
 				highestPoint->blkno = blkno;
 				highestPoint->offno = offno;
 				highestPoint->level = etup->level;
 				highestLevel = etup->level;
+			}
+			else if (etup->level > fallbackLevel)
+			{
+				/* Keep track of second highest point */
+				fallbackPoint->blkno = blkno;
+				fallbackPoint->offno = offno;
+				fallbackPoint->level = etup->level;
+				fallbackLevel = etup->level;
 			}
 		}
 
@@ -129,6 +166,10 @@ RemoveHeapTids(HnswVacuumState * vacuumstate)
 
 		UnlockReleaseBuffer(buf);
 	}
+
+#ifdef HNSW_MEMORY
+	elog(INFO, "memory: %zu KB", MemoryContextMemAllocated(CurrentMemoryContext, true) / 1024);
+#endif
 }
 
 /*
@@ -159,8 +200,8 @@ NeedsUpdated(HnswVacuumState * vacuumstate, HnswElement element)
 		if (!ItemPointerIsValid(indextid))
 			continue;
 
-		/* Check if in deleted list */
-		if (DeletedContains(vacuumstate->deleted, indextid))
+		/* Check if in deletion list */
+		if (DeletingElement(vacuumstate->deleting, indextid))
 		{
 			needsUpdated = true;
 			break;
@@ -169,7 +210,8 @@ NeedsUpdated(HnswVacuumState * vacuumstate, HnswElement element)
 
 	/* Also update if layer 0 is not full */
 	/* This could indicate too many candidates being deleted during insert */
-	if (!needsUpdated)
+	/* There should always be more than zero indextids, but check for safety */
+	if (!needsUpdated && ntup->count > 0)
 		needsUpdated = !ItemPointerIsValid(&ntup->indextids[ntup->count - 1]);
 
 	UnlockReleaseBuffer(buf);
@@ -255,12 +297,27 @@ RepairGraphEntryPoint(HnswVacuumState * vacuumstate)
 		/* Get a shared lock */
 		LockPage(index, HNSW_UPDATE_LOCK, ShareLock);
 
-		/* Load element */
-		HnswLoadElement(highestPoint, NULL, NULL, index, support, true, NULL);
+		/* Get latest entry point */
+		entryPoint = HnswGetEntryPoint(index);
 
-		/* Repair if needed */
-		if (NeedsUpdated(vacuumstate, highestPoint))
-			RepairGraphElement(vacuumstate, highestPoint, HnswGetEntryPoint(index));
+		/* Use fallback point if highest point is entry point */
+		if (entryPoint != NULL && entryPoint->blkno == highestPoint->blkno && entryPoint->offno == highestPoint->offno)
+		{
+			highestPoint = &vacuumstate->fallbackPoint;
+
+			if (!BlockNumberIsValid(highestPoint->blkno))
+				highestPoint = NULL;
+		}
+
+		if (highestPoint != NULL)
+		{
+			/* Load element */
+			HnswLoadElement(highestPoint, NULL, NULL, index, support, true, NULL);
+
+			/* Repair if needed */
+			if (NeedsUpdated(vacuumstate, highestPoint))
+				RepairGraphElement(vacuumstate, highestPoint, entryPoint);
+		}
 
 		/* Release lock */
 		UnlockPage(index, HNSW_UPDATE_LOCK, ShareLock);
@@ -278,7 +335,7 @@ RepairGraphEntryPoint(HnswVacuumState * vacuumstate)
 
 		ItemPointerSet(&epData, entryPoint->blkno, entryPoint->offno);
 
-		if (DeletedContains(vacuumstate->deleted, &epData))
+		if (DeletingElement(vacuumstate->deleting, &epData))
 		{
 			/*
 			 * Replace the entry point with the highest point. If highest
@@ -364,6 +421,10 @@ RepairGraph(HnswVacuumState * vacuumstate)
 			if (!HnswIsElementTuple(etup))
 				continue;
 
+			/* Skip deleted tuples */
+			if (etup->deleted)
+				continue;
+
 			/* Skip updating neighbors if being deleted */
 			if (!ItemPointerIsValid(&etup->heaptids[0]))
 				continue;
@@ -427,6 +488,103 @@ RepairGraph(HnswVacuumState * vacuumstate)
 		/* Reset memory context */
 		MemoryContextSwitchTo(oldCtx);
 		MemoryContextReset(vacuumstate->tmpCtx);
+
+#ifdef HNSW_VACUUM_PROGRESS
+		if (!BlockNumberIsValid(blkno) || (blkno - HNSW_HEAD_BLKNO) % 1000 == 0)
+		{
+			BlockNumber totalBlocks = RelationGetNumberOfBlocks(index);
+			BlockNumber currentBlocks = BlockNumberIsValid(blkno) ? blkno : totalBlocks;
+
+			elog(INFO, "hnsw vacuum progress: %.1f%%", 100.0 * currentBlocks / totalBlocks);
+		}
+#endif
+	}
+}
+
+/*
+ * Confirm graph was repaired
+ */
+static void
+ConfirmRepaired(HnswVacuumState * vacuumstate)
+{
+	BlockNumber blkno = HNSW_HEAD_BLKNO;
+	Relation	index = vacuumstate->index;
+	BufferAccessStrategy bas = vacuumstate->bas;
+
+	while (BlockNumberIsValid(blkno))
+	{
+		Buffer		buf;
+		Page		page;
+		OffsetNumber offno;
+		OffsetNumber maxoffno;
+
+		vacuum_delay_point();
+
+		buf = ReadBufferExtended(index, MAIN_FORKNUM, blkno, RBM_NORMAL, bas);
+		LockBuffer(buf, BUFFER_LOCK_SHARE);
+		page = BufferGetPage(buf);
+		maxoffno = PageGetMaxOffsetNumber(page);
+
+		/* Iterate over nodes */
+		for (offno = FirstOffsetNumber; offno <= maxoffno; offno = OffsetNumberNext(offno))
+		{
+			HnswElementTuple etup = (HnswElementTuple) PageGetItem(page, PageGetItemId(page, offno));
+			HnswNeighborTuple ntup;
+			Buffer		nbuf;
+			Page		npage;
+			BlockNumber neighborPage;
+			OffsetNumber neighborOffno;
+
+			/* Skip neighbor tuples */
+			if (!HnswIsElementTuple(etup))
+				continue;
+
+			/* Skip deleted tuples */
+			if (etup->deleted)
+				continue;
+
+			/* Skip if being deleted */
+			if (!ItemPointerIsValid(&etup->heaptids[0]))
+				continue;
+
+			/* Get neighbor page */
+			neighborPage = ItemPointerGetBlockNumber(&etup->neighbortid);
+			neighborOffno = ItemPointerGetOffsetNumber(&etup->neighbortid);
+
+			if (neighborPage == blkno)
+			{
+				nbuf = buf;
+				npage = page;
+			}
+			else
+			{
+				nbuf = ReadBufferExtended(index, MAIN_FORKNUM, neighborPage, RBM_NORMAL, bas);
+				LockBuffer(nbuf, BUFFER_LOCK_SHARE);
+				npage = BufferGetPage(nbuf);
+			}
+
+			ntup = (HnswNeighborTuple) PageGetItem(npage, PageGetItemId(npage, neighborOffno));
+
+			/* Check neighbors */
+			for (int i = 0; i < ntup->count; i++)
+			{
+				ItemPointer indextid = &ntup->indextids[i];
+
+				if (!ItemPointerIsValid(indextid))
+					continue;
+
+				/* Check if in deletion list */
+				if (DeletingElement(vacuumstate->deleting, indextid))
+					elog(ERROR, "hnsw graph not repaired");
+			}
+
+			if (nbuf != buf)
+				UnlockReleaseBuffer(nbuf);
+		}
+
+		blkno = HnswPageGetOpaque(page)->nextblkno;
+
+		UnlockReleaseBuffer(buf);
 	}
 }
 
@@ -442,10 +600,15 @@ MarkDeleted(HnswVacuumState * vacuumstate)
 	BufferAccessStrategy bas = vacuumstate->bas;
 
 	/*
-	 * Wait for index scans to complete. Scans before this point may contain
-	 * tuples about to be deleted. Scans after this point will not, since the
-	 * graph has been repaired.
+	 * Wait for inserts and index scans to complete. Inserts and scans before
+	 * this point may visit tuples about to be deleted. Inserts and scans
+	 * after this point will not, since the graph has been repaired.
 	 */
+	LockPage(index, HNSW_UPDATE_LOCK, ExclusiveLock);
+	UnlockPage(index, HNSW_UPDATE_LOCK, ExclusiveLock);
+
+	ConfirmRepaired(vacuumstate);
+
 	LockPage(index, HNSW_SCAN_LOCK, ExclusiveLock);
 	UnlockPage(index, HNSW_SCAN_LOCK, ExclusiveLock);
 
@@ -520,8 +683,9 @@ MarkDeleted(HnswVacuumState * vacuumstate)
 			ntup = (HnswNeighborTuple) PageGetItem(npage, PageGetItemId(npage, neighborOffno));
 
 			/* Overwrite element */
+			/* Use memset instead of MemSet to keep clang-tidy happy */
 			etup->deleted = 1;
-			MemSet(&etup->data, 0, VARSIZE_ANY(&etup->data));
+			memset(&etup->data, 0, VARSIZE_ANY(&etup->data));
 
 			/* Overwrite neighbors */
 			for (int i = 0; i < ntup->count; i++)
@@ -573,7 +737,7 @@ InitVacuumState(HnswVacuumState * vacuumstate, IndexVacuumInfo *info, IndexBulkD
 	Relation	index = info->index;
 
 	if (stats == NULL)
-		stats = (IndexBulkDeleteResult *) palloc0(sizeof(IndexBulkDeleteResult));
+		stats = palloc0_object(IndexBulkDeleteResult);
 
 	vacuumstate->index = index;
 	vacuumstate->stats = stats;
@@ -592,7 +756,7 @@ InitVacuumState(HnswVacuumState * vacuumstate, IndexVacuumInfo *info, IndexBulkD
 	HnswGetMetaPageInfo(index, &vacuumstate->m, NULL);
 
 	/* Create hash table */
-	vacuumstate->deleted = tidhash_create(CurrentMemoryContext, 256, NULL);
+	vacuumstate->deleting = tidhash_create(CurrentMemoryContext, 256, NULL);
 }
 
 /*
@@ -601,7 +765,7 @@ InitVacuumState(HnswVacuumState * vacuumstate, IndexVacuumInfo *info, IndexBulkD
 static void
 FreeVacuumState(HnswVacuumState * vacuumstate)
 {
-	tidhash_destroy(vacuumstate->deleted);
+	tidhash_destroy(vacuumstate->deleting);
 	FreeAccessStrategy(vacuumstate->bas);
 	pfree(vacuumstate->ntup);
 	MemoryContextDelete(vacuumstate->tmpCtx);
@@ -619,13 +783,13 @@ hnswbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 	InitVacuumState(&vacuumstate, info, stats, callback, callback_state);
 
 	/* Pass 1: Remove heap TIDs */
-	RemoveHeapTids(&vacuumstate);
+	HnswBench("RemoveHeapTids", RemoveHeapTids(&vacuumstate));
 
 	/* Pass 2: Repair graph */
-	RepairGraph(&vacuumstate);
+	HnswBench("RepairGraph", RepairGraph(&vacuumstate));
 
-	/* Pass 3: Mark as deleted */
-	MarkDeleted(&vacuumstate);
+	/* Passes 3 and 4: Confirm repaired and mark as deleted */
+	HnswBench("MarkDeleted", MarkDeleted(&vacuumstate));
 
 	FreeVacuumState(&vacuumstate);
 

@@ -1,12 +1,23 @@
 #include "postgres.h"
 
+#include <limits.h>
+
+#include "access/genam.h"
 #include "access/relscan.h"
 #include "hnsw.h"
+#include "lib/pairingheap.h"
+#include "miscadmin.h"
+#include "nodes/pg_list.h"
 #include "pgstat.h"
-#include "storage/bufmgr.h"
 #include "storage/lmgr.h"
-#include "utils/builtins.h"
+#include "utils/float.h"
 #include "utils/memutils.h"
+#include "utils/relcache.h"
+#include "utils/snapmgr.h"
+
+#if PG_VERSION_NUM >= 160000
+#include "varatt.h"
+#endif
 
 /*
  * Algorithm 5 from paper
@@ -125,7 +136,7 @@ hnswbeginscan(Relation index, int nkeys, int norderbys)
 
 	scan = RelationGetIndexScan(index, nkeys, norderbys);
 
-	so = (HnswScanOpaque) palloc(sizeof(HnswScanOpaqueData));
+	so = palloc_object(HnswScanOpaqueData);
 	so->typeInfo = HnswGetTypeInfo(index);
 
 	/* Set support functions */
@@ -137,12 +148,12 @@ hnswbeginscan(Relation index, int nkeys, int norderbys)
 	 */
 	so->tmpCtx = AllocSetContextCreate(CurrentMemoryContext,
 									   "Hnsw scan temporary context",
-	                                   ALLOCSET_DEFAULT_SIZES);
+									   0, 8 * 1024, 256 * 1024);
 
 	/* Calculate max memory */
 	/* Add 256 extra bytes to fill last block when close */
 	maxMemory = (double) work_mem * hnsw_scan_mem_multiplier * 1024.0 + 256;
-	so->maxMemory = Min(maxMemory, (double) SIZE_MAX);
+	so->maxMemory = Min(maxMemory, (double) (SIZE_MAX / 2));
 
 	scan->opaque = so;
 
@@ -193,6 +204,10 @@ hnswgettuple(IndexScanDesc scan, ScanDirection dir)
 
 		/* Count index scan for stats */
 		pgstat_count_index_scan(scan->indexRelation);
+#if PG_VERSION_NUM >= 180000
+		if (scan->instrument)
+			scan->instrument->nsearches++;
+#endif
 
 		/* Safety check */
 		if (scan->orderByData == NULL)
@@ -305,7 +320,7 @@ hnswgettuple(IndexScanDesc scan, ScanDirection dir)
 
 		MemoryContextSwitchTo(oldCtx);
 
-		scan->xs_ctup.t_self = *heaptid;
+		scan->xs_heaptid = *heaptid;
 		scan->xs_recheck = false;
 		scan->xs_recheckorderby = false;
 		return true;

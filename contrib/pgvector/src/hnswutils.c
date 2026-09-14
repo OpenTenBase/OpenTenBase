@@ -2,17 +2,32 @@
 
 #include <math.h>
 
+#include "access/genam.h"
 #include "access/generic_xlog.h"
+#include "access/heapam.h"
+#include "access/relation.h"
+#include "access/table.h"
+#include "catalog/index.h"
+#include "catalog/pg_opclass.h"
 #include "catalog/pg_type.h"
+#include "common/hashfn.h"
+#include "commands/defrem.h"
 #include "fmgr.h"
+#include "funcapi.h"
 #include "hnsw.h"
 #include "lib/pairingheap.h"
+#include "miscadmin.h"
+#include "nodes/pg_list.h"
 #include "sparsevec.h"
 #include "storage/bufmgr.h"
+#include "utils/builtins.h"
 #include "utils/datum.h"
-#include "utils/hashutils.h"
+#include "utils/guc.h"
+#include "utils/lsyscache.h"
 #include "utils/memdebug.h"
 #include "utils/rel.h"
+#include "utils/snapmgr.h"
+#include "utils/syscache.h"
 
 /* TID hash table */
 static uint32
@@ -168,9 +183,13 @@ HnswNewBuffer(Relation index, ForkNumber forkNum)
  * Init page
  */
 void
-HnswInitPage(Buffer buf, Page page, bool checksum)
+HnswInitPage(Buffer buf, Page page)
 {
-	PageInit(page, BufferGetPageSize(buf), sizeof(HnswPageOpaqueData), checksum);
+#if PG_VERSION_NUM >= 180000
+	PageInit(page, BufferGetPageSize(buf), sizeof(HnswPageOpaqueData));
+#else
+	PageInit(page, BufferGetPageSize(buf), sizeof(HnswPageOpaqueData), true);
+#endif
 	HnswPageGetOpaque(page)->nextblkno = InvalidBlockNumber;
 	HnswPageGetOpaque(page)->page_id = HNSW_PAGE_ID;
 }
@@ -1048,15 +1067,15 @@ SelectNeighbors(char *base, List *c, int lm, HnswSupport * support, bool *closer
 	if (list_length(w) <= lm)
 		return w;
 
-	wd = palloc(sizeof(HnswCandidate *) * list_length(w));
+	wd = palloc_array_checked(HnswCandidate *, list_length(w));
 
 	/* Ensure order of candidates is deterministic for closer caching */
 	if (sortCandidates)
 	{
 		if (base == NULL)
-			list_qsort(w, CompareCandidateDistances);
+			list_sort(w, CompareCandidateDistances);
 		else
-			list_qsort(w, CompareCandidateDistancesOffset);
+			list_sort(w, CompareCandidateDistancesOffset);
 	}
 
 	while (list_length(w) > 0 && list_length(r) < lm)
@@ -1403,3 +1422,158 @@ hnsw_sparsevec_support(PG_FUNCTION_ARGS)
 
 	PG_RETURN_POINTER(&typeInfo);
 };
+
+/*
+ * Diagnostic helper: return the key runtime parameters of an hnsw index
+ * (m, ef_construction, dimensions, opclass name, current session ef_search)
+ * as a single row.  Intended for "recall low" diagnostics — see project
+ * notes §v0.1.1.
+ *
+ * Usage: SELECT * FROM hnsw_index_info('my_hnsw_idx'::regclass);
+ *
+ * Note: this is a single-row set-returning function; we materialise the row
+ * into a tuplestore during the first (and only) call.
+ */
+FUNCTION_PREFIX PG_FUNCTION_INFO_V1(hnsw_index_info);
+Datum
+hnsw_index_info(PG_FUNCTION_ARGS)
+{
+	Oid			indexOid = PG_GETARG_OID(0);
+	Relation	index;
+	char	   *amname;
+	int			m;
+	int			efConstruction;
+	int			dimensions;
+	Oid			opclassOid;
+	char	   *opclassName;
+	int			efSearch = HNSW_DEFAULT_EF_SEARCH;
+	char	   *efSearchStr;
+	Buffer		buf;
+	Page		page;
+	HnswMetaPage metap;
+	HeapTuple	indextup;
+	Datum		indclassDatum;
+	bool		isnull;
+	oidvector  *indclass;
+	HeapTuple	classtup;
+	Form_pg_opclass opclassForm;
+	ReturnSetInfo *rsinfo;
+	Tuplestorestate *tupstore;
+	Datum		values[5];
+	bool		nulls[5] = {false, false, false, false, false};
+
+	/* Open and validate the relation is an hnsw index */
+	index = index_open(indexOid, AccessShareLock);
+
+	amname = get_am_name(index->rd_rel->relam);
+	if (amname == NULL || strcmp(amname, "hnsw") != 0)
+	{
+		if (amname != NULL)
+			pfree(amname);
+		index_close(index, AccessShareLock);
+		ereport(ERROR,
+				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+				 errmsg("relation \"%s\" is not an hnsw index",
+						get_rel_name(indexOid))));
+	}
+	pfree(amname);
+
+	/* Read metapage: m, ef_construction, dimensions.
+	 *
+	 * HnswGetMetaPageInfo() only exposes m; read the metapage directly to
+	 * pick up efConstruction and dimensions, then validate the magic number.
+	 */
+	buf = ReadBuffer(index, HNSW_METAPAGE_BLKNO);
+	LockBuffer(buf, BUFFER_LOCK_SHARE);
+	page = BufferGetPage(buf);
+	metap = HnswPageGetMeta(page);
+
+	if (unlikely(metap->magicNumber != HNSW_MAGIC_NUMBER))
+	{
+		UnlockReleaseBuffer(buf);
+		index_close(index, AccessShareLock);
+		elog(ERROR, "hnsw index is not valid");
+	}
+
+	m = metap->m;
+	efConstruction = metap->efConstruction;
+	dimensions = metap->dimensions;
+
+	UnlockReleaseBuffer(buf);
+
+	/*
+	 * Read current session's hnsw.ef_search GUC.  If missing (extension not
+	 * loaded?) or invalid, fall back to the compile-time default.  This makes
+	 * the function safe to call from any context where the GUC is accessible.
+	 *
+	 * Note: GetConfigOptionByName() takes (name, &varname, missing_ok).  The
+	 * varname out-param is only used for error messages inside the GUC machinery.
+	 */
+	{
+		const char *varname;
+
+		efSearchStr = GetConfigOptionByName("hnsw.ef_search", &varname, true);
+		(void) varname;
+	}
+	if (efSearchStr != NULL)
+	{
+		int			tmp = atoi(efSearchStr);
+
+		if (tmp >= HNSW_MIN_EF_SEARCH && tmp <= HNSW_MAX_EF_SEARCH)
+			efSearch = tmp;
+		pfree(efSearchStr);
+	}
+
+	/*
+	 * Look up opclass name from the first index column's opclass.
+	 *
+	 * PG18 hides pg_index.indclass inside #ifdef CATALOG_VARLEN, so accessing
+	 * rd_index->indclass directly fails for extensions.  Read it via syscache
+	 * instead.
+	 */
+	indextup = SearchSysCache1(INDEXRELID, ObjectIdGetDatum(indexOid));
+	if (!HeapTupleIsValid(indextup))
+	{
+		index_close(index, AccessShareLock);
+		elog(ERROR, "cache lookup failed for index %u", indexOid);
+	}
+	indclassDatum = SysCacheGetAttr(INDEXRELID, indextup,
+									Anum_pg_index_indclass, &isnull);
+	Assert(!isnull);
+	indclass = (oidvector *) DatumGetPointer(indclassDatum);
+	opclassOid = indclass->values[0];
+	ReleaseSysCache(indextup);
+
+	/* Resolve opclass name via pg_opclass syscache */
+	classtup = SearchSysCache1(CLAOID, ObjectIdGetDatum(opclassOid));
+	if (!HeapTupleIsValid(classtup))
+	{
+		index_close(index, AccessShareLock);
+		elog(ERROR, "cache lookup failed for opclass %u", opclassOid);
+	}
+	opclassForm = (Form_pg_opclass) GETSTRUCT(classtup);
+	opclassName = pstrdup(NameStr(opclassForm->opcname));
+	ReleaseSysCache(classtup);
+
+	/*
+	 * Materialise a single-row SRF.  InitMaterializedSRF() builds and stores
+	 * a tuplestore in rsinfo->setResult for us -- we just push our row into
+	 * it.  Do NOT create a second tuplestore or overwrite rsinfo->setResult,
+	 * as that would orphan the one already set up.
+	 */
+	InitMaterializedSRF(fcinfo, MAT_SRF_BLESS);
+	rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+	tupstore = rsinfo->setResult;
+
+	values[0] = Int32GetDatum(m);
+	values[1] = Int32GetDatum(efConstruction);
+	values[2] = Int32GetDatum(dimensions);
+	values[3] = CStringGetTextDatum(opclassName);
+	values[4] = Int32GetDatum(efSearch);
+	tuplestore_putvalues(tupstore, rsinfo->setDesc, values, nulls);
+
+	pfree(opclassName);
+	index_close(index, AccessShareLock);
+
+	PG_RETURN_NULL();
+}

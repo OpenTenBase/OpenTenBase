@@ -3,11 +3,8 @@
 
 #include <math.h>
 
-#include "c.h"
 #include "common/shortest_dec.h"
 #include "halfvec.h"
-#include "utils/elog.h"
-#include "utils/palloc.h"
 
 #ifdef F16C_SUPPORT
 #include <immintrin.h>

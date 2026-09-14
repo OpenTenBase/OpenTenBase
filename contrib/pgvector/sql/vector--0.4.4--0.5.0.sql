@@ -15,7 +15,8 @@ CREATE OPERATOR * (
 CREATE AGGREGATE sum(vector) (
 	SFUNC = vector_add,
 	STYPE = vector,
-	COMBINEFUNC = vector_add
+	COMBINEFUNC = vector_add,
+	PARALLEL = SAFE
 );
 
 CREATE FUNCTION hnswhandler(internal) RETURNS index_am_handler

@@ -1,13 +1,28 @@
 #include "postgres.h"
 
+#include "access/genam.h"
 #include "access/generic_xlog.h"
+#include "access/heapam.h"
+#include "access/relation.h"
+#include "access/table.h"
 #include "bitvec.h"
+#include "catalog/index.h"
+#include "catalog/pg_opclass.h"
 #include "catalog/pg_type.h"
+#include "commands/defrem.h"
 #include "fmgr.h"
+#include "funcapi.h"
 #include "halfutils.h"
 #include "halfvec.h"
 #include "ivfflat.h"
+#include "miscadmin.h"
 #include "storage/bufmgr.h"
+#include "utils/builtins.h"
+#include "utils/guc.h"
+#include "utils/lsyscache.h"
+#include "utils/rel.h"
+#include "utils/snapmgr.h"
+#include "utils/syscache.h"
 
 /*
  * Allocate a vector array
@@ -74,6 +89,32 @@ IvfflatNormValue(const IvfflatTypeInfo * typeInfo, Oid collation, Datum value)
 }
 
 /*
+ * Normalize vectors
+ *
+ * NOTE: this function is declared in ivfflat.h but was inadvertently
+ * dropped from src/ivfutils.c in v0.8.6.  The implementation below is
+ * the v0.8.5 version, restored here so that the link-time reference
+ * from IvfflatKmeans() / IvfflatBuild() does not produce an "undefined
+ * symbol" error when loading vector.so.
+ */
+void
+IvfflatNormVectors(const IvfflatTypeInfo * typeInfo, Oid collation, VectorArray arr, MemoryContext tmpCtx)
+{
+	MemoryContext oldCtx = MemoryContextSwitchTo(tmpCtx);
+
+	for (int i = 0; i < arr->length; i++)
+	{
+		Datum		value = PointerGetDatum(VectorArrayGet(arr, i));
+		Datum		newValue = IvfflatNormValue(typeInfo, collation, value);
+
+		VectorArraySet(arr, i, DatumGetPointer(newValue));
+		MemoryContextReset(tmpCtx);
+	}
+
+	MemoryContextSwitchTo(oldCtx);
+}
+
+/*
  * Check if non-zero norm
  */
 bool
@@ -98,9 +139,13 @@ IvfflatNewBuffer(Relation index, ForkNumber forkNum)
  * Init page
  */
 void
-IvfflatInitPage(Buffer buf, Page page, bool checksum)
+IvfflatInitPage(Buffer buf, Page page)
 {
-	PageInit(page, BufferGetPageSize(buf), sizeof(IvfflatPageOpaqueData), checksum);
+#if PG_VERSION_NUM >= 180000
+	PageInit(page, BufferGetPageSize(buf), sizeof(IvfflatPageOpaqueData));
+#else
+	PageInit(page, BufferGetPageSize(buf), sizeof(IvfflatPageOpaqueData), true);
+#endif
 	IvfflatPageGetOpaque(page)->nextblkno = InvalidBlockNumber;
 	IvfflatPageGetOpaque(page)->page_id = IVFFLAT_PAGE_ID;
 }
@@ -113,7 +158,7 @@ IvfflatInitRegisterPage(Relation index, Buffer *buf, Page *page, GenericXLogStat
 {
 	*state = GenericXLogStart(index);
 	*page = GenericXLogRegisterBuffer(*state, *buf, GENERIC_XLOG_FULL_IMAGE);
-	IvfflatInitPage(*buf, *page, IvfflatHasEnableChecksum(index));
+	IvfflatInitPage(*buf, *page);
 }
 
 /*
@@ -142,7 +187,7 @@ IvfflatAppendPage(Relation index, Buffer *buf, Page *page, GenericXLogState **st
 	IvfflatPageGetOpaque(*page)->nextblkno = BufferGetBlockNumber(newbuf);
 
 	/* Init new page */
-	IvfflatInitPage(newbuf, newpage, IvfflatHasEnableChecksum(index));
+	IvfflatInitPage(newbuf, newpage);
 
 	/* Commit */
 	GenericXLogFinish(*state);
@@ -180,6 +225,26 @@ IvfflatGetMetaPageInfo(Relation index, int *lists, int *dimensions)
 		*dimensions = metap->dimensions;
 
 	UnlockReleaseBuffer(buf);
+}
+
+/*
+ * Check memory usage
+ *
+ * NOTE: this function is declared in ivfflat.h but was inadvertently
+ * dropped from src/ivfflat.c in v0.8.6.  The implementation below is
+ * the v0.8.5 version, restored here so that the link-time reference
+ * from IvfflatKmeans() / IvfflatBuildState accounting does not produce
+ * an "undefined symbol" error when loading vector.so.
+ */
+void
+IvfflatCheckMemoryUsage(Size totalSize)
+{
+	/* Add one to error message to ceil */
+	if (totalSize > maintenance_work_mem * (Size) 1024)
+		ereport(ERROR,
+				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+				 errmsg("memory required is %zu MB, maintenance_work_mem is %d MB",
+						totalSize / (1024 * 1024) + 1, maintenance_work_mem / 1024)));
 }
 
 /*
@@ -371,3 +436,132 @@ ivfflat_bit_support(PG_FUNCTION_ARGS)
 
 	PG_RETURN_POINTER(&typeInfo);
 };
+
+/*
+ * Diagnostic helper: return the key runtime parameters of an ivfflat index
+ * (lists, dimensions, opclass name, current session probes) as a single
+ * row.  Intended for "recall low" diagnostics — see project notes §v0.1 §5.
+ *
+ * Usage: SELECT * FROM ivfflat_index_info('my_ivfflat_idx'::regclass);
+ *
+ * Note: this is a single-row set-returning function; we materialise the row
+ * into a tuplestore during the first (and only) call.
+ */
+FUNCTION_PREFIX PG_FUNCTION_INFO_V1(ivfflat_index_info);
+Datum
+ivfflat_index_info(PG_FUNCTION_ARGS)
+{
+	Oid			indexOid = PG_GETARG_OID(0);
+	Relation	index;
+	char	   *amname;
+	int			lists;
+	int			dimensions;
+	Oid			opclassOid;
+	char	   *opclassName;
+	int			probes = IVFFLAT_DEFAULT_PROBES;
+	char	   *probes_str;
+	HeapTuple	indextup;
+	Datum		indclassDatum;
+	bool		isnull;
+	oidvector  *indclass;
+	HeapTuple	classtup;
+	Form_pg_opclass opclassForm;
+	ReturnSetInfo *rsinfo;
+	Tuplestorestate *tupstore;
+	Datum		values[4];
+	bool		nulls[4] = {false, false, false, false};
+
+	/* Open and validate the relation is an ivfflat index */
+	index = index_open(indexOid, AccessShareLock);
+
+	amname = get_am_name(index->rd_rel->relam);
+	if (amname == NULL || strcmp(amname, "ivfflat") != 0)
+	{
+		if (amname != NULL)
+			pfree(amname);
+		index_close(index, AccessShareLock);
+		ereport(ERROR,
+				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+				 errmsg("relation \"%s\" is not an ivfflat index",
+						get_rel_name(indexOid))));
+	}
+	pfree(amname);
+
+	/* Read metapage: lists and dimensions */
+	IvfflatGetMetaPageInfo(index, &lists, &dimensions);
+
+	/*
+	 * Read current session's ivfflat.probes GUC.  If missing (extension not
+	 * loaded?) or invalid, fall back to the compile-time default.  This makes
+	 * the function safe to call from any context where the GUC is accessible.
+	 *
+	 * Note: GetConfigOptionByName() takes (name, &varname, missing_ok).  The
+	 * varname out-param is only used for error messages inside the GUC machinery.
+	 */
+	{
+		const char *varname;
+
+		probes_str = GetConfigOptionByName("ivfflat.probes", &varname, true);
+		(void) varname;
+	}
+	if (probes_str != NULL)
+	{
+		int			tmp = atoi(probes_str);
+
+		if (tmp >= IVFFLAT_MIN_LISTS && tmp <= IVFFLAT_MAX_LISTS)
+			probes = tmp;
+		pfree(probes_str);
+	}
+
+	/*
+	 * Look up opclass name from the first index column's opclass.
+	 *
+	 * PG18 hides pg_index.indclass inside #ifdef CATALOG_VARLEN, so accessing
+	 * rd_index->indclass directly fails for extensions.  Read it via syscache
+	 * instead.
+	 */
+	indextup = SearchSysCache1(INDEXRELID, ObjectIdGetDatum(indexOid));
+	if (!HeapTupleIsValid(indextup))
+	{
+		index_close(index, AccessShareLock);
+		elog(ERROR, "cache lookup failed for index %u", indexOid);
+	}
+	indclassDatum = SysCacheGetAttr(INDEXRELID, indextup,
+									Anum_pg_index_indclass, &isnull);
+	Assert(!isnull);
+	indclass = (oidvector *) DatumGetPointer(indclassDatum);
+	opclassOid = indclass->values[0];
+	ReleaseSysCache(indextup);
+
+	/* Resolve opclass name via pg_opclass syscache */
+	classtup = SearchSysCache1(CLAOID, ObjectIdGetDatum(opclassOid));
+	if (!HeapTupleIsValid(classtup))
+	{
+		index_close(index, AccessShareLock);
+		elog(ERROR, "cache lookup failed for opclass %u", opclassOid);
+	}
+	opclassForm = (Form_pg_opclass) GETSTRUCT(classtup);
+	opclassName = pstrdup(NameStr(opclassForm->opcname));
+	ReleaseSysCache(classtup);
+
+	/*
+	 * Materialise a single-row SRF.  InitMaterializedSRF() builds and stores
+	 * a tuplestore in rsinfo->setResult for us -- we just push our row into
+	 * it.  Do NOT create a second tuplestore or overwrite rsinfo->setResult,
+	 * as that would orphan the one already set up.
+	 */
+	InitMaterializedSRF(fcinfo, MAT_SRF_BLESS);
+	rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+	tupstore = rsinfo->setResult;
+
+	values[0] = Int32GetDatum(lists);
+	values[1] = Int32GetDatum(dimensions);
+	values[2] = CStringGetTextDatum(opclassName);
+	values[3] = Int32GetDatum(probes);
+	tuplestore_putvalues(tupstore, rsinfo->setDesc, values, nulls);
+
+	pfree(opclassName);
+	index_close(index, AccessShareLock);
+
+	PG_RETURN_NULL();
+}

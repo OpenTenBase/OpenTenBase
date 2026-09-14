@@ -2,11 +2,16 @@
 
 #include <float.h>
 
+#include "access/genam.h"
 #include "access/generic_xlog.h"
+#include "access/itup.h"
+#include "fmgr.h"
 #include "ivfflat.h"
+#include "nodes/execnodes.h"
 #include "storage/bufmgr.h"
 #include "storage/lmgr.h"
 #include "utils/memutils.h"
+#include "utils/rel.h"
 
 /*
  * Find the list that minimizes the distance function
@@ -65,7 +70,7 @@ FindInsertPage(Relation index, Datum *values, BlockNumber *insertPage, ListInfo 
  * Insert a tuple into the index
  */
 static void
-InsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer heap_tid, Relation heapRel)
+InsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer heap_tid)
 {
 	const		IvfflatTypeInfo *typeInfo = IvfflatGetTypeInfo(index);
 	IndexTuple	itup;
@@ -142,7 +147,7 @@ InsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer heap_tid, R
 
 			/* Init new page */
 			newpage = GenericXLogRegisterBuffer(state, newbuf, GENERIC_XLOG_FULL_IMAGE);
-			IvfflatInitPage(newbuf, newpage, IvfflatHasEnableChecksum(index));
+			IvfflatInitPage(newbuf, newpage);
 
 			/* Update insert page */
 			insertPage = BufferGetBlockNumber(newbuf);
@@ -179,8 +184,8 @@ InsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer heap_tid, R
  * Insert a tuple into the index
  */
 bool
-ivfflatinsert(Relation index, Datum *values, bool *isnull, ItemPointer heap_tid, Relation heap,
-              IndexUniqueCheck checkUnique
+ivfflatinsert(Relation index, Datum *values, bool *isnull, ItemPointer heap_tid,
+			  Relation heap, IndexUniqueCheck checkUnique
 #if PG_VERSION_NUM >= 140000
 			  ,bool indexUnchanged
 #endif
@@ -204,7 +209,7 @@ ivfflatinsert(Relation index, Datum *values, bool *isnull, ItemPointer heap_tid,
 	oldCtx = MemoryContextSwitchTo(insertCtx);
 
 	/* Insert tuple */
-	InsertTuple(index, values, isnull, heap_tid, heap);
+	InsertTuple(index, values, isnull, heap_tid);
 
 	/* Delete memory context */
 	MemoryContextSwitchTo(oldCtx);

@@ -1,3 +1,35 @@
+## 0.8.6 (2026-07-29)
+
+- Fixed buffer overflow with IVFFlat index build on 32-bit systems - [more info](https://github.com/pgvector/pgvector/issues/1006)
+- Fixed array to `sparsevec` cast not limiting non-zero elements
+- Fixed memory usage for IVFFlat index scans with nested loop joins
+
+## 0.8.5 (2026-07-08)
+
+- Reduced memory usage for small tables for IVFFlat index builds
+
+## 0.8.4 (2026-06-30)
+
+- Fixed `hnsw graph not repaired` error with HNSW vacuuming
+- Fixed possible error with inserts during HNSW vacuuming
+- Fixed memory exceeding `maintenance_work_mem` with IVFFlat index builds
+
+## 0.8.3 (2026-06-17)
+
+- Fixed possible index corruption with HNSW vacuuming
+- Fixed performance regression with Hamming distance and Jaccard distance with Postgres 18
+
+## 0.8.2 (2026-02-25)
+
+- Fixed buffer overflow with parallel HNSW index build - [more info](https://github.com/pgvector/pgvector/issues/959)
+- Improved `install` target on Windows
+- Fixed `Index Searches` in `EXPLAIN` output for Postgres 18
+
+## 0.8.1 (2025-09-04)
+
+- Added support for Postgres 18 rc1
+- Improved performance of `binary_quantize` function
+
 ## 0.8.0 (2024-10-30)
 
 - Added support for iterative index scans

@@ -1,9 +1,16 @@
 #ifndef VECTOR_H
 #define VECTOR_H
 
+#include "fmgr.h"
+#include "utils/palloc.h"
+
+#if PG_VERSION_NUM < 190000
+#include "storage/shmem.h"		/* for add_size()/mul_size() in some versions */
+#endif
+
 #define VECTOR_MAX_DIM 16000
 
-#define VECTOR_SIZE(_dim)		(offsetof(Vector, x) + sizeof(float)*(_dim))
+#define VECTOR_SIZE(_dim)		add_size(offsetof(Vector, x), mul_size(sizeof(float), _dim))
 #define DatumGetVector(x)		((Vector *) PG_DETOAST_DATUM(x))
 #define PG_GETARG_VECTOR_P(x)	DatumGetVector(PG_GETARG_DATUM(x))
 #define PG_RETURN_VECTOR_P(x)	PG_RETURN_POINTER(x)

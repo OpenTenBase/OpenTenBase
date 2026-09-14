@@ -118,13 +118,15 @@ CREATE AGGREGATE avg(vector) (
 	STYPE = double precision[],
 	FINALFUNC = vector_avg,
 	COMBINEFUNC = vector_combine,
-	INITCOND = '{0}'
+	INITCOND = '{0}',
+	PARALLEL = SAFE
 );
 
 CREATE AGGREGATE sum(vector) (
 	SFUNC = vector_add,
 	STYPE = vector,
-	COMBINEFUNC = vector_add
+	COMBINEFUNC = vector_add,
+	PARALLEL = SAFE
 );
 
 -- vector cast functions
@@ -446,13 +448,15 @@ CREATE AGGREGATE avg(halfvec) (
 	STYPE = double precision[],
 	FINALFUNC = halfvec_avg,
 	COMBINEFUNC = halfvec_combine,
-	INITCOND = '{0}'
+	INITCOND = '{0}',
+	PARALLEL = SAFE
 );
 
 CREATE AGGREGATE sum(halfvec) (
 	SFUNC = halfvec_add,
 	STYPE = halfvec,
-	COMBINEFUNC = halfvec_add
+	COMBINEFUNC = halfvec_add,
+	PARALLEL = SAFE
 );
 
 -- halfvec cast functions
@@ -912,3 +916,112 @@ CREATE OPERATOR CLASS sparsevec_l1_ops
 	OPERATOR 1 <+> (sparsevec, sparsevec) FOR ORDER BY float_ops,
 	FUNCTION 1 l1_distance(sparsevec, sparsevec),
 	FUNCTION 3 hnsw_sparsevec_support(internal);
+
+
+-- diagnostic helper functions for vector index introspection
+-- (used by SELECT * FROM ivfflat_index_info(...) / hnsw_index_info(...))
+
+CREATE FUNCTION ivfflat_index_info(regclass) RETURNS TABLE(
+	lists integer,
+	dimensions integer,
+	opclass text,
+	probes integer)
+	AS 'MODULE_PATHNAME', 'ivfflat_index_info'
+	LANGUAGE C STABLE STRICT;
+
+CREATE FUNCTION hnsw_index_info(regclass) RETURNS TABLE(
+	m integer,
+	ef_construction integer,
+	dimensions integer,
+	opclass text,
+	ef_search integer)
+	AS 'MODULE_PATHNAME', 'hnsw_index_info'
+	LANGUAGE C STABLE STRICT;
+
+-- ----------------------------------------------------------------------------
+-- recommendation helpers for query-time index parameters
+--
+-- These functions compute a sensible (min, recommended, max) range for the
+-- runtime GUCs ivfflat.probes and hnsw.ef_search.  They are pure PL/pgSQL
+-- wrappers over the *_index_info() helpers above and add a small heuristic
+-- based on a target_recall value in [0.0, 1.0].
+--
+-- target_recall multiplier table:
+--     rec < 0.9   -> 0.7x
+--     rec < 0.95  -> 1.0x  (default tier)
+--     rec <= 0.99 -> 1.5x
+--     rec >  0.99 -> 2.5x
+--
+-- Out-of-range target_recall is clamped to [0.0, 1.0].
+-- ----------------------------------------------------------------------------
+
+CREATE FUNCTION ivfflat_recommend_probes(
+	idx regclass,
+	target_recall float8 DEFAULT 0.9
+) RETURNS TABLE(
+	probes_min integer,
+	probes_recommended integer,
+	probes_max integer
+)
+LANGUAGE plpgsql STABLE
+AS $$
+DECLARE
+	lists int;
+	mult float8;
+	rec int;
+	mn int;
+	mx int;
+	r float8 := LEAST(1.0, GREATEST(0.0, target_recall));
+BEGIN
+	SELECT i.lists FROM ivfflat_index_info(idx) i INTO lists;
+
+	mult := CASE
+		WHEN r < 0.9  THEN 0.7
+		WHEN r < 0.95 THEN 1.0
+		WHEN r <= 0.99 THEN 1.5
+		ELSE 2.5
+	END;
+
+	rec := LEAST(32768, GREATEST(1, CEIL(sqrt(lists::float8) * mult)::int));
+	mn  := GREATEST(1, rec / 2);
+	mx  := GREATEST(rec, lists / 2);
+
+	RETURN QUERY SELECT mn, rec, mx;
+END;
+$$;
+
+CREATE FUNCTION hnsw_recommend_ef_search(
+	idx regclass,
+	top_k int DEFAULT 10,
+	target_recall float8 DEFAULT 0.9
+) RETURNS TABLE(
+	ef_search_min integer,
+	ef_search_recommended integer,
+	ef_search_max integer
+)
+LANGUAGE plpgsql STABLE
+AS $$
+DECLARE
+	e int;
+	mult float8;
+	rec int;
+	mn int;
+	mx int;
+	r float8 := LEAST(1.0, GREATEST(0.0, target_recall));
+BEGIN
+	SELECT i.ef_construction FROM hnsw_index_info(idx) i INTO e;
+
+	mult := CASE
+		WHEN r < 0.9  THEN 0.7
+		WHEN r < 0.95 THEN 1.0
+		WHEN r <= 0.99 THEN 1.5
+		ELSE 2.5
+	END;
+
+	rec := LEAST(1000, GREATEST(e, CEIL(e::float8 * mult)::int, top_k * 2));
+	mn  := e;
+	mx  := LEAST(1000, e * 4);
+
+	RETURN QUERY SELECT mn, rec, mx;
+END;
+$$;

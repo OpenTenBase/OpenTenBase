@@ -2,12 +2,12 @@
 	"name": "vector",
 	"abstract": "Open-source vector similarity search for Postgres",
 	"description": "Supports L2 distance, inner product, and cosine distance",
-	"version": "0.8.0",
+	"version": "0.8.6",
 	"maintainer": [
 		"Andrew Kane <andrew@ankane.org>"
 	],
 	"license": {
-		"PostgreSQL": "http://www.postgresql.org/about/licence"
+		"PostgreSQL": "https://www.postgresql.org/about/licence"
 	},
 	"prereqs": {
 		"runtime": {
@@ -20,7 +20,7 @@
 		"vector": {
 			"file": "sql/vector.sql",
 			"docfile": "README.md",
-			"version": "0.8.0",
+			"version": "0.8.6",
 			"abstract": "Open-source vector similarity search for Postgres"
 		}
 	},
@@ -38,7 +38,7 @@
 	"generated_by": "Andrew Kane",
 	"meta-spec": {
 		"version": "1.0.0",
-		"url": "http://pgxn.org/meta/spec.txt"
+		"url": "https://pgxn.org/meta/spec.txt"
 	},
 	"tags": [
 		"vectors",

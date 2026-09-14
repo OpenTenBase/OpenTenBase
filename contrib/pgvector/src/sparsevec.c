@@ -8,12 +8,29 @@
 #include "fmgr.h"
 #include "halfutils.h"
 #include "halfvec.h"
+#include "lib/stringinfo.h"
 #include "libpq/pqformat.h"
 #include "sparsevec.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
+#include "utils/float.h"
+#include "utils/fmgrprotos.h"
 #include "utils/lsyscache.h"
 #include "vector.h"
+
+#if PG_VERSION_NUM >= 160000
+#include "varatt.h"
+#endif
+
+#if PG_VERSION_NUM >= 170000
+#include "parser/scansup.h"
+#endif
+
+#if PG_VERSION_NUM >= 190000
+#define palloc_array_checked(type, count) ((type *) palloc_array(type, count))
+#else
+#define palloc_array_checked(type, count) ((type *) palloc(mul_size(sizeof(type), count)))
+#endif
 
 typedef struct SparseInputElement
 {
@@ -137,7 +154,7 @@ SparseVector *
 InitSparseVector(int dim, int nnz)
 {
 	SparseVector *result;
-	int			size;
+	Size		size;
 
 	size = SPARSEVEC_SIZE(nnz);
 	result = (SparseVector *) palloc0(size);
@@ -148,9 +165,9 @@ InitSparseVector(int dim, int nnz)
 	return result;
 }
 
-/*
- * Check for whitespace, since array_isspace() is static
- */
+#if PG_VERSION_NUM >= 170000
+#define sparsevec_isspace(ch) scanner_isspace(ch)
+#else
 static inline bool
 sparsevec_isspace(char ch)
 {
@@ -163,6 +180,7 @@ sparsevec_isspace(char ch)
 		return true;
 	return false;
 }
+#endif
 
 /*
  * Compare indices
@@ -170,10 +188,10 @@ sparsevec_isspace(char ch)
 static int
 CompareIndices(const void *a, const void *b)
 {
-	if (((SparseInputElement *) a)->index < ((SparseInputElement *) b)->index)
+	if (((const SparseInputElement *) a)->index < ((const SparseInputElement *) b)->index)
 		return -1;
 
-	if (((SparseInputElement *) a)->index > ((SparseInputElement *) b)->index)
+	if (((const SparseInputElement *) a)->index > ((const SparseInputElement *) b)->index)
 		return 1;
 
 	return 0;
@@ -211,7 +229,7 @@ sparsevec_in(PG_FUNCTION_ARGS)
 				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
 				 errmsg("sparsevec cannot have more than %d non-zero elements", SPARSEVEC_MAX_NNZ)));
 
-	elements = palloc(maxNnz * sizeof(SparseInputElement));
+	elements = palloc_array_checked(SparseInputElement, maxNnz);
 
 	pt = lit;
 
@@ -415,20 +433,20 @@ sparsevec_out(PG_FUNCTION_ARGS)
 	/*
 	 * Need:
 	 *
-	 * nnz * 10 bytes for index (positive integer)
+	 * nnz * 11 bytes for index (includes sign for extra safety)
 	 *
 	 * nnz bytes for :
 	 *
 	 * nnz * (FLOAT_SHORTEST_DECIMAL_LEN - 1) bytes for
 	 * float_to_shortest_decimal_bufn
 	 *
-	 * nnz - 1 bytes for ,
+	 * max(nnz - 1, 0) bytes for ,
 	 *
-	 * 10 bytes for dimensions
+	 * 11 bytes for dimensions (includes sign for extra safety)
 	 *
 	 * 4 bytes for {, }, /, and \0
 	 */
-	buf = (char *) palloc((11 + FLOAT_SHORTEST_DECIMAL_LEN) * sparsevec->nnz + 13);
+	buf = (char *) palloc(add_size(mul_size(12 + FLOAT_SHORTEST_DECIMAL_LEN, sparsevec->nnz), 15));
 	ptr = buf;
 
 	AppendChar(ptr, '{');
@@ -602,6 +620,7 @@ vector_to_sparsevec(PG_FUNCTION_ARGS)
 			nnz++;
 	}
 
+	CheckNnz(nnz, dim);
 	result = InitSparseVector(dim, nnz);
 	values = SPARSEVEC_VALUES(result);
 	for (int i = 0; i < dim; i++)
@@ -645,6 +664,7 @@ halfvec_to_sparsevec(PG_FUNCTION_ARGS)
 			nnz++;
 	}
 
+	CheckNnz(nnz, dim);
 	result = InitSparseVector(dim, nnz);
 	values = SPARSEVEC_VALUES(result);
 	for (int i = 0; i < dim; i++)
@@ -733,6 +753,7 @@ array_to_sparsevec(PG_FUNCTION_ARGS)
 				 errmsg("unsupported array type")));
 	}
 
+	CheckNnz(nnz, nelemsp);
 	result = InitSparseVector(nelemsp, nnz);
 	values = SPARSEVEC_VALUES(result);
 

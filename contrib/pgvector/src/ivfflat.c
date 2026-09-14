@@ -3,15 +3,19 @@
 #include <float.h>
 
 #include "access/amapi.h"
+#include "access/genam.h"
 #include "access/reloptions.h"
 #include "commands/progress.h"
 #include "commands/vacuum.h"
+#include "fmgr.h"
 #include "ivfflat.h"
-#include "utils/builtins.h"
-#include "utils/numeric.h"
+#include "nodes/pg_list.h"
+#include "utils/float.h"
 #include "utils/guc.h"
+#include "utils/relcache.h"
 #include "utils/selfuncs.h"
 #include "utils/spccache.h"
+#include "vector.h"
 
 #if PG_VERSION_NUM < 150000
 #define MarkGUCPrefixReserved(x) EmitWarningsOnPlaceholders(x)
@@ -36,9 +40,8 @@ IvfflatInit(void)
 {
 	ivfflat_relopt_kind = add_reloption_kind();
 	add_int_reloption(ivfflat_relopt_kind, "lists", "Number of inverted lists",
-	                  IVFFLAT_DEFAULT_LISTS, IVFFLAT_MIN_LISTS, IVFFLAT_MAX_LISTS);
-	add_bool_reloption(ivfflat_relopt_kind, "checksum", "enable checksum for page verify", true);
-	
+					  IVFFLAT_DEFAULT_LISTS, IVFFLAT_MIN_LISTS, IVFFLAT_MAX_LISTS, AccessExclusiveLock);
+
 	DefineCustomIntVariable("ivfflat.probes", "Sets the number of probes",
 							"Valid range is 1..lists.", &ivfflat_probes,
 							IVFFLAT_DEFAULT_PROBES, IVFFLAT_MIN_LISTS, IVFFLAT_MAX_LISTS, PGC_USERSET, 0, NULL, NULL, NULL);
@@ -53,6 +56,27 @@ IvfflatInit(void)
 							IVFFLAT_MAX_LISTS, IVFFLAT_MIN_LISTS, IVFFLAT_MAX_LISTS, PGC_USERSET, 0, NULL, NULL, NULL);
 
 	MarkGUCPrefixReserved("ivfflat");
+}
+
+/*
+ * Get the name of index build phase
+ */
+static char *
+ivfflatbuildphasename(int64 phasenum)
+{
+	switch (phasenum)
+	{
+		case PROGRESS_CREATEIDX_SUBPHASE_INITIALIZE:
+			return "initializing";
+		case PROGRESS_IVFFLAT_PHASE_KMEANS:
+			return "performing k-means";
+		case PROGRESS_IVFFLAT_PHASE_ASSIGN:
+			return "assigning tuples";
+		case PROGRESS_IVFFLAT_PHASE_LOAD:
+			return "loading tuples";
+		default:
+			return NULL;
+	}
 }
 
 /*
@@ -71,10 +95,9 @@ ivfflatcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
 	double		startupPages;
 	double		spc_seq_page_cost;
 	Relation	index;
-	List        *qinfos;
 
 	/* Never use index without order */
-	if (path->indexorderbys == NULL)
+	if (path->indexorderbys == NIL)
 	{
 		*indexStartupCost = get_float8_infinity();
 		*indexTotalCost = get_float8_infinity();
@@ -88,11 +111,9 @@ ivfflatcostestimate(PlannerInfo *root, IndexPath *path, double loop_count,
 		return;
 	}
 
-	qinfos = deconstruct_indexquals(path);
-
 	MemSet(&costs, 0, sizeof(costs));
 
-	genericcostestimate(root, path, loop_count, qinfos, &costs);
+	genericcostestimate(root, path, loop_count, &costs);
 
 	index = index_open(path->indexinfo->indexoid, NoLock);
 	IvfflatGetMetaPageInfo(index, &lists, NULL);
@@ -137,24 +158,12 @@ ivfflatoptions(Datum reloptions, bool validate)
 {
 	static const relopt_parse_elt tab[] = {
 		{"lists", RELOPT_TYPE_INT, offsetof(IvfflatOptions, lists)},
-		{"checksum", RELOPT_TYPE_BOOL, offsetof(IvfflatOptions, checksum)},
 	};
 
-#if PG_VERSION_NUM >= 130000
-	return (bytea *) build_reloptions(reloptions, validate, ivfflat_relopt_kind,
-	                                  sizeof(IvfflatOptions), tab, lengthof(tab));
-#else
-	relopt_value   *options;
-	int             numoptions;
-	IvfflatOptions *rdopts;
-
-	options = parseRelOptions(reloptions, validate, ivfflat_relopt_kind, &numoptions);
-	rdopts = allocateReloptStruct(sizeof(IvfflatOptions), options, numoptions);
-	fillRelOptions((void *) rdopts, sizeof(IvfflatOptions), options, numoptions, validate, tab,
-	               lengthof(tab));
-
-	return (bytea *) rdopts;
-#endif
+	return (bytea *) build_reloptions(reloptions, validate,
+									  ivfflat_relopt_kind,
+									  sizeof(IvfflatOptions),
+									  tab, lengthof(tab));
 }
 
 /*
@@ -175,12 +184,76 @@ FUNCTION_PREFIX PG_FUNCTION_INFO_V1(ivfflathandler);
 Datum
 ivfflathandler(PG_FUNCTION_ARGS)
 {
+#if PG_VERSION_NUM >= 190000
+	static const IndexAmRoutine amroutine = {
+		.type = T_IndexAmRoutine,
+		.amstrategies = 0,
+		.amsupport = 5,
+		.amoptsprocnum = 0,
+		.amcanorder = false,
+		.amcanorderbyop = true,
+		.amcanhash = false,
+		.amconsistentequality = false,
+		.amconsistentordering = false,
+		.amcanbackward = false,
+		.amcanunique = false,
+		.amcanmulticol = false,
+		.amoptionalkey = true,
+		.amsearcharray = false,
+		.amsearchnulls = false,
+		.amstorage = false,
+		.amclusterable = false,
+		.ampredlocks = false,
+		.amcanparallel = false,
+		.amcanbuildparallel = true,
+		.amcaninclude = false,
+		.amusemaintenanceworkmem = false,
+		.amsummarizing = false,
+		.amparallelvacuumoptions = VACUUM_OPTION_PARALLEL_BULKDEL,
+		.amkeytype = InvalidOid,
+
+		.ambuild = ivfflatbuild,
+		.ambuildempty = ivfflatbuildempty,
+		.aminsert = ivfflatinsert,
+		.aminsertcleanup = NULL,
+		.ambulkdelete = ivfflatbulkdelete,
+		.amvacuumcleanup = ivfflatvacuumcleanup,
+		.amcanreturn = NULL,
+		.amcostestimate = ivfflatcostestimate,
+		.amgettreeheight = NULL,
+		.amoptions = ivfflatoptions,
+		.amproperty = NULL,
+		.ambuildphasename = ivfflatbuildphasename,
+		.amvalidate = ivfflatvalidate,
+		.amadjustmembers = NULL,
+		.ambeginscan = ivfflatbeginscan,
+		.amrescan = ivfflatrescan,
+		.amgettuple = ivfflatgettuple,
+		.amgetbitmap = NULL,
+		.amendscan = ivfflatendscan,
+		.ammarkpos = NULL,
+		.amrestrpos = NULL,
+		.amestimateparallelscan = NULL,
+		.aminitparallelscan = NULL,
+		.amparallelrescan = NULL,
+		.amtranslatestrategy = NULL,
+		.amtranslatecmptype = NULL,
+	};
+
+	PG_RETURN_POINTER(&amroutine);
+#else
 	IndexAmRoutine *amroutine = makeNode(IndexAmRoutine);
 
 	amroutine->amstrategies = 0;
 	amroutine->amsupport = 5;
+	amroutine->amoptsprocnum = 0;
 	amroutine->amcanorder = false;
 	amroutine->amcanorderbyop = true;
+#if PG_VERSION_NUM >= 180000
+	amroutine->amcanhash = false;
+	amroutine->amconsistentequality = false;
+	amroutine->amconsistentordering = false;
+#endif
 	amroutine->amcanbackward = false;	/* can change direction mid-scan */
 	amroutine->amcanunique = false;
 	amroutine->amcanmulticol = false;
@@ -194,10 +267,12 @@ ivfflathandler(PG_FUNCTION_ARGS)
 #if PG_VERSION_NUM >= 170000
 	amroutine->amcanbuildparallel = true;
 #endif
-	// amroutine->amcaninclude = false;
+	amroutine->amcaninclude = false;
+	amroutine->amusemaintenanceworkmem = false; /* not used during VACUUM */
 #if PG_VERSION_NUM >= 160000
 	amroutine->amsummarizing = false;
 #endif
+	amroutine->amparallelvacuumoptions = VACUUM_OPTION_PARALLEL_BULKDEL;
 	amroutine->amkeytype = InvalidOid;
 
 	/* Interface functions */
@@ -211,8 +286,12 @@ ivfflathandler(PG_FUNCTION_ARGS)
 	amroutine->amvacuumcleanup = ivfflatvacuumcleanup;
 	amroutine->amcanreturn = NULL;	/* tuple not included in heapsort */
 	amroutine->amcostestimate = ivfflatcostestimate;
+#if PG_VERSION_NUM >= 180000
+	amroutine->amgettreeheight = NULL;
+#endif
 	amroutine->amoptions = ivfflatoptions;
 	amroutine->amproperty = NULL;	/* TODO AMPROP_DISTANCE_ORDERABLE */
+	amroutine->ambuildphasename = ivfflatbuildphasename;
 	amroutine->amvalidate = ivfflatvalidate;
 #if PG_VERSION_NUM >= 140000
 	amroutine->amadjustmembers = NULL;
@@ -230,5 +309,11 @@ ivfflathandler(PG_FUNCTION_ARGS)
 	amroutine->aminitparallelscan = NULL;
 	amroutine->amparallelrescan = NULL;
 
+#if PG_VERSION_NUM >= 180000
+	amroutine->amtranslatestrategy = NULL;
+	amroutine->amtranslatecmptype = NULL;
+#endif
+
 	PG_RETURN_POINTER(amroutine);
+#endif
 }

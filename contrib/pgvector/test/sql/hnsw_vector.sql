@@ -2,7 +2,7 @@ SET enable_seqscan = off;
 
 -- L2
 
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t (val vector(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 CREATE INDEX ON t USING hnsw (val vector_l2_ops);
 
@@ -19,7 +19,7 @@ DROP TABLE t;
 
 -- inner product
 
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t (val vector(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 CREATE INDEX ON t USING hnsw (val vector_ip_ops);
 
@@ -32,7 +32,7 @@ DROP TABLE t;
 
 -- cosine
 
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t (val vector(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 CREATE INDEX ON t USING hnsw (val vector_cosine_ops);
 
@@ -41,12 +41,13 @@ INSERT INTO t (val) VALUES ('[1,2,4]');
 SELECT * FROM t ORDER BY val <=> '[3,3,3]';
 SELECT COUNT(*) FROM (SELECT * FROM t ORDER BY val <=> '[0,0,0]') t2;
 SELECT COUNT(*) FROM (SELECT * FROM t ORDER BY val <=> (SELECT NULL::vector)) t2;
+SELECT * FROM t CROSS JOIN LATERAL (SELECT * FROM t t2 ORDER BY val <=> t.val LIMIT 1) t2 WHERE t.val != '[0,0,0]' ORDER BY t.val;
 
 DROP TABLE t;
 
 -- L1
 
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t (val vector(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 CREATE INDEX ON t USING hnsw (val vector_l1_ops);
 
@@ -59,7 +60,7 @@ DROP TABLE t;
 
 -- iterative
 
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t (val vector(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 CREATE INDEX ON t USING hnsw (val vector_l2_ops);
 
@@ -68,6 +69,9 @@ SET hnsw.ef_search = 1;
 SELECT * FROM t ORDER BY val <-> '[3,3,3]';
 
 SET hnsw.iterative_scan = relaxed_order;
+SELECT * FROM t ORDER BY val <-> '[3,3,3]';
+
+TRUNCATE t;
 SELECT * FROM t ORDER BY val <-> '[3,3,3]';
 
 RESET hnsw.iterative_scan;
@@ -86,29 +90,66 @@ DROP TABLE t;
 
 -- options
 
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t (val vector(3));
 CREATE INDEX ON t USING hnsw (val vector_l2_ops) WITH (m = 1);
 CREATE INDEX ON t USING hnsw (val vector_l2_ops) WITH (m = 101);
 CREATE INDEX ON t USING hnsw (val vector_l2_ops) WITH (ef_construction = 3);
 CREATE INDEX ON t USING hnsw (val vector_l2_ops) WITH (ef_construction = 1001);
 CREATE INDEX ON t USING hnsw (val vector_l2_ops) WITH (m = 16, ef_construction = 31);
+DROP TABLE t;
 
 SHOW hnsw.ef_search;
-
 SET hnsw.ef_search = 0;
 SET hnsw.ef_search = 1001;
 
 SHOW hnsw.iterative_scan;
-
 SET hnsw.iterative_scan = on;
 
 SHOW hnsw.max_scan_tuples;
-
 SET hnsw.max_scan_tuples = 0;
 
 SHOW hnsw.scan_mem_multiplier;
-
 SET hnsw.scan_mem_multiplier = 0;
 SET hnsw.scan_mem_multiplier = 1001;
 
+-- dimensions
+
+CREATE TABLE t (val vector(2000));
+CREATE INDEX ON t USING hnsw (val vector_l2_ops);
+DROP TABLE t;
+
+CREATE TABLE t (val vector(2001));
+CREATE INDEX ON t USING hnsw (val vector_l2_ops);
+DROP TABLE t;
+
+-- diagnostic helper: hnsw_index_info() and hnsw_recommend_ef_search()
+
+CREATE TABLE t (val vector(3));
+INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
+CREATE INDEX t_val_idx ON t USING hnsw (val vector_l2_ops) WITH (m = 8, ef_construction = 32);
+
+-- default ef_search (not yet set)
+SELECT * FROM hnsw_index_info('t_val_idx'::regclass);
+
+-- custom ef_search
+SET hnsw.ef_search = 20;
+SELECT * FROM hnsw_index_info('t_val_idx'::regclass);
+RESET hnsw.ef_search;
+
+-- recommender: default top_k=10, target_recall=0.9
+SELECT * FROM hnsw_recommend_ef_search('t_val_idx'::regclass);
+
+-- recommender: target_recall=0.99 -> 1.5x multiplier
+SELECT * FROM hnsw_recommend_ef_search('t_val_idx'::regclass, 10, 0.99);
+
+-- recommender: top_k=50 forces ef_search up to 100
+SELECT * FROM hnsw_recommend_ef_search('t_val_idx'::regclass, 50);
+
+DROP TABLE t;
+
+-- error: hnsw_recommend_ef_search rejects non-hnsw indexes
+CREATE TABLE t (val vector(3));
+INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
+CREATE INDEX t_val_idx ON t USING ivfflat (val vector_l2_ops) WITH (lists = 4);
+SELECT hnsw_recommend_ef_search('t_val_idx'::regclass);
 DROP TABLE t;

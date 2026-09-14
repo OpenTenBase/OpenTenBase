@@ -18,5 +18,6 @@ CREATE AGGREGATE avg(vector) (
 	STYPE = double precision[],
 	FINALFUNC = vector_avg,
 	COMBINEFUNC = vector_combine,
-	INITCOND = '{0}'
+	INITCOND = '{0}',
+	PARALLEL = SAFE
 );

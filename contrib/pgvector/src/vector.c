@@ -16,18 +16,28 @@
 #include "port.h"				/* for strtof() */
 #include "sparsevec.h"
 #include "utils/array.h"
-#include "utils/builtins.h"
-#include "utils/numeric.h"
+#include "utils/float.h"
+#include "utils/fmgrprotos.h"
 #include "utils/lsyscache.h"
-#include "utils/numeric.h"
+#include "utils/varbit.h"
 #include "vector.h"
 
 #if PG_VERSION_NUM >= 160000
 #include "varatt.h"
 #endif
 
+#if PG_VERSION_NUM >= 170000
+#include "parser/scansup.h"
+#endif
+
+#if PG_VERSION_NUM >= 190000
+#define palloc_array_checked(type, count) ((type *) palloc_array(type, count))
+#else
+#define palloc_array_checked(type, count) ((type *) palloc(mul_size(sizeof(type), count)))
+#endif
+
 #define STATE_DIMS(x) (ARR_DIMS(x)[0] - 1)
-#define CreateStateDatums(dim) palloc(sizeof(Datum) * (dim + 1))
+#define CreateStateDatums(dim) palloc_array_checked(Datum, (dim) + 1)
 
 #if defined(USE_TARGET_CLONES) && !defined(__FMA__)
 #define VECTOR_TARGET_CLONES __attribute__((target_clones("default", "fma")))
@@ -35,7 +45,11 @@
 #define VECTOR_TARGET_CLONES
 #endif
 
+#if PG_VERSION_NUM >= 180000
+PG_MODULE_MAGIC_EXT(.name = "vector", .version = "0.8.6");
+#else
 PG_MODULE_MAGIC;
+#endif
 
 /*
  * Initialize index options and variables
@@ -115,7 +129,7 @@ Vector *
 InitVector(int dim)
 {
 	Vector	   *result;
-	int			size;
+	Size		size;
 
 	size = VECTOR_SIZE(dim);
 	result = (Vector *) palloc0(size);
@@ -125,9 +139,9 @@ InitVector(int dim)
 	return result;
 }
 
-/*
- * Check for whitespace, since array_isspace() is static
- */
+#if PG_VERSION_NUM >= 170000
+#define vector_isspace(ch) scanner_isspace(ch)
+#else
 static inline bool
 vector_isspace(char ch)
 {
@@ -140,6 +154,7 @@ vector_isspace(char ch)
 		return true;
 	return false;
 }
+#endif
 
 /*
  * Check state array
@@ -286,11 +301,11 @@ vector_out(PG_FUNCTION_ARGS)
 	 * dim * (FLOAT_SHORTEST_DECIMAL_LEN - 1) bytes for
 	 * float_to_shortest_decimal_bufn
 	 *
-	 * dim - 1 bytes for separator
+	 * max(dim - 1, 0) bytes for separator
 	 *
 	 * 3 bytes for [, ], and \0
 	 */
-	buf = (char *) palloc(FLOAT_SHORTEST_DECIMAL_LEN * dim + 2);
+	buf = (char *) palloc(add_size(mul_size(FLOAT_SHORTEST_DECIMAL_LEN, dim), 3));
 	ptr = buf;
 
 	AppendChar(ptr, '[');
@@ -507,13 +522,13 @@ vector_to_float4(PG_FUNCTION_ARGS)
 	Datum	   *datums;
 	ArrayType  *result;
 
-	datums = (Datum *) palloc(sizeof(Datum) * vec->dim);
+	datums = palloc_array_checked(Datum, vec->dim);
 
 	for (int i = 0; i < vec->dim; i++)
 		datums[i] = Float4GetDatum(vec->x[i]);
 
 	/* Use TYPALIGN_INT for float4 */
-	result = construct_array(datums, vec->dim, FLOAT4OID, sizeof(float4), FLOAT4PASSBYVAL, 'i');
+	result = construct_array(datums, vec->dim, FLOAT4OID, sizeof(float4), true, TYPALIGN_INT);
 
 	pfree(datums);
 
@@ -920,11 +935,13 @@ vector_concat(PG_FUNCTION_ARGS)
 	CheckDim(dim);
 	result = InitVector(dim);
 
-	for (int i = 0; i < a->dim; i++)
+	/* Auto-vectorized */
+	for (int i = 0, imax = a->dim; i < imax; i++)
 		result->x[i] = a->x[i];
 
-	for (int i = 0; i < b->dim; i++)
-		result->x[i + a->dim] = b->x[i];
+	/* Auto-vectorized */
+	for (int i = 0, imax = b->dim, start = a->dim; i < imax; i++)
+		result->x[i + start] = b->x[i];
 
 	PG_RETURN_POINTER(result);
 }
@@ -940,8 +957,21 @@ binary_quantize(PG_FUNCTION_ARGS)
 	float	   *ax = a->x;
 	VarBit	   *result = InitBitVector(a->dim);
 	unsigned char *rx = VARBITS(result);
+	int			i = 0;
+	int			count = (a->dim / 8) * 8;
 
-	for (int i = 0; i < a->dim; i++)
+	/* Auto-vectorized */
+	for (; i < count; i += 8)
+	{
+		unsigned char result_byte = 0;
+
+		for (int j = 0; j < 8; j++)
+			result_byte |= (ax[i + j] > 0) << (7 - j);
+
+		rx[i / 8] = result_byte;
+	}
+
+	for (; i < a->dim; i++)
 		rx[i / 8] |= (ax[i] > 0) << (7 - (i % 8));
 
 	PG_RETURN_VARBIT_P(result);
@@ -1122,7 +1152,7 @@ vector_accum(PG_FUNCTION_ARGS)
 	ArrayType  *statearray = PG_GETARG_ARRAYTYPE_P(0);
 	Vector	   *newval = PG_GETARG_VECTOR_P(1);
 	float8	   *statevalues;
-	int16		dim;
+	int			dim;
 	bool		newarr;
 	float8		n;
 	Datum	   *statedatums;
@@ -1164,7 +1194,9 @@ vector_accum(PG_FUNCTION_ARGS)
 	}
 
 	/* Use float8 array like float4_accum */
-	result = construct_array(statedatums, dim + 1, FLOAT8OID, sizeof(float8), FLOAT8PASSBYVAL, 'd');
+	result = construct_array(statedatums, dim + 1,
+							 FLOAT8OID,
+							 sizeof(float8), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE);
 
 	pfree(statedatums);
 
@@ -1186,7 +1218,7 @@ vector_combine(PG_FUNCTION_ARGS)
 	float8		n;
 	float8		n1;
 	float8		n2;
-	int16		dim;
+	int			dim;
 	Datum	   *statedatums;
 	ArrayType  *result;
 
@@ -1201,40 +1233,44 @@ vector_combine(PG_FUNCTION_ARGS)
 	{
 		n = n2;
 		dim = STATE_DIMS(statearray2);
+		CheckDim(dim);
 		statedatums = CreateStateDatums(dim);
-		for (int i = 1; i <= dim; i++)
-			statedatums[i] = Float8GetDatum(statevalues2[i]);
+		for (int i = 0; i < dim; i++)
+			statedatums[i + 1] = Float8GetDatum(statevalues2[i + 1]);
 	}
 	else if (n2 == 0.0)
 	{
 		n = n1;
 		dim = STATE_DIMS(statearray1);
+		CheckDim(dim);
 		statedatums = CreateStateDatums(dim);
-		for (int i = 1; i <= dim; i++)
-			statedatums[i] = Float8GetDatum(statevalues1[i]);
+		for (int i = 0; i < dim; i++)
+			statedatums[i + 1] = Float8GetDatum(statevalues1[i + 1]);
 	}
 	else
 	{
 		n = n1 + n2;
 		dim = STATE_DIMS(statearray1);
+		CheckDim(dim);
 		CheckExpectedDim(dim, STATE_DIMS(statearray2));
 		statedatums = CreateStateDatums(dim);
-		for (int i = 1; i <= dim; i++)
+		for (int i = 0; i < dim; i++)
 		{
-			double		v = statevalues1[i] + statevalues2[i];
+			double		v = statevalues1[i + 1] + statevalues2[i + 1];
 
 			/* Check for overflow */
 			if (isinf(v))
 				float_overflow_error();
 
-			statedatums[i] = Float8GetDatum(v);
+			statedatums[i + 1] = Float8GetDatum(v);
 		}
 	}
 
 	statedatums[0] = Float8GetDatum(n);
 
 	result = construct_array(statedatums, dim + 1,
-							 FLOAT8OID, sizeof(float8), FLOAT8PASSBYVAL, 'd');
+							 FLOAT8OID,
+							 sizeof(float8), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE);
 
 	pfree(statedatums);
 
@@ -1251,7 +1287,7 @@ vector_avg(PG_FUNCTION_ARGS)
 	ArrayType  *statearray = PG_GETARG_ARRAYTYPE_P(0);
 	float8	   *statevalues;
 	float8		n;
-	uint16		dim;
+	int			dim;
 	Vector	   *result;
 
 	/* Check array before using */

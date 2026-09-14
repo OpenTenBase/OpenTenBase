@@ -2,7 +2,7 @@ SET enable_seqscan = off;
 
 -- hamming
 
-CREATE TABLE t (val bit(3)) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t (val bit(3));
 INSERT INTO t (val) VALUES (B'000'), (B'100'), (B'111'), (NULL);
 CREATE INDEX ON t USING hnsw (val bit_hamming_ops);
 
@@ -15,7 +15,7 @@ DROP TABLE t;
 
 -- jaccard
 
-CREATE TABLE t (val bit(4)) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t (val bit(4));
 INSERT INTO t (val) VALUES (B'0000'), (B'1100'), (B'1111'), (NULL);
 CREATE INDEX ON t USING hnsw (val bit_jaccard_ops);
 
@@ -28,8 +28,18 @@ DROP TABLE t;
 
 -- varbit
 
-CREATE TABLE t (val varbit(3)) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t (val varbit(3));
 CREATE INDEX ON t USING hnsw (val bit_hamming_ops);
 CREATE INDEX ON t USING hnsw ((val::bit(3)) bit_hamming_ops);
 CREATE INDEX ON t USING hnsw ((val::bit(64001)) bit_hamming_ops);
+DROP TABLE t;
+
+-- dimensions
+
+CREATE TABLE t (val bit(64000));
+CREATE INDEX ON t USING hnsw (val bit_hamming_ops);
+DROP TABLE t;
+
+CREATE TABLE t (val bit(64001));
+CREATE INDEX ON t USING hnsw (val bit_hamming_ops);
 DROP TABLE t;

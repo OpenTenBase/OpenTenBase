@@ -9,16 +9,29 @@
 #include "lib/pairingheap.h"
 #include "nodes/execnodes.h"
 #include "port.h"				/* for random() */
+#include "storage/condition_variable.h"
 #include "utils/sampling.h"
 #include "utils/tuplesort.h"
 #include "vector.h"
+
+#if PG_VERSION_NUM >= 160000
+#include "varatt.h"
+#endif
 
 #if PG_VERSION_NUM >= 150000
 #include "common/pg_prng.h"
 #endif
 
+#if PG_VERSION_NUM < 190000
+#include "storage/shmem.h"		/* for add_size()/mul_size() in some versions */
+#endif
+
 #ifdef IVFFLAT_BENCH
 #include "portability/instr_time.h"
+#endif
+
+#if PG_VERSION_NUM >= 190000
+typedef Pointer Item;
 #endif
 
 #define IVFFLAT_MAX_DIM 2000
@@ -50,7 +63,7 @@
 #define PROGRESS_IVFFLAT_PHASE_ASSIGN	3
 #define PROGRESS_IVFFLAT_PHASE_LOAD		4
 
-#define IVFFLAT_LIST_SIZE(size)	(offsetof(IvfflatListData, center) + size)
+#define IVFFLAT_LIST_SIZE(size)	add_size(offsetof(IvfflatListData, center), size)
 
 #define IvfflatPageGetOpaque(page)	((IvfflatPageOpaque) PageGetSpecialPointer(page))
 #define IvfflatPageGetMeta(page)	((IvfflatMetaPageData *) PageGetContents(page))
@@ -73,13 +86,25 @@
 #if PG_VERSION_NUM >= 150000
 #define RandomDouble() pg_prng_double(&pg_global_prng_state)
 #define RandomInt() pg_prng_uint32(&pg_global_prng_state)
+#define SeedRandom(seed) pg_prng_seed(&pg_global_prng_state, seed)
 #else
 #define RandomDouble() (((double) random()) / MAX_RANDOM_VALUE)
 #define RandomInt() random()
+#define SeedRandom(seed) srandom(seed)
 #endif
 
-#define IvfflatHasEnableChecksum(relation)                                                         \
-	(((relation)->rd_options) ? ((IvfflatOptions *) (relation)->rd_options)->checksum : false)
+#if PG_VERSION_NUM < 140006
+#define palloc_object(type) ((type *) palloc(sizeof(type)))
+#define palloc0_object(type) ((type *) palloc0(sizeof(type)))
+#endif
+
+#if PG_VERSION_NUM >= 190000
+#define palloc_array_checked(type, count) ((type *) palloc_array(type, count))
+#define palloc0_array_checked(type, count) ((type *) palloc0_array(type, count))
+#else
+#define palloc_array_checked(type, count) ((type *) palloc(mul_size(sizeof(type), count)))
+#define palloc0_array_checked(type, count) ((type *) palloc0(mul_size(sizeof(type), count)))
+#endif
 
 /* Variables */
 extern int	ivfflat_probes;
@@ -114,7 +139,6 @@ typedef struct IvfflatOptions
 {
 	int32		vl_len_;		/* varlena header (do not touch directly!) */
 	int			lists;			/* number of lists */
-	bool        checksum;       /* enable checksum */
 }			IvfflatOptions;
 
 typedef struct IvfflatSpool
@@ -148,14 +172,15 @@ typedef struct IvfflatShared
 #endif
 }			IvfflatShared;
 
-#define ParallelTableScanFromIvfflatShared(shared)                                                 \
-	(ParallelHeapScanDesc)((char *) (shared) + BUFFERALIGN(sizeof(IvfflatShared)))
+#define ParallelTableScanFromIvfflatShared(shared) \
+	(ParallelTableScanDesc) ((char *) (shared) + BUFFERALIGN(sizeof(IvfflatShared)))
 
 typedef struct IvfflatLeader
 {
 	ParallelContext *pcxt;
 	int			nparticipanttuplesorts;
 	IvfflatShared *ivfshared;
+	Sharedsort *sharedsort;
 	Snapshot	snapshot;
 	char	   *ivfcenters;
 }			IvfflatLeader;
@@ -196,6 +221,7 @@ typedef struct IvfflatBuildState
 	VectorArray samples;
 	VectorArray centers;
 	ListInfo   *listInfo;
+	Size		itemsize;
 
 #ifdef IVFFLAT_KMEANS_DEBUG
 	double		inertia;
@@ -206,7 +232,8 @@ typedef struct IvfflatBuildState
 	/* Sampling */
 	BlockSamplerData bs;
 	ReservoirStateData rstate;
-	int			rowstoskip;
+	double		samplerows;
+	double		rowstoskip;
 
 	/* Sorting */
 	Tuplesortstate *sortstate;
@@ -214,6 +241,7 @@ typedef struct IvfflatBuildState
 	TupleTableSlot *slot;
 
 	/* Memory */
+	Size		memoryUsed;
 	MemoryContext tmpCtx;
 
 	/* Parallel builds */
@@ -287,36 +315,46 @@ typedef struct IvfflatScanOpaqueData
 
 typedef IvfflatScanOpaqueData * IvfflatScanOpaque;
 
-#define VECTOR_ARRAY_SIZE(_length, _size) (sizeof(VectorArrayData) + (_length) * MAXALIGN(_size))
+#define VECTOR_ARRAY_SIZE(_length, _size) add_size(sizeof(VectorArrayData), mul_size(_length, MAXALIGN(_size)))
 
 /* Use functions instead of macros to avoid double evaluation */
 
 static inline Pointer
 VectorArrayGet(VectorArray arr, int offset)
 {
+	if (offset < 0 || offset >= arr->maxlen)
+		elog(ERROR, "safety check failed");
+
 	return ((char *) arr->items) + (offset * arr->itemsize);
 }
 
 static inline void
 VectorArraySet(VectorArray arr, int offset, Pointer val)
 {
-	memcpy(VectorArrayGet(arr, offset), val, VARSIZE_ANY(val));
+	Size		size = VARSIZE_ANY(val);
+
+	if (size > arr->itemsize)
+		elog(ERROR, "safety check failed");
+
+	memcpy(VectorArrayGet(arr, offset), val, size);
 }
 
 /* Methods */
 VectorArray VectorArrayInit(int maxlen, int dimensions, Size itemsize);
 void		VectorArrayFree(VectorArray arr);
-void		IvfflatKmeans(Relation index, VectorArray samples, VectorArray centers, const IvfflatTypeInfo * typeInfo);
+void		IvfflatKmeans(Relation index, VectorArray samples, VectorArray centers, const IvfflatTypeInfo * typeInfo, Size memoryUsed);
 FmgrInfo   *IvfflatOptionalProcInfo(Relation index, uint16 procnum);
 Datum		IvfflatNormValue(const IvfflatTypeInfo * typeInfo, Oid collation, Datum value);
 bool		IvfflatCheckNorm(FmgrInfo *procinfo, Oid collation, Datum value);
+void		IvfflatNormVectors(const IvfflatTypeInfo * typeInfo, Oid collation, VectorArray arr, MemoryContext tmpCtx);
+void		IvfflatCheckMemoryUsage(Size totalSize);
 int			IvfflatGetLists(Relation index);
 void		IvfflatGetMetaPageInfo(Relation index, int *lists, int *dimensions);
 void		IvfflatUpdateList(Relation index, ListInfo listInfo, BlockNumber insertPage, BlockNumber originalInsertPage, BlockNumber startPage, ForkNumber forkNum);
 void		IvfflatCommitBuffer(Buffer buf, GenericXLogState *state);
 void		IvfflatAppendPage(Relation index, Buffer *buf, Page *page, GenericXLogState **state, ForkNumber forkNum);
 Buffer		IvfflatNewBuffer(Relation index, ForkNumber forkNum);
-void		IvfflatInitPage(Buffer buf, Page page, bool checksum);
+void		IvfflatInitPage(Buffer buf, Page page);
 void		IvfflatInitRegisterPage(Relation index, Buffer *buf, Page *page, GenericXLogState **state);
 void		IvfflatInit(void);
 const		IvfflatTypeInfo *IvfflatGetTypeInfo(Relation index);
@@ -325,8 +363,7 @@ PGDLLEXPORT void IvfflatParallelBuildMain(dsm_segment *seg, shm_toc *toc);
 /* Index access methods */
 IndexBuildResult *ivfflatbuild(Relation heap, Relation index, IndexInfo *indexInfo);
 void		ivfflatbuildempty(Relation index);
-bool ivfflatinsert(Relation index, Datum *values, bool *isnull, ItemPointer heap_tid, Relation heap,
-                   IndexUniqueCheck checkUnique
+bool		ivfflatinsert(Relation index, Datum *values, bool *isnull, ItemPointer heap_tid, Relation heap, IndexUniqueCheck checkUnique
 #if PG_VERSION_NUM >= 140000
 						  ,bool indexUnchanged
 #endif

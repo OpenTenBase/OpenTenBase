@@ -13,14 +13,28 @@
 #include "port.h"				/* for strtof() */
 #include "sparsevec.h"
 #include "utils/array.h"
-#include "utils/builtins.h"
-#include "utils/numeric.h"
+#include "utils/float.h"
+#include "utils/fmgrprotos.h"
 #include "utils/lsyscache.h"
-#include "utils/numeric.h"
+#include "utils/varbit.h"
 #include "vector.h"
 
+#if PG_VERSION_NUM >= 160000
+#include "varatt.h"
+#endif
+
+#if PG_VERSION_NUM >= 170000
+#include "parser/scansup.h"
+#endif
+
+#if PG_VERSION_NUM >= 190000
+#define palloc_array_checked(type, count) ((type *) palloc_array(type, count))
+#else
+#define palloc_array_checked(type, count) ((type *) palloc(mul_size(sizeof(type), count)))
+#endif
+
 #define STATE_DIMS(x) (ARR_DIMS(x)[0] - 1)
-#define CreateStateDatums(dim) palloc(sizeof(Datum) * (dim + 1))
+#define CreateStateDatums(dim) palloc_array_checked(Datum, (dim) + 1)
 
 /*
  * Get a half from a message buffer
@@ -119,7 +133,7 @@ HalfVector *
 InitHalfVector(int dim)
 {
 	HalfVector *result;
-	int			size;
+	Size		size;
 
 	size = HALFVEC_SIZE(dim);
 	result = (HalfVector *) palloc0(size);
@@ -129,9 +143,9 @@ InitHalfVector(int dim)
 	return result;
 }
 
-/*
- * Check for whitespace, since array_isspace() is static
- */
+#if PG_VERSION_NUM >= 170000
+#define halfvec_isspace(ch) scanner_isspace(ch)
+#else
 static inline bool
 halfvec_isspace(char ch)
 {
@@ -144,6 +158,7 @@ halfvec_isspace(char ch)
 		return true;
 	return false;
 }
+#endif
 
 /*
  * Check state array
@@ -291,11 +306,11 @@ halfvec_out(PG_FUNCTION_ARGS)
 	 * dim * (FLOAT_SHORTEST_DECIMAL_LEN - 1) bytes for
 	 * float_to_shortest_decimal_bufn
 	 *
-	 * dim - 1 bytes for separator
+	 * max(dim - 1, 0) bytes for separator
 	 *
 	 * 3 bytes for [, ], and \0
 	 */
-	buf = (char *) palloc(FLOAT_SHORTEST_DECIMAL_LEN * dim + 2);
+	buf = (char *) palloc(add_size(mul_size(FLOAT_SHORTEST_DECIMAL_LEN, dim), 3));
 	ptr = buf;
 
 	AppendChar(ptr, '[');
@@ -504,13 +519,13 @@ halfvec_to_float4(PG_FUNCTION_ARGS)
 	Datum	   *datums;
 	ArrayType  *result;
 
-	datums = (Datum *) palloc(sizeof(Datum) * vec->dim);
+	datums = palloc_array_checked(Datum, vec->dim);
 
 	for (int i = 0; i < vec->dim; i++)
 		datums[i] = Float4GetDatum(HalfToFloat4(vec->x[i]));
 
 	/* Use TYPALIGN_INT for float4 */
-	result = construct_array(datums, vec->dim, FLOAT4OID, sizeof(float4), FLOAT4PASSBYVAL, 'i');
+	result = construct_array(datums, vec->dim, FLOAT4OID, sizeof(float4), true, TYPALIGN_INT);
 
 	pfree(datums);
 
@@ -898,8 +913,21 @@ halfvec_binary_quantize(PG_FUNCTION_ARGS)
 	half	   *ax = a->x;
 	VarBit	   *result = InitBitVector(a->dim);
 	unsigned char *rx = VARBITS(result);
+	int			i = 0;
+	int			count = (a->dim / 8) * 8;
 
-	for (int i = 0; i < a->dim; i++)
+	/* Auto-vectorized on aarch64 */
+	for (; i < count; i += 8)
+	{
+		unsigned char result_byte = 0;
+
+		for (int j = 0; j < 8; j++)
+			result_byte |= (HalfToFloat4(ax[i + j]) > 0) << (7 - j);
+
+		rx[i / 8] = result_byte;
+	}
+
+	for (; i < a->dim; i++)
 		rx[i / 8] |= (HalfToFloat4(ax[i]) > 0) << (7 - (i % 8));
 
 	PG_RETURN_VARBIT_P(result);
@@ -1122,7 +1150,9 @@ halfvec_accum(PG_FUNCTION_ARGS)
 	}
 
 	/* Use float8 array like float4_accum */
-	result = construct_array(statedatums, dim + 1, FLOAT8OID, sizeof(float8), FLOAT8PASSBYVAL, 'd');
+	result = construct_array(statedatums, dim + 1,
+							 FLOAT8OID,
+							 sizeof(float8), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE);
 
 	pfree(statedatums);
 

@@ -128,6 +128,7 @@ SELECT l2_normalize('[3e38]'::vector);
 
 SELECT binary_quantize('[1,0,-1]'::vector);
 SELECT binary_quantize('[0,0.1,-0.2,-0.3,0.4,0.5,0.6,-0.7,0.8,-0.9,1]'::vector);
+SELECT binary_quantize('[1,2,3,-4,5,6,-7,8,1,-2,-3,4,5,-6,7,8,-1,2,3]'::vector);
 
 SELECT subvector('[1,2,3,4,5]'::vector, 1, 3);
 SELECT subvector('[1,2,3,4,5]'::vector, 3, 2);
@@ -145,7 +146,33 @@ SELECT avg(v) FROM unnest(ARRAY['[1,2,3]'::vector, '[3,5,7]', NULL]) v;
 SELECT avg(v) FROM unnest(ARRAY[]::vector[]) v;
 SELECT avg(v) FROM unnest(ARRAY['[1,2]'::vector, '[3]']) v;
 SELECT avg(v) FROM unnest(ARRAY['[3e38]'::vector, '[3e38]']) v;
+
+SELECT vector_avg('{2,2,4,6}');
+SELECT vector_avg('{0}');
+SELECT vector_avg('{1}');
+SELECT vector_avg('{{2,2,4,6}}');
+SELECT vector_avg('{NULL,2,4,6}');
+SELECT vector_avg('{}');
 SELECT vector_avg(array_agg(n)) FROM generate_series(1, 16002) n;
+
+SELECT vector_accum('{0}', '[1,2,3]');
+SELECT vector_accum('{0,0,0,0}', '[1,2,3]');
+SELECT vector_accum('{{0}}', '[1,2,3]');
+SELECT vector_accum('{NULL}', '[1,2,3]');
+SELECT vector_accum('{}', '[1,2,3]');
+SELECT vector_accum('{0,0}', '[1,2,3]');
+
+SELECT vector_combine('{1,2}', '{3,4}');
+SELECT vector_combine('{{1,2}}', '{3,4}');
+SELECT vector_combine('{1,2}', '{{3,4}}');
+SELECT vector_combine('{NULL,2}', '{3,4}');
+SELECT vector_combine('{1,2}', '{3,NULL}');
+SELECT vector_combine('{}', '{0}');
+SELECT vector_combine('{0}', '{}');
+SELECT vector_combine('{0}', '{0}');
+SELECT vector_combine('{0}', (SELECT array_agg(n) FROM generate_series(1, 16002) n));
+SELECT vector_combine((SELECT array_agg(n) FROM generate_series(1, 16002) n), '{0}');
+SELECT vector_combine((SELECT array_agg(n) FROM generate_series(1, 16002) n), (SELECT array_agg(n) FROM generate_series(1, 16002) n));
 
 SELECT sum(v) FROM unnest(ARRAY['[1,2,3]'::vector, '[3,5,7]']) v;
 SELECT sum(v) FROM unnest(ARRAY['[1,2,3]'::vector, '[3,5,7]', NULL]) v;

@@ -2,15 +2,26 @@
 
 #include <float.h>
 
+#include "access/genam.h"
+#include "access/itup.h"
 #include "access/relscan.h"
-#include "catalog/pg_operator.h"
-#include "catalog/pg_type.h"
+#include "access/tupdesc.h"
+#include "catalog/pg_operator_d.h"
+#include "catalog/pg_type_d.h"
+#include "fmgr.h"
 #include "lib/pairingheap.h"
 #include "ivfflat.h"
 #include "miscadmin.h"
 #include "pgstat.h"
 #include "storage/bufmgr.h"
 #include "utils/memutils.h"
+#include "utils/rel.h"
+#include "utils/snapmgr.h"
+#include "utils/tuplesort.h"
+
+#if PG_VERSION_NUM >= 160000
+#include "varatt.h"
+#endif
 
 #define GetScanList(ptr) pairingheap_container(IvfflatScanList, ph_node, ptr)
 #define GetScanListConst(ptr) pairingheap_const_container(IvfflatScanList, ph_node, ptr)
@@ -116,6 +127,8 @@ GetScanItems(IndexScanDesc scan, Datum value)
 	TupleDesc	tupdesc = RelationGetDescr(scan->indexRelation);
 	TupleTableSlot *slot = so->vslot;
 	int			batchProbes = 0;
+
+	tuplesort_reset(so->sortstate);
 
 	/* Search closest probes lists */
 	while (so->listIndex < so->maxProbes && (++batchProbes) <= so->probes)
@@ -230,8 +243,7 @@ InitScanSortState(TupleDesc tupdesc)
 	Oid			sortCollations[] = {InvalidOid};
 	bool		nullsFirstFlags[] = {false};
 
-	return tuplesort_begin_heap(tupdesc, 1, attNums, sortOperators, sortCollations, nullsFirstFlags,
-	                            work_mem, false);
+	return tuplesort_begin_heap(tupdesc, 1, attNums, sortOperators, sortCollations, nullsFirstFlags, work_mem, NULL, false);
 }
 
 /*
@@ -264,12 +276,13 @@ ivfflatbeginscan(Relation index, int nkeys, int norderbys)
 	if (maxProbes > lists)
 		maxProbes = lists;
 
-	so = (IvfflatScanOpaque) palloc(sizeof(IvfflatScanOpaqueData));
+	so = palloc_object(IvfflatScanOpaqueData);
 	so->typeInfo = IvfflatGetTypeInfo(index);
 	so->first = true;
 	so->probes = probes;
 	so->maxProbes = maxProbes;
 	so->dimensions = dimensions;
+	so->value = PointerGetDatum(NULL);
 
 	/* Set support functions */
 	so->procinfo = index_getprocinfo(index, 1, IVFFLAT_DISTANCE_PROC);
@@ -283,16 +296,19 @@ ivfflatbeginscan(Relation index, int nkeys, int norderbys)
 	oldCtx = MemoryContextSwitchTo(so->tmpCtx);
 
 	/* Create tuple description for sorting */
-	so->tupdesc = CreateTemplateTupleDesc(2, false);
+	so->tupdesc = CreateTemplateTupleDesc(2);
 	TupleDescInitEntry(so->tupdesc, (AttrNumber) 1, "distance", FLOAT8OID, -1, 0);
 	TupleDescInitEntry(so->tupdesc, (AttrNumber) 2, "heaptid", TIDOID, -1, 0);
+#if PG_VERSION_NUM >= 190000
+	TupleDescFinalize(so->tupdesc);
+#endif
 
 	/* Prep sort */
 	so->sortstate = InitScanSortState(so->tupdesc);
 
 	/* Need separate slots for puttuple and gettuple */
-	so->vslot = MakeSingleTupleTableSlot(so->tupdesc);
-	so->mslot = MakeSingleTupleTableSlot(so->tupdesc);
+	so->vslot = MakeSingleTupleTableSlot(so->tupdesc, &TTSOpsVirtual);
+	so->mslot = MakeSingleTupleTableSlot(so->tupdesc, &TTSOpsMinimalTuple);
 
 	/*
 	 * Reuse same set of shared buffers for scan
@@ -302,9 +318,9 @@ ivfflatbeginscan(Relation index, int nkeys, int norderbys)
 	so->bas = GetAccessStrategy(BAS_BULKREAD);
 
 	so->listQueue = pairingheap_allocate(CompareLists, scan);
-	so->listPages = palloc(maxProbes * sizeof(BlockNumber));
+	so->listPages = palloc_array_checked(BlockNumber, maxProbes);
 	so->listIndex = 0;
-	so->lists = palloc(maxProbes * sizeof(IvfflatScanList));
+	so->lists = palloc_array_checked(IvfflatScanList, maxProbes);
 
 	MemoryContextSwitchTo(oldCtx);
 
@@ -324,6 +340,12 @@ ivfflatrescan(IndexScanDesc scan, ScanKey keys, int nkeys, ScanKey orderbys, int
 	so->first = true;
 	pairingheap_reset(so->listQueue);
 	so->listIndex = 0;
+
+	if (so->normprocinfo != NULL && DatumGetPointer(so->value) != NULL)
+	{
+		pfree(DatumGetPointer(so->value));
+		so->value = PointerGetDatum(NULL);
+	}
 
 	if (keys && scan->numberOfKeys > 0)
 		memmove(scan->keyData, keys, scan->numberOfKeys * sizeof(ScanKeyData));
@@ -354,6 +376,10 @@ ivfflatgettuple(IndexScanDesc scan, ScanDirection dir)
 
 		/* Count index scan for stats */
 		pgstat_count_index_scan(scan->indexRelation);
+#if PG_VERSION_NUM >= 180000
+		if (scan->instrument)
+			scan->instrument->nsearches++;
+#endif
 
 		/* Safety check */
 		if (scan->orderByData == NULL)
@@ -381,7 +407,7 @@ ivfflatgettuple(IndexScanDesc scan, ScanDirection dir)
 
 	heaptid = (ItemPointer) DatumGetPointer(slot_getattr(so->mslot, 2, &isnull));
 
-	scan->xs_ctup.t_self = *heaptid;
+	scan->xs_heaptid = *heaptid;
 	scan->xs_recheck = false;
 	scan->xs_recheckorderby = false;
 	return true;

@@ -5,6 +5,13 @@
 
 #include <float.h>
 
+#include "fmgr.h"
+#include "utils/palloc.h"
+
+#if PG_VERSION_NUM < 190000
+#include "storage/shmem.h"		/* for add_size()/mul_size() in some versions */
+#endif
+
 /* We use two types of dispatching: intrinsics and target_clones */
 /* TODO Move to better place */
 #ifndef DISABLE_DISPATCH
@@ -52,7 +59,7 @@
 
 #define HALFVEC_MAX_DIM 16000
 
-#define HALFVEC_SIZE(_dim)		(offsetof(HalfVector, x) + sizeof(half)*(_dim))
+#define HALFVEC_SIZE(_dim)		add_size(offsetof(HalfVector, x), mul_size(sizeof(half), _dim))
 #define DatumGetHalfVector(x)	((HalfVector *) PG_DETOAST_DATUM(x))
 #define PG_GETARG_HALFVEC_P(x)	DatumGetHalfVector(PG_GETARG_DATUM(x))
 #define PG_RETURN_HALFVEC_P(x)	PG_RETURN_POINTER(x)

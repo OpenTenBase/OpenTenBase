@@ -113,3 +113,7 @@
 /src/gtm/xlog_test/set_gts
 /src/gtm/xlog_test/set_gts.c
 /src/gtm/xlog_test/xlog_reader
+
+# Local-only Claude sync notes (not for commit/push)
+PROGRESS.md
+CLAUDE.md

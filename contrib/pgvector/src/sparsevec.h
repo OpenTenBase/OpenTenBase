@@ -1,6 +1,13 @@
 #ifndef SPARSEVEC_H
 #define SPARSEVEC_H
 
+#include "fmgr.h"
+#include "utils/palloc.h"
+
+#if PG_VERSION_NUM < 190000
+#include "storage/shmem.h"		/* for add_size()/mul_size() in some versions */
+#endif
+
 #define SPARSEVEC_MAX_DIM 1000000000
 #define SPARSEVEC_MAX_NNZ 16000
 
@@ -26,7 +33,11 @@ typedef struct SparseVector
 static inline Size
 SPARSEVEC_SIZE(int nnz)
 {
-	return offsetof(SparseVector, indices) + (nnz * sizeof(int32)) + (nnz * sizeof(float));
+	Size		size = offsetof(SparseVector, indices);
+
+	size = add_size(size, mul_size(sizeof(int32), nnz));
+	size = add_size(size, mul_size(sizeof(float), nnz));
+	return size;
 }
 
 static inline float *

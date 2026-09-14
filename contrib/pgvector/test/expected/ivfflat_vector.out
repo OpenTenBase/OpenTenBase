@@ -1,9 +1,13 @@
 SET enable_seqscan = off;
+
 -- L2
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+
+CREATE TABLE t (val vector(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 CREATE INDEX ON t USING ivfflat (val vector_l2_ops) WITH (lists = 1);
+
 INSERT INTO t (val) VALUES ('[1,2,4]');
+
 SELECT * FROM t ORDER BY val <-> '[3,3,3]';
    val   
 ---------
@@ -25,6 +29,7 @@ SELECT COUNT(*) FROM t;
      5
 (1 row)
 
+
 TRUNCATE t;
 NOTICE:  ivfflat index created with little data
 DETAIL:  This will cause low recall.
@@ -34,12 +39,17 @@ SELECT * FROM t ORDER BY val <-> '[3,3,3]';
 -----
 (0 rows)
 
+
 DROP TABLE t;
+
 -- inner product
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+
+CREATE TABLE t (val vector(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 CREATE INDEX ON t USING ivfflat (val vector_ip_ops) WITH (lists = 1);
+
 INSERT INTO t (val) VALUES ('[1,2,4]');
+
 SELECT * FROM t ORDER BY val <#> '[3,3,3]';
    val   
 ---------
@@ -55,12 +65,17 @@ SELECT COUNT(*) FROM (SELECT * FROM t ORDER BY val <#> (SELECT NULL::vector)) t2
      4
 (1 row)
 
+
 DROP TABLE t;
+
 -- cosine
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+
+CREATE TABLE t (val vector(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 CREATE INDEX ON t USING ivfflat (val vector_cosine_ops) WITH (lists = 1);
+
 INSERT INTO t (val) VALUES ('[1,2,4]');
+
 SELECT * FROM t ORDER BY val <=> '[3,3,3]';
    val   
 ---------
@@ -81,11 +96,23 @@ SELECT COUNT(*) FROM (SELECT * FROM t ORDER BY val <=> (SELECT NULL::vector)) t2
      3
 (1 row)
 
+SELECT * FROM t CROSS JOIN LATERAL (SELECT * FROM t t2 ORDER BY val <=> t.val LIMIT 1) t2 WHERE t.val != '[0,0,0]' ORDER BY t.val;
+   val   |   val   
+---------+---------
+ [1,1,1] | [1,1,1]
+ [1,2,3] | [1,2,3]
+ [1,2,4] | [1,2,4]
+(3 rows)
+
+
 DROP TABLE t;
+
 -- iterative
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+
+CREATE TABLE t (val vector(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 CREATE INDEX ON t USING ivfflat (val vector_l2_ops) WITH (lists = 3);
+
 SET ivfflat.iterative_scan = relaxed_order;
 SELECT * FROM t ORDER BY val <-> '[3,3,3]';
    val   
@@ -95,12 +122,14 @@ SELECT * FROM t ORDER BY val <-> '[3,3,3]';
  [0,0,0]
 (3 rows)
 
+
 SET ivfflat.max_probes = 1;
 SELECT * FROM t ORDER BY val <-> '[3,3,3]';
    val   
 ---------
  [1,2,3]
 (1 row)
+
 
 SET ivfflat.max_probes = 2;
 SELECT * FROM t ORDER BY val <-> '[3,3,3]';
@@ -110,13 +139,27 @@ SELECT * FROM t ORDER BY val <-> '[3,3,3]';
  [1,1,1]
 (2 rows)
 
+
+TRUNCATE t;
+NOTICE:  ivfflat index created with little data
+DETAIL:  This will cause low recall.
+HINT:  Drop the index until the table has more data.
+SELECT * FROM t ORDER BY val <-> '[3,3,3]';
+ val 
+-----
+(0 rows)
+
+
 RESET ivfflat.iterative_scan;
 RESET ivfflat.max_probes;
 DROP TABLE t;
+
 -- unlogged
+
 CREATE UNLOGGED TABLE t (val vector(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 CREATE INDEX ON t USING ivfflat (val vector_l2_ops) WITH (lists = 1);
+
 SELECT * FROM t ORDER BY val <-> '[3,3,3]';
    val   
 ---------
@@ -125,15 +168,20 @@ SELECT * FROM t ORDER BY val <-> '[3,3,3]';
  [0,0,0]
 (3 rows)
 
+
 DROP TABLE t;
+
 -- options
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+
+CREATE TABLE t (val vector(3));
 CREATE INDEX ON t USING ivfflat (val vector_l2_ops) WITH (lists = 0);
 ERROR:  value 0 out of bounds for option "lists"
 DETAIL:  Valid values are between "1" and "32768".
 CREATE INDEX ON t USING ivfflat (val vector_l2_ops) WITH (lists = 32769);
 ERROR:  value 32769 out of bounds for option "lists"
 DETAIL:  Valid values are between "1" and "32768".
+DROP TABLE t;
+
 SHOW ivfflat.probes;
  ivfflat.probes 
 ----------------
@@ -144,6 +192,7 @@ SET ivfflat.probes = 0;
 ERROR:  0 is outside the valid range for parameter "ivfflat.probes" (1 .. 32768)
 SET ivfflat.probes = 32769;
 ERROR:  32769 is outside the valid range for parameter "ivfflat.probes" (1 .. 32768)
+
 SHOW ivfflat.iterative_scan;
  ivfflat.iterative_scan 
 ------------------------
@@ -153,6 +202,7 @@ SHOW ivfflat.iterative_scan;
 SET ivfflat.iterative_scan = on;
 ERROR:  invalid value for parameter "ivfflat.iterative_scan": "on"
 HINT:  Available values: off, relaxed_order.
+
 SHOW ivfflat.max_probes;
  ivfflat.max_probes 
 --------------------
@@ -163,4 +213,101 @@ SET ivfflat.max_probes = 0;
 ERROR:  0 is outside the valid range for parameter "ivfflat.max_probes" (1 .. 32768)
 SET ivfflat.max_probes = 32769;
 ERROR:  32769 is outside the valid range for parameter "ivfflat.max_probes" (1 .. 32768)
+
+-- dimensions
+
+CREATE TABLE t (val vector(2000));
+CREATE INDEX ON t USING ivfflat (val vector_l2_ops);
+NOTICE:  ivfflat index created with little data
+DETAIL:  This will cause low recall.
+HINT:  Drop the index until the table has more data.
+DROP TABLE t;
+
+CREATE TABLE t (val vector(2001));
+CREATE INDEX ON t USING ivfflat (val vector_l2_ops);
+ERROR:  column cannot have more than 2000 dimensions for ivfflat index
+DROP TABLE t;
+
+-- memory
+
+SET maintenance_work_mem = '1MB';
+CREATE TABLE t (val vector(2000));
+CREATE INDEX ON t USING ivfflat (val vector_l2_ops);
+NOTICE:  ivfflat index created with little data
+DETAIL:  This will cause low recall.
+HINT:  Drop the index until the table has more data.
+DROP TABLE t;
+RESET maintenance_work_mem;
+
+SET maintenance_work_mem = '5MB';
+CREATE TABLE t (val vector(2000));
+INSERT INTO t (val) VALUES (array_fill(0, ARRAY[2000]));
+CREATE INDEX ON t USING ivfflat (val vector_l2_ops);
+NOTICE:  ivfflat index created with little data
+DETAIL:  This will cause low recall.
+HINT:  Drop the index until the table has more data.
+DROP TABLE t;
+RESET maintenance_work_mem;
+
+-- diagnostic helper: ivfflat_index_info() and ivfflat_recommend_probes()
+
+CREATE TABLE t (val vector(3));
+INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
+CREATE INDEX t_val_idx ON t USING ivfflat (val vector_l2_ops) WITH (lists = 4);
+NOTICE:  ivfflat index created with little data
+DETAIL:  This will cause low recall.
+HINT:  Drop the index until the table has more data.
+
+-- default probes (not yet set)
+SELECT * FROM ivfflat_index_info('t_val_idx'::regclass);
+ lists | dimensions |    opclass    | probes 
+-------+------------+---------------+--------
+     4 |          3 | vector_l2_ops |      1
+(1 row)
+
+
+-- custom probes
+SET ivfflat.probes = 3;
+SELECT * FROM ivfflat_index_info('t_val_idx'::regclass);
+ lists | dimensions |    opclass    | probes 
+-------+------------+---------------+--------
+     4 |          3 | vector_l2_ops |      3
+(1 row)
+
+RESET ivfflat.probes;
+
+-- recommender: default target_recall (0.9)
+SELECT * FROM ivfflat_recommend_probes('t_val_idx'::regclass);
+ probes_min | probes_recommended | probes_max 
+------------+--------------------+------------
+          1 |                  2 |          2
+(1 row)
+
+
+-- recommender: target_recall=0.99 -> 1.5x multiplier
+SELECT * FROM ivfflat_recommend_probes('t_val_idx'::regclass, 0.99);
+ probes_min | probes_recommended | probes_max 
+------------+--------------------+------------
+          1 |                  3 |          3
+(1 row)
+
+
+-- recommender: target_recall=0.999 -> 2.5x multiplier
+SELECT * FROM ivfflat_recommend_probes('t_val_idx'::regclass, 0.999);
+ probes_min | probes_recommended | probes_max 
+------------+--------------------+------------
+          2 |                  5 |          5
+(1 row)
+
+
+DROP TABLE t;
+
+-- error: ivfflat_recommend_probes rejects non-ivfflat indexes
+CREATE TABLE t (val vector(3));
+INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
+CREATE INDEX t_val_idx ON t USING hnsw (val vector_l2_ops);
+SELECT ivfflat_recommend_probes('t_val_idx'::regclass);
+ERROR:  relation "t_val_idx" is not an ivfflat index
+CONTEXT:  SQL statement "SELECT i.lists FROM ivfflat_index_info(idx) i"
+PL/pgSQL function ivfflat_recommend_probes(regclass,double precision) line 10 at SQL statement
 DROP TABLE t;

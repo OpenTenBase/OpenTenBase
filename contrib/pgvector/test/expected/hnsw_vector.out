@@ -1,9 +1,13 @@
 SET enable_seqscan = off;
+
 -- L2
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+
+CREATE TABLE t (val vector(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 CREATE INDEX ON t USING hnsw (val vector_l2_ops);
+
 INSERT INTO t (val) VALUES ('[1,2,4]');
+
 SELECT * FROM t ORDER BY val <-> '[3,3,3]';
    val   
 ---------
@@ -25,18 +29,24 @@ SELECT COUNT(*) FROM t;
      5
 (1 row)
 
+
 TRUNCATE t;
 SELECT * FROM t ORDER BY val <-> '[3,3,3]';
  val 
 -----
 (0 rows)
 
+
 DROP TABLE t;
+
 -- inner product
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+
+CREATE TABLE t (val vector(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 CREATE INDEX ON t USING hnsw (val vector_ip_ops);
+
 INSERT INTO t (val) VALUES ('[1,2,4]');
+
 SELECT * FROM t ORDER BY val <#> '[3,3,3]';
    val   
 ---------
@@ -52,12 +62,17 @@ SELECT COUNT(*) FROM (SELECT * FROM t ORDER BY val <#> (SELECT NULL::vector)) t2
      4
 (1 row)
 
+
 DROP TABLE t;
+
 -- cosine
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+
+CREATE TABLE t (val vector(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 CREATE INDEX ON t USING hnsw (val vector_cosine_ops);
+
 INSERT INTO t (val) VALUES ('[1,2,4]');
+
 SELECT * FROM t ORDER BY val <=> '[3,3,3]';
    val   
 ---------
@@ -78,12 +93,25 @@ SELECT COUNT(*) FROM (SELECT * FROM t ORDER BY val <=> (SELECT NULL::vector)) t2
      3
 (1 row)
 
+SELECT * FROM t CROSS JOIN LATERAL (SELECT * FROM t t2 ORDER BY val <=> t.val LIMIT 1) t2 WHERE t.val != '[0,0,0]' ORDER BY t.val;
+   val   |   val   
+---------+---------
+ [1,1,1] | [1,1,1]
+ [1,2,3] | [1,2,3]
+ [1,2,4] | [1,2,4]
+(3 rows)
+
+
 DROP TABLE t;
+
 -- L1
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+
+CREATE TABLE t (val vector(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 CREATE INDEX ON t USING hnsw (val vector_l1_ops);
+
 INSERT INTO t (val) VALUES ('[1,2,4]');
+
 SELECT * FROM t ORDER BY val <+> '[3,3,3]';
    val   
 ---------
@@ -99,11 +127,15 @@ SELECT COUNT(*) FROM (SELECT * FROM t ORDER BY val <+> (SELECT NULL::vector)) t2
      4
 (1 row)
 
+
 DROP TABLE t;
+
 -- iterative
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+
+CREATE TABLE t (val vector(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 CREATE INDEX ON t USING hnsw (val vector_l2_ops);
+
 SET hnsw.iterative_scan = strict_order;
 SET hnsw.ef_search = 1;
 SELECT * FROM t ORDER BY val <-> '[3,3,3]';
@@ -114,6 +146,7 @@ SELECT * FROM t ORDER BY val <-> '[3,3,3]';
  [0,0,0]
 (3 rows)
 
+
 SET hnsw.iterative_scan = relaxed_order;
 SELECT * FROM t ORDER BY val <-> '[3,3,3]';
    val   
@@ -123,13 +156,24 @@ SELECT * FROM t ORDER BY val <-> '[3,3,3]';
  [0,0,0]
 (3 rows)
 
+
+TRUNCATE t;
+SELECT * FROM t ORDER BY val <-> '[3,3,3]';
+ val 
+-----
+(0 rows)
+
+
 RESET hnsw.iterative_scan;
 RESET hnsw.ef_search;
 DROP TABLE t;
+
 -- unlogged
+
 CREATE UNLOGGED TABLE t (val vector(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 CREATE INDEX ON t USING hnsw (val vector_l2_ops);
+
 SELECT * FROM t ORDER BY val <-> '[3,3,3]';
    val   
 ---------
@@ -138,9 +182,12 @@ SELECT * FROM t ORDER BY val <-> '[3,3,3]';
  [0,0,0]
 (3 rows)
 
+
 DROP TABLE t;
+
 -- options
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+
+CREATE TABLE t (val vector(3));
 CREATE INDEX ON t USING hnsw (val vector_l2_ops) WITH (m = 1);
 ERROR:  value 1 out of bounds for option "m"
 DETAIL:  Valid values are between "2" and "100".
@@ -155,6 +202,8 @@ ERROR:  value 1001 out of bounds for option "ef_construction"
 DETAIL:  Valid values are between "4" and "1000".
 CREATE INDEX ON t USING hnsw (val vector_l2_ops) WITH (m = 16, ef_construction = 31);
 ERROR:  ef_construction must be greater than or equal to 2 * m
+DROP TABLE t;
+
 SHOW hnsw.ef_search;
  hnsw.ef_search 
 ----------------
@@ -165,6 +214,7 @@ SET hnsw.ef_search = 0;
 ERROR:  0 is outside the valid range for parameter "hnsw.ef_search" (1 .. 1000)
 SET hnsw.ef_search = 1001;
 ERROR:  1001 is outside the valid range for parameter "hnsw.ef_search" (1 .. 1000)
+
 SHOW hnsw.iterative_scan;
  hnsw.iterative_scan 
 ---------------------
@@ -174,6 +224,7 @@ SHOW hnsw.iterative_scan;
 SET hnsw.iterative_scan = on;
 ERROR:  invalid value for parameter "hnsw.iterative_scan": "on"
 HINT:  Available values: off, relaxed_order, strict_order.
+
 SHOW hnsw.max_scan_tuples;
  hnsw.max_scan_tuples 
 ----------------------
@@ -182,6 +233,7 @@ SHOW hnsw.max_scan_tuples;
 
 SET hnsw.max_scan_tuples = 0;
 ERROR:  0 is outside the valid range for parameter "hnsw.max_scan_tuples" (1 .. 2147483647)
+
 SHOW hnsw.scan_mem_multiplier;
  hnsw.scan_mem_multiplier 
 --------------------------
@@ -192,4 +244,77 @@ SET hnsw.scan_mem_multiplier = 0;
 ERROR:  0 is outside the valid range for parameter "hnsw.scan_mem_multiplier" (1 .. 1000)
 SET hnsw.scan_mem_multiplier = 1001;
 ERROR:  1001 is outside the valid range for parameter "hnsw.scan_mem_multiplier" (1 .. 1000)
+
+-- dimensions
+
+CREATE TABLE t (val vector(2000));
+CREATE INDEX ON t USING hnsw (val vector_l2_ops);
+DROP TABLE t;
+
+CREATE TABLE t (val vector(2001));
+CREATE INDEX ON t USING hnsw (val vector_l2_ops);
+ERROR:  column cannot have more than 2000 dimensions for hnsw index
+DROP TABLE t;
+
+-- diagnostic helper: hnsw_index_info() and hnsw_recommend_ef_search()
+
+CREATE TABLE t (val vector(3));
+INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
+CREATE INDEX t_val_idx ON t USING hnsw (val vector_l2_ops) WITH (m = 8, ef_construction = 32);
+
+-- default ef_search (not yet set)
+SELECT * FROM hnsw_index_info('t_val_idx'::regclass);
+ m | ef_construction | dimensions |    opclass    | ef_search 
+---+-----------------+------------+---------------+-----------
+ 8 |              32 |          3 | vector_l2_ops |        40
+(1 row)
+
+
+-- custom ef_search
+SET hnsw.ef_search = 20;
+SELECT * FROM hnsw_index_info('t_val_idx'::regclass);
+ m | ef_construction | dimensions |    opclass    | ef_search 
+---+-----------------+------------+---------------+-----------
+ 8 |              32 |          3 | vector_l2_ops |        20
+(1 row)
+
+RESET hnsw.ef_search;
+
+-- recommender: default top_k=10, target_recall=0.9
+SELECT * FROM hnsw_recommend_ef_search('t_val_idx'::regclass);
+ ef_search_min | ef_search_recommended | ef_search_max 
+---------------+-----------------------+---------------
+            32 |                    32 |           128
+(1 row)
+
+
+-- recommender: target_recall=0.99 -> 1.5x multiplier
+SELECT * FROM hnsw_recommend_ef_search('t_val_idx'::regclass, 10, 0.99);
+ ef_search_min | ef_search_recommended | ef_search_max 
+---------------+-----------------------+---------------
+            32 |                    48 |           128
+(1 row)
+
+
+-- recommender: top_k=50 forces ef_search up to 100
+SELECT * FROM hnsw_recommend_ef_search('t_val_idx'::regclass, 50);
+ ef_search_min | ef_search_recommended | ef_search_max 
+---------------+-----------------------+---------------
+            32 |                   100 |           128
+(1 row)
+
+
+DROP TABLE t;
+
+-- error: hnsw_recommend_ef_search rejects non-hnsw indexes
+CREATE TABLE t (val vector(3));
+INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
+CREATE INDEX t_val_idx ON t USING ivfflat (val vector_l2_ops) WITH (lists = 4);
+NOTICE:  ivfflat index created with little data
+DETAIL:  This will cause low recall.
+HINT:  Drop the index until the table has more data.
+SELECT hnsw_recommend_ef_search('t_val_idx'::regclass);
+ERROR:  relation "t_val_idx" is not an hnsw index
+CONTEXT:  SQL statement "SELECT i.ef_construction FROM hnsw_index_info(idx) i"
+PL/pgSQL function hnsw_recommend_ef_search(regclass,integer,double precision) line 10 at SQL statement
 DROP TABLE t;

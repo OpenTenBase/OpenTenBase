@@ -1,5 +1,5 @@
 EXTENSION = vector
-EXTVERSION = 0.8.0
+EXTVERSION = 0.8.6
 
 DATA_built = sql\$(EXTENSION)--$(EXTVERSION).sql
 OBJS = src\bitutils.obj src\bitvec.obj src\halfutils.obj src\halfvec.obj src\hnsw.obj src\hnswbuild.obj src\hnswinsert.obj src\hnswscan.obj src\hnswutils.obj src\hnswvacuum.obj src\ivfbuild.obj src\ivfflat.obj src\ivfinsert.obj src\ivfkmeans.obj src\ivfscan.obj src\ivfutils.obj src\ivfvacuum.obj src\sparsevec.obj src\vector.obj
@@ -31,6 +31,14 @@ LIBDIR = $(PGROOT)\lib
 PKGLIBDIR = $(PGROOT)\lib
 SHAREDIR = $(PGROOT)\share
 
+# For Postgres 19+
+!if exists("$(INCLUDEDIR_SERVER)\catalog\pg_propgraph_property.h")
+PG_CFLAGS = $(PG_CFLAGS) /std:c11
+!endif
+
+# Use $(PGROOT)\bin\pg_regress for Postgres < 17
+PG_REGRESS = $(LIBDIR)\pgxs\src\test\regress\pg_regress
+
 CFLAGS = /nologo /I"$(INCLUDEDIR_SERVER)\port\win32_msvc" /I"$(INCLUDEDIR_SERVER)\port\win32" /I"$(INCLUDEDIR_SERVER)" /I"$(INCLUDEDIR)"
 
 CFLAGS = $(CFLAGS) $(PG_CFLAGS)
@@ -54,11 +62,11 @@ install: all
 	copy $(SHLIB) "$(PKGLIBDIR)"
 	copy $(EXTENSION).control "$(SHAREDIR)\extension"
 	copy sql\$(EXTENSION)--*.sql "$(SHAREDIR)\extension"
-	mkdir "$(INCLUDEDIR_SERVER)\extension\$(EXTENSION)"
+	if not exist "$(INCLUDEDIR_SERVER)\extension\$(EXTENSION)" mkdir "$(INCLUDEDIR_SERVER)\extension\$(EXTENSION)"
 	for %f in ($(HEADERS)) do copy %f "$(INCLUDEDIR_SERVER)\extension\$(EXTENSION)"
 
 installcheck:
-	"$(BINDIR)\pg_regress" --bindir="$(BINDIR)" $(REGRESS_OPTS) $(REGRESS)
+	"$(PG_REGRESS)" --bindir="$(BINDIR)" $(REGRESS_OPTS) $(REGRESS)
 
 uninstall:
 	del /f "$(PKGLIBDIR)\$(SHLIB)"

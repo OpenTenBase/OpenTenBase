@@ -2,7 +2,7 @@ SET enable_seqscan = off;
 
 -- L2
 
-CREATE TABLE t (val sparsevec(3)) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t (val sparsevec(3));
 INSERT INTO t (val) VALUES ('{}/3'), ('{1:1,2:2,3:3}/3'), ('{1:1,2:1,3:1}/3'), (NULL);
 CREATE INDEX ON t USING hnsw (val sparsevec_l2_ops);
 
@@ -19,7 +19,7 @@ DROP TABLE t;
 
 -- inner product
 
-CREATE TABLE t (val sparsevec(3)) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t (val sparsevec(3));
 INSERT INTO t (val) VALUES ('{}/3'), ('{1:1,2:2,3:3}/3'), ('{1:1,2:1,3:1}/3'), (NULL);
 CREATE INDEX ON t USING hnsw (val sparsevec_ip_ops);
 
@@ -32,7 +32,7 @@ DROP TABLE t;
 
 -- cosine
 
-CREATE TABLE t (val sparsevec(3)) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t (val sparsevec(3));
 INSERT INTO t (val) VALUES ('{}/3'), ('{1:1,2:2,3:3}/3'), ('{1:1,2:1,3:1}/3'), (NULL);
 CREATE INDEX ON t USING hnsw (val sparsevec_cosine_ops);
 
@@ -46,7 +46,7 @@ DROP TABLE t;
 
 -- L1
 
-CREATE TABLE t (val sparsevec(3)) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t (val sparsevec(3));
 INSERT INTO t (val) VALUES ('{}/3'), ('{1:1,2:2,3:3}/3'), ('{1:1,2:1,3:1}/3'), (NULL);
 CREATE INDEX ON t USING hnsw (val sparsevec_l1_ops);
 

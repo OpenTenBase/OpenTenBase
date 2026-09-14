@@ -151,13 +151,15 @@ CREATE AGGREGATE avg(halfvec) (
 	STYPE = double precision[],
 	FINALFUNC = halfvec_avg,
 	COMBINEFUNC = halfvec_combine,
-	INITCOND = '{0}'
+	INITCOND = '{0}',
+	PARALLEL = SAFE
 );
 
 CREATE AGGREGATE sum(halfvec) (
 	SFUNC = halfvec_add,
 	STYPE = halfvec,
-	COMBINEFUNC = halfvec_add
+	COMBINEFUNC = halfvec_add,
+	PARALLEL = SAFE
 );
 
 CREATE FUNCTION halfvec(halfvec, integer, boolean) RETURNS halfvec

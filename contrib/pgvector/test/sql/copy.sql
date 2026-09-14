@@ -1,6 +1,6 @@
 -- vector
 
-CREATE TABLE t (val vector(3)) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t (val vector(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 
 CREATE TABLE t2 (val vector(3));
@@ -15,7 +15,7 @@ DROP TABLE t2;
 
 -- halfvec
 
-CREATE TABLE t (val halfvec(3)) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t (val halfvec(3));
 INSERT INTO t (val) VALUES ('[0,0,0]'), ('[1,2,3]'), ('[1,1,1]'), (NULL);
 
 CREATE TABLE t2 (val halfvec(3));
@@ -30,7 +30,7 @@ DROP TABLE t2;
 
 -- sparsevec
 
-CREATE TABLE t (val sparsevec(3)) DISTRIBUTE BY REPLICATION;
+CREATE TABLE t (val sparsevec(3));
 INSERT INTO t (val) VALUES ('{}/3'), ('{1:1,2:2,3:3}/3'), ('{1:1,2:1,3:1}/3'), (NULL);
 
 CREATE TABLE t2 (val sparsevec(3));
