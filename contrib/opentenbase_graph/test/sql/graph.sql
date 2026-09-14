@@ -87,5 +87,47 @@ SELECT * FROM opentenbase_graph._graph_info('g_edges', 'src', 'dst');
 -- _graph_info: bad src_col identifier is rejected
 SELECT opentenbase_graph._graph_info('g_edges', 'src; DROP TABLE x', 'dst');
 
+-- ============================================================================
+-- v1.2: weighted_shortest_path (Dijkstra over per-edge weights)
+-- ============================================================================
+ALTER TABLE g_edges ADD COLUMN weight double precision;
+TRUNCATE g_edges;
+
+-- 3-edge DAG: A->B (1) ->C (2) vs A->C (10); expect to take the cheap chain
+INSERT INTO g_edges VALUES
+    (1, 2, 1.0),
+    (2, 3, 2.0),
+    (1, 3, 10.0);
+SELECT * FROM opentenbase_graph.weighted_shortest_path(
+    'g_edges', 'src', 'dst', 'weight', 1, 3, 1000.0);
+
+-- unreachable: 3 has no outgoing edges
+SELECT * FROM opentenbase_graph.weighted_shortest_path(
+    'g_edges', 'src', 'dst', 'weight', 3, 1, 1000.0);
+
+-- budget too tight: cheapest path is cost=3, ask for <=2
+SELECT * FROM opentenbase_graph.weighted_shortest_path(
+    'g_edges', 'src', 'dst', 'weight', 1, 3, 2.0);
+
+-- self-loop ignored: A->A (5), A->B (1); must pick A->B
+TRUNCATE g_edges;
+INSERT INTO g_edges VALUES (1, 1, 5.0), (1, 2, 1.0);
+SELECT * FROM opentenbase_graph.weighted_shortest_path(
+    'g_edges', 'src', 'dst', 'weight', 1, 2, 100.0);
+
+-- cycle + off-tree target: A->B->C->A (1 each), A->D (5); D->C goes D->A->B->C, cost=7
+TRUNCATE g_edges;
+INSERT INTO g_edges VALUES
+    (1, 2, 1.0),
+    (2, 3, 1.0),
+    (3, 1, 1.0),
+    (1, 4, 5.0);
+SELECT * FROM opentenbase_graph.weighted_shortest_path(
+    'g_edges', 'src', 'dst', 'weight', 4, 3, 100.0);
+
+-- weighted_bad identifier: weight_col injection attempt must error
+SELECT opentenbase_graph.weighted_shortest_path(
+    'g_edges', 'src', 'dst', 'weight; DROP TABLE x', 1, 2, 100.0);
+
 DROP TABLE g_edges;
 DROP TABLE g_nodes;
