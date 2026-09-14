@@ -38,6 +38,7 @@ SUBDIRS = \
 		pg_stat_statements \
 		pg_surgery	\
 		pg_trgm		\
+		pgvector	\
 		pgrowlocks	\
 		pgstattuple	\
 		pg_visibility	\
