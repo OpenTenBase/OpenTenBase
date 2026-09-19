@@ -577,4 +577,94 @@ BEGIN
     -- Call the URL version with data URL
     RETURN ai.image(prompt, 'data:' || mime_type || ';base64,' || base64_image, model_name, config);
 END;
+
 $$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION ai.update_model(model_name text, config text, value text)
+RETURNS boolean AS $$
+DECLARE
+    rows_affected integer;
+    sql_command text;
+    column_type text;
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM public.ai_model_list WHERE model_name = update_model.model_name
+    ) THEN
+        RAISE EXCEPTION 'model "%" not found', model_name
+            USING ERRCODE = 'undefined_object';
+    END IF;
+
+    IF config IS NULL OR NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'ai_model_list'
+          AND column_name = config
+    ) THEN
+        RAISE EXCEPTION 'invalid config column "%"', config
+            USING ERRCODE = 'invalid_parameter_value';
+    END IF;
+
+    EXECUTE format('SELECT pg_typeof(ai_model_list.%I)::text FROM public.ai_model_list LIMIT 1', config) INTO column_type;
+
+    EXECUTE format('UPDATE public.ai_model_list SET %I = %L::%s WHERE model_name = %L', config, value, column_type, model_name);
+
+    GET DIAGNOSTICS rows_affected = ROW_COUNT;
+    RETURN rows_affected > 0;
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION ai.add_model(
+    model_name text,
+    request_header http_header[],
+    uri text,
+    default_args jsonb,
+    model_provider text,
+    request_type text,
+    content_type text,
+    json_path text
+) RETURNS boolean AS $$
+DECLARE
+    rows_affected integer;
+BEGIN
+    INSERT INTO public.ai_model_list VALUES(
+        model_name, model_provider, request_type, request_header, uri,
+        content_type, default_args, json_path
+    );
+
+    GET DIAGNOSTICS rows_affected = ROW_COUNT;
+    RETURN rows_affected > 0;
+EXCEPTION
+    WHEN unique_violation THEN
+        RAISE EXCEPTION 'model "%" already exists; use ai.update_model to change it or ai.delete_model before re-registering',
+            model_name
+            USING ERRCODE = 'unique_violation';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION ai.add_model(
+    model_name text,
+    request_header http_header[],
+    uri text,
+    default_args jsonb,
+    model_provider text,
+    request_type text,
+    content_type text,
+    json_path text
+) RETURNS boolean AS $$
+DECLARE
+    rows_affected integer;
+BEGIN
+    INSERT INTO public.ai_model_list VALUES(
+        model_name, model_provider, request_type, request_header, uri,
+        content_type, default_args, json_path
+    );
+
+    GET DIAGNOSTICS rows_affected = ROW_COUNT;
+    RETURN rows_affected > 0;
+EXCEPTION
+    WHEN unique_violation THEN
+        RAISE EXCEPTION 'model "%" already exists; use ai.update_model to change it or ai.delete_model before re-registering',
+            model_name
+            USING ERRCODE = 'unique_violation';
+END;
+$$ LANGUAGE plpgsql;
+
+
