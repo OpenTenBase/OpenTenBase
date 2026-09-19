@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <poll.h>
 #include <regex>
+#include <cctype>
 
 // Extract version from package name
 std::string extract_version_from_package_name(const std::string& package_name) {
@@ -237,12 +238,51 @@ bool is_Centralized_instance(std::string instance_type) {
     return instance_type == Constants::INSTANCE_TYPE_CENTRALIZED;
 }
 
+// 用单引号引用字符串，防止 shell 命令注入
+std::string shell_quote(const std::string& s) {
+    std::string quoted = "'";
+    for (char c : s) {
+        if (c == '\'') {
+            // 单引号内部无法直接包含单引号，用 '\'' 结束再拼接
+            quoted += "'\\''";
+        } else {
+            quoted += c;
+        }
+    }
+    quoted += "'";
+    return quoted;
+}
+
+// 校验 GUC 参数名是否为合法标识符
+bool is_valid_guc_name(const std::string& name) {
+    if (name.empty()) {
+        return false;
+    }
+    for (size_t i = 0; i < name.size(); ++i) {
+        unsigned char c = static_cast<unsigned char>(name[i]);
+        if (i == 0) {
+            if (!(std::isalpha(c) || c == '_')) {
+                return false;
+            }
+        } else {
+            if (!(std::isalnum(c) || c == '_' || c == '.')) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 // SQL转义函数
+// 该 SQL 会被嵌入 `--command "..."` 的双引号中，最终在远端经 base64 解码后由 bash 执行，
+// 因此需要转义双引号、反斜杠、美元符号和反引号，防止 $()/`...` 被 bash 解释执行。
 std::string escape_sql(const std::string& sql) {
     std::string escaped;
     for (char c : sql) {
         if (c == '"') escaped += "\\\"";    // 转义双引号
         else if (c == '\\') escaped += "\\\\"; // 转义反斜杠
+        else if (c == '$') escaped += "\\$";  // 转义美元符号，防止 $() 命令替换
+        else if (c == '`') escaped += "\\`";  // 转义反引号，防止命令替换
         else escaped += c;
     }
     return escaped;
@@ -258,7 +298,7 @@ std::string build_sql_cmd_for_psql(const std::string& binDir,
     const std::string& sql) {
 
     // psql connection
-    std::string conn_str = "psql -h " + ip + " -p " + std::to_string(port) + " -d " + database + " -U " + std::string(Constants::DEFAULT_USER_OF_INITDB) + psql_option;
+    std::string conn_str = "psql -h " + ip + " -p " + std::to_string(port) + " -d " + shell_quote(database) + " -U " + std::string(Constants::DEFAULT_USER_OF_INITDB) + psql_option;
 
     // sql command
     std::string psql_cmd;
