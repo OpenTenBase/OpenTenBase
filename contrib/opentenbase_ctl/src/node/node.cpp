@@ -1666,9 +1666,15 @@ int delete_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node) {
     int ret = 0;
     std::string result = "";
 
+    // 校验 GUC 参数名，防止其被注入到 sed 命令中
+    if (!is_valid_guc_name(configInfo->guc.guc_name)) {
+        LOG_ERROR_FMT("Invalid GUC parameter name: %s", configInfo->guc.guc_name.c_str());
+        return -1;
+    }
+
     if (is_gtm_node(node.type))
     {
-        std::string command="sed -i '/^[[:blank:]]*" + configInfo->guc.guc_name + "[[:blank:]]*=/d' " + node.data_path + "/" + Constants::FILE_GTM_CONF;
+        std::string command="sed -i '/^[[:blank:]]*" + configInfo->guc.guc_name + "[[:blank:]]*=/d' " + shell_quote(node.data_path + "/" + Constants::FILE_GTM_CONF);
         LOG_DEBUG_FMT("Executing command: %s", command.c_str());
         ret = remote_ssh_exec(node.ip,
             configInfo->server.ssh_port,
@@ -1684,7 +1690,7 @@ int delete_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node) {
         
     } else {
 
-        std::string command="sed -i '/^[[:blank:]]*" + configInfo->guc.guc_name + "[[:blank:]]*=/d' " + node.data_path + "/" + Constants::FILE_POSTGRESQL_CONF;
+        std::string command="sed -i '/^[[:blank:]]*" + configInfo->guc.guc_name + "[[:blank:]]*=/d' " + shell_quote(node.data_path + "/" + Constants::FILE_POSTGRESQL_CONF);
         LOG_DEBUG_FMT("Executing command: %s", command.c_str());
         ret = remote_ssh_exec(node.ip,
             configInfo->server.ssh_port,
@@ -1698,7 +1704,7 @@ int delete_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node) {
             std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
         } 
 
-        command="sed -i '/^[[:blank:]]*" + configInfo->guc.guc_name + "[[:blank:]]*=/d' " + node.data_path + "/" + Constants::FILE_POSTGRESQL_CONF_USER;
+        command="sed -i '/^[[:blank:]]*" + configInfo->guc.guc_name + "[[:blank:]]*=/d' " + shell_quote(node.data_path + "/" + Constants::FILE_POSTGRESQL_CONF_USER);
         LOG_DEBUG_FMT("Executing command: %s", command.c_str());
         ret = remote_ssh_exec(node.ip,
             configInfo->server.ssh_port,
@@ -1729,6 +1735,12 @@ int add_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node) {
     int ret = 0;
     std::string result = "";
 
+    // 校验 GUC 参数名，防止其被注入到 shell 命令中
+    if (!is_valid_guc_name(configInfo->guc.guc_name)) {
+        LOG_ERROR_FMT("Invalid GUC parameter name: %s", configInfo->guc.guc_name.c_str());
+        return -1;
+    }
+
     // 配置文件
     std::string config_file_path = "";
     if (is_gtm_node(node.type))
@@ -1739,9 +1751,9 @@ int add_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node) {
     }
 
     // Build base command string
-    std::string command = "echo -e \"";
-    command += configInfo->guc.guc_name + " = " + configInfo->guc.guc_value;
-    command += "\" >> " + config_file_path;
+    // 使用 printf + 单引号引用，确保 GUC 值中的 $()、反引号、引号等被当作字面量写入，而非被 shell 执行
+    std::string line = configInfo->guc.guc_name + " = " + configInfo->guc.guc_value;
+    std::string command = "printf '%s\\n' " + shell_quote(line) + " >> " + shell_quote(config_file_path);
 
     ret = remote_ssh_exec(node.ip,
                         configInfo->server.ssh_port,
@@ -1768,9 +1780,16 @@ int add_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node) {
 int show_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node, std::string& result) {
 
     int ret = 0;
+
+    // 校验 GUC 参数名，防止其被注入到 grep/sql 命令中
+    if (!is_valid_guc_name(configInfo->guc.guc_name)) {
+        LOG_ERROR_FMT("Invalid GUC parameter name: %s", configInfo->guc.guc_name.c_str());
+        return -1;
+    }
+
     if (is_gtm_node(node.type)){
 
-        std::string command = "grep '^" + configInfo->guc.guc_name + "' " + node.data_path + "/" + Constants::FILE_GTM_CONF + " | cut -d'=' -f2 | head -n1";
+        std::string command = "grep '^" + configInfo->guc.guc_name + "' " + shell_quote(node.data_path + "/" + Constants::FILE_GTM_CONF) + " | cut -d'=' -f2 | head -n1";
         LOG_DEBUG_FMT("Executing command: %s", command.c_str());
         ret = remote_ssh_exec(node.ip,
             configInfo->server.ssh_port,
