@@ -213,8 +213,17 @@ int get_nodes_per_servers(const std::string& str) {
 
 // 使用 std::stoi 封装的转换函数
 int get_ssh_port(const std::string& str) {
+    if (str.empty() || str.find_first_not_of("0123456789") != std::string::npos) {
+        LOG_ERROR_FMT("ssh-port in Config file must contain only decimal digits.");
+        return -1;
+    }
     try {
-        return std::stoi(str);
+        int port = std::stoi(str);
+        if (port < 1 || port > 65535) {
+            LOG_ERROR_FMT("ssh-port in Config file must be between 1 and 65535.");
+            return -1;
+        }
+        return port;
     } catch (const std::invalid_argument& e) {
         LOG_ERROR_FMT("ssh-port in Config file is invalid.");
         return -1;
@@ -1069,10 +1078,14 @@ build_config_from_args(CommandLineArgs& args, OpentenbaseConfig& config) {
         config.nodes.push_back(node);
     }
 
-    // Set server configuration
+    // Set server configuration only after validating the port.
+    int ssh_port = get_ssh_port(args.ssh_port);
+    if (ssh_port == -1) {
+        return -1;
+    }
     config.server.ssh_user = args.ssh_user;
     config.server.ssh_password = args.ssh_password;
-    config.server.ssh_port = std::stoi(args.ssh_port);
+    config.server.ssh_port = ssh_port;
 
 
     LOG_INFO_FMT("Successfully built configuration from command line arguments");
