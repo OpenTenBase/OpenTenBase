@@ -385,7 +385,8 @@ build_cn_node_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
     }
     
     std::map<std::string, std::string> cn_guc_cfg;
-    if (!parseConfigFile(cfg_file.coordinators.conf, cn_guc_cfg)) {
+    if (!cfg_file.coordinators.conf.empty() &&
+        !parseConfigFile(cfg_file.coordinators.conf, cn_guc_cfg)) {
         LOG_ERROR_FMT("Failed to parse configuration file %s.", cfg_file.coordinators.conf.c_str());
         return -1;
     }
@@ -447,7 +448,8 @@ build_dn_node_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
 
     // build dn guc config
     std::map<std::string, std::string> dn_guc_cfg;
-    if (!parseConfigFile(cfg_file.datanodes.conf, dn_guc_cfg)) {
+    if (!cfg_file.datanodes.conf.empty() &&
+        !parseConfigFile(cfg_file.datanodes.conf, dn_guc_cfg)) {
         LOG_ERROR_FMT("Failed to parse configuration file %s.", cfg_file.datanodes.conf.c_str());
         return -1;
     }
