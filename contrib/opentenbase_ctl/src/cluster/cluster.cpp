@@ -1499,7 +1499,9 @@ int shell_command(OpentenbaseConfig *config_info) {
     std::cout << "--------------------------------------------------------  " << '\n' << '\n';
 
     // 获得不重复的IP列表
-    std::vector<std::string> server_list = getServerList(config_info->nodes);
+    // Apply --node selection before deduplicating the target hosts.
+    std::vector<NodeInfo> op_nodes = filterNodesByOpStatus(*config_info, true);
+    std::vector<std::string> server_list = getServerList(op_nodes);
     if (server_list.size() == 0)
     {
         LOG_ERROR_FMT("Server IP list size is zero, please specify the configuration file through - c ");
