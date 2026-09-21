@@ -111,11 +111,22 @@ bool parseConfigFile(const std::string& filename, std::map<std::string, std::str
         std::string key = trim(trimmedLine.substr(0, equalsPos));
         std::string value = trim(trimmedLine.substr(equalsPos + 1));
 
-        // 查找注释的位置（#）
-        size_t commentPos = value.find('#');
-        if (commentPos != std::string::npos) {
-            // 如果有注释，截取注释前的部分
-            value = trim(value.substr(0, commentPos));
+        // Only an unquoted # starts a comment. Preserve the GUC spelling,
+        // including backslash escapes and doubled single quotes.
+        bool inQuotes = false;
+        for (size_t i = 0; i < value.size(); ++i) {
+            if (inQuotes && value[i] == '\\' && i + 1 < value.size()) {
+                ++i;
+            } else if (value[i] == '\'') {
+                if (inQuotes && i + 1 < value.size() && value[i + 1] == '\'') {
+                    ++i;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (value[i] == '#' && !inQuotes) {
+                value = trim(value.substr(0, i));
+                break;
+            }
         }
 
         // 插入到map中，如果键已存在，后面的会覆盖前面的
