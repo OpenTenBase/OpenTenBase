@@ -257,12 +257,33 @@ std::string build_sql_cmd_for_psql(const std::string& binDir,
     const std::string& psql_option, 
     const std::string& sql) {
 
+    bool should_execute_local = is_local_ip(ip);
+
+    // Preserve the requested database role as one literal shell argument.
+    std::string quoted_username = "'";
+    for (char c : username) {
+        if (c == '\'') quoted_username += "'\\''";
+        else quoted_username += c;
+    }
+    quoted_username += "'";
+    if (should_execute_local) {
+        // local_exec_as_user adds an outer double-quoted bash -c argument.
+        // Protect this literal argument through that additional shell pass.
+        std::string nested_username;
+        for (char c : quoted_username) {
+            if (c == '\\' || c == '"' || c == '$' || c == '`') {
+                nested_username += '\\';
+            }
+            nested_username += c;
+        }
+        quoted_username = nested_username;
+    }
+
     // psql connection
-    std::string conn_str = "psql -h " + ip + " -p " + std::to_string(port) + " -d " + database + " -U " + std::string(Constants::DEFAULT_USER_OF_INITDB) + psql_option;
+    std::string conn_str = "psql -h " + ip + " -p " + std::to_string(port) + " -d " + database + " -U " + quoted_username + psql_option;
 
     // sql command
     std::string psql_cmd;
-    bool should_execute_local = is_local_ip(ip);
     if (should_execute_local) {
         psql_cmd =  conn_str + "  --command \\\"" + escape_sql(sql) + "\\\" ";
     } else {
