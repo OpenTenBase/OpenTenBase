@@ -1000,7 +1000,8 @@ endif # enable_nls
 
 %.o : %.c
     ifeq ($(enable_simd), yes)
-	 $(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@ 2>&1 | tee $*.log
+	 $(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@ > $*.log 2>&1 || { cat $*.log; exit 1; }
+	 cat $*.log
 	 [ ! -f $(top_srcdir)/src/vectorize_check.sh ] || $(top_srcdir)/src/vectorize_check.sh $< $*.log
     else	
 	 $(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@ 
