@@ -32,6 +32,7 @@ installdirs:
 	$(MKDIR_P) '$(DESTDIR)$(bindir)'
 
 check:
+	CXX="$(CXX)" $(SHELL) "$(srcdir)/tests/run_shell_selection_tests.sh"
 	$(prove_check)
 
 installcheck:
