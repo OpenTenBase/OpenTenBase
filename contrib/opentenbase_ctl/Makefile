@@ -31,8 +31,12 @@ install: all installdirs
 installdirs:
 	$(MKDIR_P) '$(DESTDIR)$(bindir)'
 
-check:
+check: check-cli-headers
 	$(prove_check)
+
+.PHONY: check-cli-headers
+check-cli-headers:
+	CXX="$(CXX)" $(SHELL) $(srcdir)/tests/run_cli_header_tests.sh
 
 installcheck:
 	$(prove_installcheck)
