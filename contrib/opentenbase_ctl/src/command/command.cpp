@@ -199,12 +199,17 @@ std::string getEnvironmentVariableFromBashrc(const std::string& var_name) {
         return "";
     }
 
-    // 读取命令输出
+    // fgets can split a saved path across several reads. Collect complete
+    // lines before selecting the last assignment, including an empty one.
     while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-        // 去除可能的换行符
-        std::string line(buffer.data());
-        line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
-        result = line;
+        result.append(buffer.data());
+    }
+    if (!result.empty() && result.back() == '\n') {
+        result.pop_back();
+    }
+    size_t last_newline = result.find_last_of('\n');
+    if (last_newline != std::string::npos) {
+        result.erase(0, last_newline + 1);
     }
 
     return result;
