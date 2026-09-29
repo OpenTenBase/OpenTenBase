@@ -31,7 +31,6 @@ contrib_check_dir+=contrib/file_fdw
 contrib_check_dir+=src/backend/contrib/pgcrypto
 
 contrib_check_dir+=contrib/opentenbase_ora_package_function
-contrib_check_dir+=contrib/pg_plan_ads
 
 
 subdir = src/test/regress_dn
