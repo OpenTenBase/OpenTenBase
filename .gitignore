@@ -4,6 +4,7 @@
 .settings/language.settings.xml
 *.so
 *.o
+/src/include/opentenbase_ora/gram_ora.h
 /.idea
 .*/.DS_Store
 /src/.idea/misc.xml
