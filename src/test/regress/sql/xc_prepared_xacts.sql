@@ -207,6 +207,13 @@ select is_prepared_on_node('pt_1', 1); -- false
 
 commit prepared 'pt_1';
 
+-- test rollback prepared for empty / read-only transaction (NULL nodestring handling)
+begin;
+  select count(*) from t1;
+prepare transaction 'pt_ro_1';
+select gid from pg_prepared_xacts where gid = 'pt_ro_1';
+rollback prepared 'pt_ro_1';
+
 -- ****  
 
 -- drop objects created
