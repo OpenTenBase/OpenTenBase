@@ -8182,6 +8182,9 @@ pgxc_node_remote_prefinish(char *prepareGID, char *nodestring)
 #endif
 
 
+	if (!nodestring || nodestring[0] == '\0')
+		return false;
+
 	nodename = strtok(nodestring, ",");
 	while (nodename != NULL)
 	{
@@ -8325,8 +8328,8 @@ pgxc_node_remote_prefinish(char *prepareGID, char *nodestring)
 bool
 FinishRemotePreparedTransaction(char *prepareGID, bool commit)
 {
-	char				   *nodestring;
-	char 				   *savenodestring PG_USED_FOR_ASSERTS_ONLY;
+	char				   *nodestring = NULL;
+	char 				   *savenodestring = NULL;
 	GlobalTransactionId		gxid, prepare_gxid;
 	bool					prepared_local = false;
 
@@ -8415,12 +8418,21 @@ FinishRemotePreparedTransaction(char *prepareGID, bool commit)
 #endif
 
 #ifdef __SUPPORT_DISTRIBUTED_TRANSACTION__
-	savenodestring = MemoryContextStrdup(TopMemoryContext, nodestring);
-	pgxc_node_remote_prefinish(prepareGID, savenodestring);
+	if (nodestring)
+	{
+		savenodestring = pstrdup(nodestring);
+		pgxc_node_remote_prefinish(prepareGID, savenodestring);
+		pfree(savenodestring);
+		savenodestring = NULL;
+	}
 #endif
 	prepared_local = pgxc_node_remote_finish(prepareGID, commit, nodestring,
 											 gxid, prepare_gxid);
-	free(nodestring);
+	if (nodestring)
+	{
+		free(nodestring);
+		nodestring = NULL;
+	}
 #ifdef __USE_GLOBAL_SNAPSHOT__
 
 	if (commit)
@@ -8546,37 +8558,47 @@ pgxc_node_remote_finish(char *prepareGID, bool commit,
 	SetGlobalCommitTimestamp(global_committs);/* Save for local commit */
 #endif
 
-	nodename = strtok(nodestring, ",");
-	while (nodename != NULL)
+	if (nodestring && nodestring[0] != '\0')
 	{
-		int		nodeIndex;
-		char	nodetype;
-
-		/* Get node type and index */
-		nodetype = PGXC_NODE_NONE;
-		nodeIndex = PGXCNodeGetNodeIdFromName(nodename, &nodetype);
-		if (nodetype == PGXC_NODE_NONE)
-			ereport(ERROR,
-					(errcode(ERRCODE_UNDEFINED_OBJECT),
-					 errmsg("PGXC Node %s: object not defined",
-							nodename)));
-
-		/* Check if node is requested is the self-node or not */
-		if (nodetype == PGXC_NODE_COORDINATOR)
+		nodename = strtok(nodestring, ",");
+		while (nodename != NULL)
 		{
-			if (nodeIndex == PGXCNodeId - 1)
-				prepared_local = true;
-			else
-				coordlist = lappend_int(coordlist, nodeIndex);
-		}
-		else
-			nodelist = lappend_int(nodelist, nodeIndex);
+			int		nodeIndex;
+			char	nodetype;
 
-		nodename = strtok(NULL, ",");
+			/* Get node type and index */
+			nodetype = PGXC_NODE_NONE;
+			nodeIndex = PGXCNodeGetNodeIdFromName(nodename, &nodetype);
+			if (nodetype == PGXC_NODE_NONE)
+				ereport(ERROR,
+						(errcode(ERRCODE_UNDEFINED_OBJECT),
+						 errmsg("PGXC Node %s: object not defined",
+								nodename)));
+
+			/* Check if node is requested is the self-node or not */
+			if (nodetype == PGXC_NODE_COORDINATOR)
+			{
+				if (nodeIndex == PGXCNodeId - 1)
+					prepared_local = true;
+				else
+					coordlist = lappend_int(coordlist, nodeIndex);
+			}
+			else
+				nodelist = lappend_int(nodelist, nodeIndex);
+
+			nodename = strtok(NULL, ",");
+		}
 	}
 
 	if (nodelist == NIL && coordlist == NIL)
+	{
+		if (connections)
+		{
+			pfree(connections);
+			connections = NULL;
+		}
 		return prepared_local;
+	}
 
 	/* make sure only use write handles, and only one write handle for each node*/
 	pgxc_handles = get_handles(nodelist, coordlist, nodelist == NIL,
@@ -8733,7 +8755,7 @@ pgxc_node_remote_finish(char *prepareGID, bool commit,
 #ifdef __TWO_PHASE_TRANS__
 			g_twophase_state.coord_state[twophase_index].conn_state =
 				TWO_PHASE_SEND_GXID_ERROR;
-			g_twophase_state.coord_state[twophase_index] =
+			g_twophase_state.coord_state[twophase_index].state =
 				(commit == true) ? TWO_PHASE_COMMIT_ERROR : TWO_PHASE_ABORT_ERROR;
 			all_conn_healthy = false;
 			g_twophase_state.coord_index++;
