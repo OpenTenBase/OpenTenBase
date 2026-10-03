@@ -193,7 +193,7 @@
 
 # - Settings -
 
-#wal_level = replica			# minimal, replica, or logical
+#wal_level = logical			# minimal, replica, or logical
 					# (change requires restart)
 #fsync = on				# flush data to disk for crash safety
 					# (turning this off can cause
@@ -255,7 +255,7 @@
 
 #max_replication_slots = 10	# max number of replication slots
 				# (change requires restart)
-#track_commit_timestamp = off	# collect timestamp of transaction commit
+#track_commit_timestamp = on	# collect timestamp of transaction commit
 				# (change requires restart)
 
 # - Master Server -
@@ -294,9 +294,9 @@
 
 # These settings are ignored on a publisher.
 
-#max_logical_replication_workers = 4	# taken from max_worker_processes
+#max_logical_replication_workers = 64	# taken from max_worker_processes
 					# (change requires restart)
-#max_sync_workers_per_subscription = 2	# taken from max_logical_replication_workers
+#max_sync_workers_per_subscription = 4	# taken from max_logical_replication_workers
 
 
 #------------------------------------------------------------------------------
@@ -688,11 +688,11 @@
 
 #pooler_port = 6667			# Pool Manager TCP port
 					# (change requires restart)
-#max_pool_size = 100			# Maximum pool size
-#pool_conn_keepalive = 600		# Close connections if they are idle
+#max_pool_size = 300			# Maximum pool size
+#pool_conn_keepalive = 60		# Close connections if they are idle
 					# in the pool for that time
 					# A value of -1 turns autoclose off
-#pool_maintenance_timeout = 30		# Launch maintenance routine if pooler
+#pool_maintenance_timeout = 10		# Launch maintenance routine if pooler
 					# is idle for that time
 					# A value of -1 turns feature off
 #persistent_datanode_connections = off	# Set persistent connection mode for pooler
