@@ -4517,18 +4517,14 @@ SELECT * FROM parent WHERE key = 2400;
         </primary>
        </indexterm>
       </term>
-      <listitem>
+       <listitem>
        <para>
-        Allows the leader process to execute the query plan under
-        <literal>Gather</literal> and <literal>Gather Merge</literal> nodes
-        instead of waiting for worker processes.  The default is
-        <literal>on</literal>.  Setting this value to <literal>off</literal>
-        reduces the likelihood that workers will become blocked because the
-        leader is not reading tuples fast enough, but requires the leader
-        process to wait for worker processes to start up before the first
-        tuples can be produced.  The degree to which the leader can help or
-        hinder performance depends on the plan type, number of workers and
-        query duration.
+        This parameter is accepted for compatibility but has no effect in
+        <productname>OpenTenBase</>: the GUC is registered as an obsolete
+        placeholder, the planner constant that gates leader participation
+        is compiled in (see <filename>src/include/optimizer/planmain.h</>),
+        and setting the parameter only emits a warning that the
+        corresponding logic has been removed.
        </para>
       </listitem>
      </varlistentry>
@@ -9117,15 +9113,30 @@ LOG:  CleanUpLock: deleting: lock(0xb7acd844) id(24688,24696,0,0,0,1)
       </listitem>
      </varlistentry>
 
-     <varlistentry id="guc-min-pool-size" xreflabel="min_pool_size">
-      <term><varname>min_pool_size</varname> (<type>integer</type>)
+     <varlistentry id="guc-min-free-size" xreflabel="min_free_size">
+      <term><varname>min_free_size</varname> (<type>integer</type>)
        <indexterm>
-        <primary><varname>min_pool_size</> configuration parameter</primary>
+        <primary><varname>min_free_size</> configuration parameter</primary>
        </indexterm>
       </term>
       <listitem>
        <para>
-        Minumum number of the connection from the Coordinator to Datanodes.
+        Total minimum number of free pool connections kept on a Datanode
+        across all databases.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-min-free-size-per-db" xreflabel="min_free_size_per_db">
+      <term><varname>min_free_size_per_db</varname> (<type>integer</type>)
+       <indexterm>
+        <primary><varname>min_free_size_per_db</> configuration parameter</primary>
+       </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Minimum number of free pool connections kept per database; the pool
+        acquires new connections in steps of this size.
        </para>
       </listitem>
      </varlistentry>
