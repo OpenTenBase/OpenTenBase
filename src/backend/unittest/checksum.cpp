@@ -44,7 +44,7 @@ GetRandomPage(Page page)
 	/* initialize random seed */
 	srand(time(NULL));
 
-	PageInit(page, BLCKSZ, 0);
+	PageInit(page, BLCKSZ, 0, false);
 	item = (Item) malloc(RANDOM_ITEM_BUFF);
 
 	/* fill page with random items */
@@ -64,6 +64,8 @@ GetRandomPage(Page page)
 			break;
 		}
 	}
+
+	free(item);
 	return blocknum;
 }
 
