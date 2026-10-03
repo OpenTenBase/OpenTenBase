@@ -229,6 +229,8 @@ end_replication_initial_sync(GTM_Conn *conn)
 
 	if (res->gr_status == GTM_RESULT_OK)
 		Assert(res->gr_type == NODE_END_REPLICATION_INIT_RESULT);
+	else
+		return 0;
 
 	return 1;
 
