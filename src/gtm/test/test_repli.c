@@ -42,13 +42,13 @@ test01()
 	SETUP();
 
 	rc = begin_replication_initial_sync(conn);
-	if ( rc>=0 )
+	if ( rc==1 )
 		client_log(("begin_replication_initial_sync() ok.\n"));
 	else
 		client_log(("begin_replication_initial_sync() failed.\n"));
 
 	rc = end_replication_initial_sync(conn);
-	if ( rc>=0 )
+	if ( rc==1 )
 		client_log(("end_replication_initial_sync() ok.\n"));
 	else
 		client_log(("end_replication_initial_sync() failed.\n"));
