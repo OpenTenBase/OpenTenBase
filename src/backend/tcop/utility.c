@@ -3587,10 +3587,16 @@ ProcessUtilitySlow(ParseState *pstate,
 									{
 										case DISTTYPE_HASH: 										
 										case DISTTYPE_MODULO:
-											elog(ERROR, "Cannot support distribute type: Hash");
+											ereport(ERROR,
+												(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+												 errmsg("distribute type \"HASH\" or \"MODULO\" is not enabled in this build"),
+												 errhint("Rebuild OpenTenBase with --enable-alltype-distri to enable HASH/MODULO/ROUNDROBIN.")));
 											break;
 										case DISTTYPE_ROUNDROBIN:
-											elog(ERROR, "Cannot support distribute type: RoundRobin");
+											ereport(ERROR,
+												(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+												 errmsg("distribute type \"ROUNDROBIN\" is not enabled in this build"),
+												 errhint("Rebuild OpenTenBase with --enable-alltype-distri to enable HASH/MODULO/ROUNDROBIN.")));
 											break;
 										default:
 											elog(ERROR,"Unknown distribute type.");
