@@ -18,8 +18,8 @@
 #include "gtm/elog.h"
 #include "gtm/gtm.h"
 
-static void 
-get_abstime_wait(int microseconds, struct timespec *abstime);
+static void
+get_abstime_wait(int milliseconds, struct timespec *abstime);
 
 /*
  * Acquire the request lock. Block if the lock is not available
@@ -486,24 +486,29 @@ GTM_CVWait(GTM_CV *cv, GTM_MutexLock *lock)
 	return pthread_cond_wait(&cv->cv_condvar, &lock->lk_lock);
 }
 
-static void 
-get_abstime_wait(int microseconds, struct timespec *abstime)
+static void
+get_abstime_wait(int milliseconds, struct timespec *abstime)
 {
     struct timeval tv;
     long long absmsec;
     gettimeofday(&tv, NULL);
     absmsec = tv.tv_sec * 1000ll + tv.tv_usec / 1000ll;
-    absmsec += microseconds;
+    absmsec += milliseconds;
 
     abstime->tv_sec = absmsec / 1000ll;
     abstime->tv_nsec = absmsec % 1000ll * 1000000ll;
 }
 
+/*
+ * Wait on the condition variable for at most the given number of
+ * milliseconds.  Despite the historical parameter name, the timeout has
+ * always been rounded to milliseconds by get_abstime_wait().
+ */
 int
-GTM_CVTimeWait(GTM_CV *cv, GTM_MutexLock *lock,int micro_seconds)
+GTM_CVTimeWait(GTM_CV *cv, GTM_MutexLock *lock, int milliseconds)
 {
 	struct timespec time;
-    get_abstime_wait(micro_seconds,&time);
+    get_abstime_wait(milliseconds,&time);
 	return pthread_cond_timedwait(&cv->cv_condvar, &lock->lk_lock,&time);
 }
 
