@@ -47,6 +47,21 @@ ALTER INDEX ptif_test_index ATTACH PARTITION ptif_test3_index;
 SELECT pg_partition_root('ptif_test_index');
 SELECT pg_partition_root('ptif_test0_index');
 SELECT pg_partition_root('ptif_test3_index');
+-- Test pg_partition_tree for indexes
+SELECT relid, parentrelid, "level", isleaf
+  FROM pg_partition_tree('ptif_test_index');
+-- List indexes from an intermediate level
+SELECT relid, parentrelid, "level", isleaf
+  FROM pg_partition_tree('ptif_test0_index') p
+  JOIN pg_class c ON (p.relid = c.oid);
+-- List from leaf index
+SELECT relid, parentrelid, "level", isleaf
+  FROM pg_partition_tree('ptif_test01_index') p
+  JOIN pg_class c ON (p.relid = c.oid);
+-- List from partitioned index with no partitions
+SELECT relid, parentrelid, "level", isleaf
+  FROM pg_partition_tree('ptif_test3_index') p
+  JOIN pg_class c ON (p.relid = c.oid);
 
 -- List all tables members of the tree
 SELECT relid, parentrelid, "level", isleaf
@@ -70,6 +85,9 @@ SELECT relid, parentrelid, "level", isleaf
 -- List all ancestors of root and leaf tables
 SELECT * FROM pg_partition_ancestors('ptif_test01');
 SELECT * FROM pg_partition_ancestors('ptif_test');
+-- List all ancestors of root and leaf indexes
+SELECT * FROM pg_partition_ancestors('ptif_test01_index');
+SELECT * FROM pg_partition_ancestors('ptif_test_index');
 
 DROP TABLE ptif_test;
 
