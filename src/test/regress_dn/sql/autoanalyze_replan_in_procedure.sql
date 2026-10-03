@@ -29,7 +29,12 @@ BEGIN
 		insert into t1_20231215 values (i, md5(i::text));
 		insert into t2_20231215 select count(1) from t1_20231215 where id > 290;
 
-	    -- Use regular expressions to count the scan methods
+	    -- Capture the plan of the monitored query, then use regular
+	    -- expressions to count the scan methods
+	    explain_result := '';
+	    FOR line IN EXECUTE 'EXPLAIN (COSTS OFF) SELECT count(1) FROM t1_20231215 WHERE id > 290' LOOP
+	        explain_result := explain_result || line || chr(10);
+	    END LOOP;
 	    SELECT count(*) INTO index_scan_count FROM regexp_matches(explain_result, 'Index Scan', 'g');
 	    SELECT count(*) INTO index_only_scan_count FROM regexp_matches(explain_result, 'Index Only Scan', 'g');
 	    SELECT count(*) INTO seq_scan_count FROM regexp_matches(explain_result, 'Seq Scan', 'g');
@@ -73,8 +78,13 @@ BEGIN
 	for i in 1..300 loop
 		insert into t1_20231215 values (i, md5(i::text));
 		insert into t2_20231215 select count(1) from t1_20231215 where id > 290;
-		
-	    -- Use regular expressions to count the scan methods
+
+	    -- Capture the plan of the monitored query, then use regular
+	    -- expressions to count the scan methods
+	    explain_result := '';
+	    FOR line IN EXECUTE 'EXPLAIN (COSTS OFF) SELECT count(1) FROM t1_20231215 WHERE id > 290' LOOP
+	        explain_result := explain_result || line || chr(10);
+	    END LOOP;
 	    SELECT count(*) INTO index_scan_count FROM regexp_matches(explain_result, 'Index Scan', 'g');
 	    SELECT count(*) INTO index_only_scan_count FROM regexp_matches(explain_result, 'Index Only Scan', 'g');
 	    SELECT count(*) INTO seq_scan_count FROM regexp_matches(explain_result, 'Seq Scan', 'g');
@@ -118,8 +128,13 @@ BEGIN
 	for i in 1..300 loop
 		insert into t1_20231215 values (i, md5(i::text));
 		insert into t2_20231215 select count(1) from t1_20231215 where id > 290;
-		
-	    -- Use regular expressions to count the scan methods
+
+	    -- Capture the plan of the monitored query, then use regular
+	    -- expressions to count the scan methods
+	    explain_result := '';
+	    FOR line IN EXECUTE 'EXPLAIN (COSTS OFF) SELECT count(1) FROM t1_20231215 WHERE id > 290' LOOP
+	        explain_result := explain_result || line || chr(10);
+	    END LOOP;
 	    SELECT count(*) INTO index_scan_count FROM regexp_matches(explain_result, 'Index Scan', 'g');
 	    SELECT count(*) INTO index_only_scan_count FROM regexp_matches(explain_result, 'Index Only Scan', 'g');
 	    SELECT count(*) INTO seq_scan_count FROM regexp_matches(explain_result, 'Seq Scan', 'g');
