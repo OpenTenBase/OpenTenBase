@@ -61,8 +61,11 @@ static const int month_days[2][13] = {
 	{0, 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
 };
 
+#define MYSQL_IS_LEAP_YEAR(y) \
+	(((y) % 4) == 0 && (((y) % 100) != 0 || ((y) % 400) == 0))
+
 #define MONTH_DAYS(y, m) \
-	(month_days[((y) > 0 && IS_LEAP_YEAR(y)) ? 1 : 0][m])
+	(month_days[((y) > 0 && MYSQL_IS_LEAP_YEAR(y)) ? 1 : 0][m])
 
 /* Upper-case ASCII letters in place, for unit-name matching. */
 static char *
@@ -197,7 +200,7 @@ iso_weeks_in_year(int y)
 
 	if (isodow == 4)
 		return 53;
-	if (isodow == 3 && IS_LEAP_YEAR(y))
+	if (isodow == 3 && MYSQL_IS_LEAP_YEAR(y))
 		return 53;
 	return 52;
 }
@@ -339,17 +342,20 @@ mysql_date_format(PG_FUNCTION_ARGS)
 				break;
 			case 'U':			/* week, Sunday first day */
 				appendStringInfo(&res, "%02d",
-								 sunday_week(tm.tm_year, tm.tm_mon, tm.tm_mday));
+								 sunday_week_u(tm.tm_year, tm.tm_mon, tm.tm_mday));
 				break;
 			case 'u':			/* week, Monday first day */
 				appendStringInfo(&res, "%02d",
 								 monday_week(tm.tm_year, tm.tm_mon, tm.tm_mday));
 				break;
 			case 'V':			/* week, Sunday first, 1..53 as %X */
-				appendStringInfo(&res, "%02d",
-								 sunday_week(tm.tm_year, tm.tm_mon, tm.tm_mday) == 0
-								 ? 53
-								 : sunday_week(tm.tm_year, tm.tm_mon, tm.tm_mday));
+				{
+					int			wkyear;
+
+					appendStringInfo(&res, "%02d",
+									 sunday_week(tm.tm_year, tm.tm_mon, tm.tm_mday,
+												 &wkyear));
+				}
 				break;
 			case 'v':			/* ISO week 1..53, as %x */
 				{
@@ -370,9 +376,11 @@ mysql_date_format(PG_FUNCTION_ARGS)
 				break;
 			case 'X':			/* year for the Sunday-based week */
 				{
-					int			w = sunday_week(tm.tm_year, tm.tm_mon, tm.tm_mday);
+					int			wkyear;
 
-					appendStringInfo(&res, "%04d", w == 0 ? tm.tm_year - 1 : tm.tm_year);
+					(void) sunday_week(tm.tm_year, tm.tm_mon, tm.tm_mday,
+									   &wkyear);
+					appendStringInfo(&res, "%04d", wkyear);
 				}
 				break;
 			case 'x':			/* ISO year */
