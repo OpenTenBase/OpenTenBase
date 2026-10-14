@@ -154,6 +154,10 @@ SELECT str_to_date('01,5,2013', '%d,%m,%Y');
   （`group_concat(x ORDER BY x)`）。
 * 周号格式说明符（`%U`、`%u`、`%V`、`%v`、`%X`、`%x`）遵循 MySQL 定义；
   `str_to_date` 不支持解析这些说明符（MySQL 自身同样限制）。
+* `str_to_date` 与 MySQL 一致，忽略格式匹配结束后剩余的输入字符。
+* `if()`/`ifnull()` 使用多态参数：当两个分支都是无类型字面量
+  （如 `ifnull(NULL, NULL)`）时，请至少给一个加显式转换，否则内核无法
+  解析结果类型。
 
 ## 测试
 

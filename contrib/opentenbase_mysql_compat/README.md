@@ -164,6 +164,11 @@ Mechanical rewrite rules:
 * Week format specifiers (`%U`, `%u`, `%V`, `%v`, `%X`, `%x`) follow
   the MySQL definitions; parsing them back with `str_to_date` is not
   supported (matching MySQL's own restrictions on `%U/%u/%V/%v`).
+* `str_to_date` ignores input left over after the format is exhausted,
+  like MySQL does.
+* `if()`/`ifnull()` use polymorphic arguments: when both branches are
+  untyped literals (e.g. `ifnull(NULL, NULL)`), cast at least one so
+  PostgreSQL can resolve the result type.
 
 ## Testing
 
