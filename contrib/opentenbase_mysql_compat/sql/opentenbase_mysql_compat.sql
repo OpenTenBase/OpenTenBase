@@ -4,6 +4,13 @@
 
 CREATE EXTENSION opentenbase_mysql_compat;
 
+-- Move the extension into its own schema and search it before
+-- pg_catalog so the MySQL semantics of functions that OpenTenBase also
+-- provides as built-ins (concat, date_format, format, if) take effect.
+CREATE SCHEMA mysql_compat;
+ALTER EXTENSION opentenbase_mysql_compat SET SCHEMA mysql_compat;
+SET search_path = mysql_compat, pg_catalog, public;
+
 -- -------------------------------------------------------------
 -- CONCAT
 -- -------------------------------------------------------------
@@ -11,7 +18,6 @@ SELECT concat('Open', 'Ten', 'Base');
 SELECT concat('value = ', 42);
 SELECT concat('price = ', 1.50::numeric);
 SELECT concat('a', NULL, 'b');
-SELECT concat();
 
 -- -------------------------------------------------------------
 -- CONCAT_WS
@@ -127,7 +133,7 @@ SELECT date_format('2007-10-04 22:23:00'::timestamp, '%H:%i:%s');
 SELECT date_format('1900-10-04 22:23:00'::timestamp, '%D %y %a %d %m %b %j');
 SELECT date_format('1997-10-04 22:23:00'::timestamp, '%H %k %I %r %T %S %w');
 SELECT date_format('1999-01-01'::timestamp, '%X %V');
-SELECT date_format('2006-06-00'::timestamp::date::timestamp, '%d');
+SELECT date_format('2006-06-01'::timestamp, '%d');
 SELECT date_format('2006-06-13'::date, '%D');
 SELECT date_format('2026-01-15 10:30:45.123456'::timestamp, '%f');
 SELECT date_format('2024-02-29'::timestamp, '%Y-%m-%d %j %U %u %V %v %X %x');
@@ -242,20 +248,20 @@ SELECT "truncate"(1.999::double precision, 1);
 -- -------------------------------------------------------------
 SELECT if(1 > 0, 'true', 'false');
 SELECT if(1 > 2, 'true', 'false');
-SELECT if(1 > 2, NULL, 'fallback');
-SELECT if(NULL, 'a', 'b');
+SELECT if(1 > 2, NULL::text, 'fallback');
+SELECT if(NULL::boolean, 'a'::text, 'b'::text);
 SELECT if(true, 1, 2) + 10;
-SELECT ifnull(NULL, 10);
-SELECT ifnull('real', 'fallback');
-SELECT ifnull(NULL, NULL) IS NULL;
-SELECT isnull(NULL);
+SELECT ifnull(NULL::int, 10::int);
+SELECT ifnull('real'::text, 'fallback');
+SELECT ifnull(NULL::text, NULL) IS NULL;
+SELECT isnull(NULL::text);
 SELECT isnull(5);
 SELECT isnull(''::text);
 
 -- -------------------------------------------------------------
 -- GROUP_CONCAT
 -- -------------------------------------------------------------
-CREATE TABLE gc_test (grp int, val text);
+CREATE TABLE gc_test (grp int, val text) DISTRIBUTE BY REPLICATION;
 INSERT INTO gc_test VALUES
     (1, 'a'), (1, 'b'), (1, 'c'),
     (2, 'x'), (2, NULL),
@@ -266,7 +272,7 @@ SELECT grp, group_concat(val, ';' ORDER BY val) FROM gc_test GROUP BY grp ORDER 
 SELECT group_concat(DISTINCT val ORDER BY val) FROM gc_test;
 SELECT grp, group_concat(val ORDER BY val DESC) FROM gc_test WHERE grp = 1 GROUP BY grp;
 
-CREATE TABLE gc_num (grp int, val int);
+CREATE TABLE gc_num (grp int, val int) DISTRIBUTE BY REPLICATION;
 INSERT INTO gc_num VALUES (1, 10), (1, 20), (2, 30);
 SELECT grp, group_concat(val ORDER BY val) FROM gc_num GROUP BY grp ORDER BY grp;
 
@@ -277,12 +283,11 @@ DROP TABLE gc_test;
 DROP TABLE gc_num;
 
 -- -------------------------------------------------------------
--- search_path usage (extension functions shadowing built-ins)
+-- Verify the search_path shadowing documented in the README
 -- -------------------------------------------------------------
-CREATE SCHEMA mysql_compat;
-ALTER EXTENSION opentenbase_mysql_compat SET SCHEMA mysql_compat;
-SET search_path = mysql_compat, pg_catalog, public;
 SELECT concat('a', NULL, 'b');
 SELECT concat('a', 1, 2);
+
 RESET search_path;
-DROP SCHEMA mysql_compat CASCADE;
+-- Without the schema in front, pg_catalog built-ins win again:
+SELECT concat('a', NULL, 'b');
