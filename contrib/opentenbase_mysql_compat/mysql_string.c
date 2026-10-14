@@ -397,11 +397,11 @@ mysql_locate_internal(text *substr, text *str, int from)
 	s = mysql_ascii_strdown(text_to_cstring(str));
 	sublen = strlen(sub);
 
+	if ((size_t) (from - 1) > strlen(s))
+		return 0;
+
 	if (sublen == 0)
 		return from;
-
-	if ((size_t) from > strlen(s))
-		return 0;
 
 	hit = strstr(s + from - 1, sub);
 	if (hit == NULL)
