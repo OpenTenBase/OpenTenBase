@@ -20,10 +20,14 @@
  */
 #include "postgres.h"
 
+#include "catalog/pg_type.h"
 #include "fmgr.h"
 #include "lib/stringinfo.h"
 #include "mb/pg_wchar.h"
+#include "utils/array.h"
 #include "utils/builtins.h"
+
+#include "opentenbase_mysql_compat.h"
 
 PG_FUNCTION_INFO_V1(mysql_concat);
 PG_FUNCTION_INFO_V1(mysql_concat_ws);
@@ -38,8 +42,6 @@ PG_FUNCTION_INFO_V1(mysql_instr);
 PG_FUNCTION_INFO_V1(mysql_reverse);
 PG_FUNCTION_INFO_V1(mysql_space);
 PG_FUNCTION_INFO_V1(mysql_unhex);
-
-extern char *mysql_any_to_cstring(FunctionCallInfo fcinfo, int argno);
 
 static char *mysql_ascii_strdown(char *s);
 static int	mysql_hexdigit(char c);
@@ -188,7 +190,59 @@ mysql_find_in_set(PG_FUNCTION_ARGS)
 }
 
 /*
- * mysql_elt(n int, variadic text) -> text
+ * Helpers for VARIADIC text[] arguments.
+ *
+ * Depending on the call site, OpenTenBase hands the variadic part to a C
+ * function either expanded into individual arguments or packed as a single
+ * text[] array.  These helpers fetch the i-th variadic value (0-based,
+ * after the fixed leading arguments) under both conventions.
+ */
+typedef struct MysqlVarText
+{
+	Datum	   *elems;
+	bool	   *nulls;
+	int			nelems;
+} MysqlVarText;
+
+static void
+mysql_var_init(FunctionCallInfo fcinfo, int firstvar, MysqlVarText *v)
+{
+	Oid			argtype;
+
+	v->elems = NULL;
+	v->nulls = NULL;
+	v->nelems = PG_NARGS() - firstvar;
+
+	argtype = get_fn_expr_argtype(fcinfo->flinfo, firstvar);
+	if (v->nelems == 1 && argtype == TEXTARRAYOID)
+		deconstruct_array(DatumGetArrayTypeP(PG_GETARG_DATUM(firstvar)),
+						  TEXTOID, -1, false, 'i',
+						  &v->elems, &v->nulls, &v->nelems);
+}
+
+static text *
+mysql_var_get(FunctionCallInfo fcinfo, int firstvar, MysqlVarText *v, int i)
+{
+	if (v->elems != NULL)
+	{
+		if (i >= v->nelems || v->nulls[i])
+			return NULL;
+		return DatumGetTextPP(v->elems[i]);
+	}
+
+	if (firstvar + i >= PG_NARGS() || PG_ARGISNULL(firstvar + i))
+		return NULL;
+	return PG_GETARG_TEXT_PP(firstvar + i);
+}
+
+static int
+mysql_var_count(MysqlVarText *v)
+{
+	return v->nelems;
+}
+
+/*
+ * mysql_elt(n int, variadic text[]) -> text
  *
  * Returns the n-th element of the list, NULL when n is out of range or
  * the selected element is NULL.
@@ -197,20 +251,27 @@ Datum
 mysql_elt(PG_FUNCTION_ARGS)
 {
 	int32		n;
+	MysqlVarText v;
+	text	   *elem;
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_NULL();
 
 	n = PG_GETARG_INT32(0);
+	mysql_var_init(fcinfo, 1, &v);
 
-	if (n < 1 || n >= PG_NARGS() || PG_ARGISNULL(n))
+	if (n < 1 || n > mysql_var_count(&v))
 		PG_RETURN_NULL();
 
-	PG_RETURN_TEXT_P(cstring_to_text(text_to_cstring(PG_GETARG_TEXT_PP(n))));
+	elem = mysql_var_get(fcinfo, 1, &v, n - 1);
+	if (elem == NULL)
+		PG_RETURN_NULL();
+
+	PG_RETURN_TEXT_P(cstring_to_text(text_to_cstring(elem)));
 }
 
 /*
- * mysql_field(needle text, variadic text) -> int
+ * mysql_field(needle text, variadic text[]) -> int
  *
  * Returns the 1-based index of needle in the argument list, 0 when it
  * is absent.  A NULL needle never matches, like in MySQL.
@@ -222,6 +283,8 @@ mysql_field(PG_FUNCTION_ARGS)
 	char	   *lneedle;
 	size_t		needlelen;
 	int			i;
+	int			n;
+	MysqlVarText v;
 
 	if (PG_ARGISNULL(0))
 		PG_RETURN_INT32(0);
@@ -230,15 +293,20 @@ mysql_field(PG_FUNCTION_ARGS)
 	lneedle = mysql_ascii_strdown(needle);
 	needlelen = strlen(needle);
 
-	for (i = 1; i < PG_NARGS(); i++)
+	mysql_var_init(fcinfo, 1, &v);
+	n = mysql_var_count(&v);
+
+	for (i = 0; i < n; i++)
 	{
-		if (!PG_ARGISNULL(i))
+		text	   *candtext = mysql_var_get(fcinfo, 1, &v, i);
+
+		if (candtext != NULL)
 		{
-			char	   *cand = mysql_ascii_strdown(text_to_cstring(PG_GETARG_TEXT_PP(i)));
+			char	   *cand = mysql_ascii_strdown(text_to_cstring(candtext));
 
 			if (strlen(cand) == needlelen &&
 				memcmp(cand, lneedle, needlelen) == 0)
-				PG_RETURN_INT32(i);
+				PG_RETURN_INT32(i + 1);
 		}
 	}
 
@@ -290,8 +358,7 @@ mysql_insert(PG_FUNCTION_ARGS)
 	{
 		int			kept = origchars - pos + 1 - len;
 
-		suffix_bytes = (size_t) pg_mbcharcliplen(orig, origbytes,
-												 origchars - kept);
+		suffix_bytes = (size_t) pg_mbcharcliplen(orig, origbytes, kept);
 	}
 
 	initStringInfo(&res);
