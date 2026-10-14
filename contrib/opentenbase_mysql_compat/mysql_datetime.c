@@ -755,9 +755,7 @@ str_to_date_internal(const char *str, const char *fmt, StrToDateCtx *ctx)
 		}
 	}
 
-	p = skip_input_space(p);
-	if (*p != '\0')
-		return false;
+	/* MySQL ignores input left over after the format is exhausted. */
 
 	return true;
 }
