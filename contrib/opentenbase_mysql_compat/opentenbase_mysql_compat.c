@@ -21,6 +21,9 @@
 
 #include "fmgr.h"
 #include "utils/builtins.h"
+#include "utils/lsyscache.h"
+
+#include "opentenbase_mysql_compat.h"
 
 PG_MODULE_MAGIC;
 

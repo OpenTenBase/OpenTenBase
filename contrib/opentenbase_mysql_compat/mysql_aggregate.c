@@ -19,11 +19,12 @@
 
 #include "fmgr.h"
 #include "lib/stringinfo.h"
+#include "utils/builtins.h"
+
+#include "opentenbase_mysql_compat.h"
 
 PG_FUNCTION_INFO_V1(mysql_group_concat_trans);
 PG_FUNCTION_INFO_V1(mysql_group_concat_sep_trans);
-
-extern char *mysql_any_to_cstring(FunctionCallInfo fcinfo, int argno);
 
 /*
  * mysql_group_concat_trans(state text, value anyelement) -> text
