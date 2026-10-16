@@ -478,22 +478,33 @@ start_postmaster(void)
 
 	/* fork succeeded, in child */
 
-	/*
-	 * Since there might be quotes to handle here, it is easier simply to pass
-	 * everything to a shell to process them.  Use exec so that the postmaster
-	 * has the same PID as the current child process.
-	 */
+	/* Open the log directly so the shell cannot interpret its filename. */
 	if (log_file != NULL)
-#ifdef PGXC
-		snprintf(cmd, MAXPGPATH, "exec \"%s\" %s %s%s < \"%s\" >> \"%s\" 2>&1",
-				exec_path, pgxcCommand, pgdata_opt, post_opts,
-				DEVNULL, log_file);
-#else
-		snprintf(cmd, MAXPGPATH, "exec \"%s\" %s%s < \"%s\" >> \"%s\" 2>&1",
-				 exec_path, pgdata_opt, post_opts,
-				 DEVNULL, log_file);
-#endif
-	else
+	{
+		int			log_fd;
+
+		log_fd = open(log_file, O_WRONLY | O_CREAT | O_APPEND, 0666);
+		if (log_fd < 0)
+		{
+			write_stderr(_("%s: could not open log file \"%s\": %s\n"),
+						 progname, log_file, strerror(errno));
+			exit(1);
+		}
+		if (dup2(log_fd, STDOUT_FILENO) < 0 ||
+			dup2(log_fd, STDERR_FILENO) < 0)
+		{
+			write_stderr(_("%s: could not redirect output to log file \"%s\": %s\n"),
+						 progname, log_file, strerror(errno));
+			exit(1);
+		}
+		if (log_fd != STDOUT_FILENO && log_fd != STDERR_FILENO)
+			(void) close(log_fd);
+	}
+
+	/*
+	 * The server options might contain quotes, so pass them to a shell.
+	 * Use exec so that the postmaster has the same PID as this child.
+	 */
 #ifdef PGXC
 		snprintf(cmd, MAXPGPATH, "exec \"%s\" %s %s%s < \"%s\" 2>&1",
 				exec_path, pgxcCommand, pgdata_opt, post_opts, DEVNULL);
