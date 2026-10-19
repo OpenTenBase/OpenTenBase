@@ -16,6 +16,7 @@
  *--------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "storage/pg_numa.h"
 
 #include <ctype.h>
 #include <float.h>
@@ -7135,6 +7136,20 @@ static struct config_real ConfigureNamesReal[] =
 
 static struct config_string ConfigureNamesString[] =
 {
+	{
+		{"numa", PGC_POSTMASTER, RESOURCES_MEM,
+			gettext_noop("Selects the NUMA placement policy for the shared memory segment."),
+			gettext_noop("\"off\" (default) keeps the kernel first-touch policy; \"all\" "
+						"interleaves the segment across every NUMA node; \"@<nodes>\" binds it "
+						"to the listed nodes and \"=<nodes>\" prefers them.  Use \"all\" to "
+						"avoid exhausting a single NUMA node's local memory under large "
+						"shared_buffers."),
+			0
+		},
+		&NumaShmem,
+		"off",
+		check_numa_shmem, NULL, NULL
+	},
 	{
 		{"archive_command", PGC_SIGHUP, WAL_ARCHIVING,
 			gettext_noop("Sets the shell command that will be called to archive a WAL file."),
