@@ -12799,7 +12799,7 @@ if ${ac_cv_lib_zstd_ZSTD_compress+:} false; then :
   $as_echo_n "(cached) " >&6
 else
   ac_check_lib_save_LIBS=$LIBS
-LIBS="/usr/local/lib/libzstd.a -lpthread $LIBS"
+LIBS="-lzstd -lpthread $LIBS"
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
@@ -12834,7 +12834,7 @@ if test "x$ac_cv_lib_zstd_ZSTD_compress" = xyes; then :
 #define HAVE_LIBZSTD 1
 _ACEOF
 
-  LIBS="/usr/local/lib/libzstd.a -lpthread $LIBS"
+  LIBS="-lzstd -lpthread $LIBS"
 
 else
   as_fn_error $? "zstd library not found." "$LINENO" 5
@@ -12849,7 +12849,7 @@ if ${ac_cv_lib_lz4_LZ4_compress_default+:} false; then :
   $as_echo_n "(cached) " >&6
 else
   ac_check_lib_save_LIBS=$LIBS
-LIBS="/usr/local/lib/liblz4.a  $LIBS"
+LIBS="-llz4  $LIBS"
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
@@ -12884,7 +12884,7 @@ if test "x$ac_cv_lib_lz4_LZ4_compress_default" = xyes; then :
 #define HAVE_LZ4 1
 _ACEOF
 
-  LIBS="/usr/local/lib/liblz4.a $LIBS"
+  LIBS="-llz4 $LIBS"
 
 else
   as_fn_error $? "lz4 library not found." "$LINENO" 5

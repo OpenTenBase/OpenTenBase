@@ -32,13 +32,13 @@ OpenTenBase具有许多类似于PostgreSQL的语言接口，其中的一些可�
 ### 依赖
 
 ``` 
-yum -y install git sudo gcc make readline-devel zlib-devel openssl-devel uuid-devel bison flex cmake postgresql-devel libssh2-devel sshpass  libcurl-devel libxml2-devel
+yum -y install git sudo gcc make readline-devel zlib-devel openssl-devel uuid-devel bison flex cmake postgresql-devel libssh2-devel sshpass  libcurl-devel libxml2-devel libzstd-devel lz4-devel
 ```
 
 或者
 
 ```
-apt install -y git sudo gcc make libreadline-dev zlib1g-dev libssl-dev libossp-uuid-dev bison flex cmake libssh2-1-dev sshpass libxml2-dev language-pack-zh-hans
+apt install -y git sudo gcc make libreadline-dev zlib1g-dev libssl-dev libossp-uuid-dev bison flex cmake libssh2-1-dev sshpass libxml2-dev language-pack-zh-hans libzstd-dev liblz4-dev
 ```
 
 ### 创建用户 'opentenbase'
