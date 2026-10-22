@@ -44,6 +44,26 @@ or
 apt install -y git sudo gcc make libreadline-dev zlib1g-dev libssl-dev libossp-uuid-dev bison flex cmake libssh2-1-dev sshpass libxml2-dev language-pack-zh-hans
 ```
 
+### Building libpqxx manually (C++ client library)
+
+C++ client programs that connect to OpenTenBase are usually built against [libpqxx](https://github.com/jtv/libpqxx), the official C++ API of libpq. If the system does not provide a suitable libpqxx package, the compilation fails with errors such as `libpqxx/pqxx: No such file or directory`. In that case, build and install libpqxx manually (version 6.4.8 is verified to work):
+
+```bash
+wget https://github.com/jtv/libpqxx/archive/refs/tags/6.4.8.zip
+unzip libpqxx-6.4.8.zip && cd libpqxx-6.4.8
+mkdir build && cd build
+cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
+make -j$(nproc)
+sudo make install
+sudo ldconfig
+```
+
+If linking fails with `cannot find -lpqxx`, or the program cannot load `libpqxx-6.4.so` at runtime, make sure `/usr/local/lib` is in the library search path:
+
+```bash
+export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+```
+
 
 ### Create User 'opentenbase'
 
