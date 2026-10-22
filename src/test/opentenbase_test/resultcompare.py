@@ -3,7 +3,8 @@ if __name__ == "__main__":
 
 import os
 import re
-from common import ExecCommand
+import shutil
+import subprocess
 
 class ResultCompare:
     def __init__(self, name, expect_file, result_file, sum_diff, tmp_dir):
@@ -15,8 +16,13 @@ class ResultCompare:
 
     def simple_diff(self, e, r):
         diff_file = f'{self.tmp_dir}/{self.name}.diff'
-        cmd = f'diff --unified {e} {r} > {diff_file}'
-        res = ExecCommand(cmd)
+        # Paths are literal arguments, including spaces and shell metacharacters.
+        with open(diff_file, 'wb') as output:
+            try:
+                res = subprocess.run(['diff', '--unified', '--', str(e), str(r)],
+                                     stdout=output, stderr=subprocess.PIPE)
+            except OSError:
+                return False
         if res.returncode == 0:
             os.remove(diff_file)
             return True
@@ -34,7 +40,9 @@ class ResultCompare:
         if self.has_reg_matched and self.simple_diff(self.new_expect_file, self.result_file):
             return True
 
-        os.system(f'cat {self.tmp_dir}/{self.name}.diff >> {self.sum_diff}')
+        with open(f'{self.tmp_dir}/{self.name}.diff', 'rb') as source:
+            with open(self.sum_diff, 'ab') as summary:
+                shutil.copyfileobj(source, summary)
         return False
 
     def process_expect(self):
