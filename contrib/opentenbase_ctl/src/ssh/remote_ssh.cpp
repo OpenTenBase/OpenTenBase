@@ -428,14 +428,23 @@ std::string string_to_base64(const std::string& input) {
 // Check if port is available
 int 
 check_port_available(const char *ip, int port, const char *username, const char *password, int ssh_port) {
-    std::string cmd = "export PATH=/usr/local/bin:/usr/bin:/usr/sbin:$PATH && ss -tln | grep -q ':" + std::to_string(port) + "'";
+    // List the listening sockets instead of relying on grep -q: grep -q never
+    // prints anything, so a remote-side failure (e.g. a stale known_hosts
+    // entry making every self-SSH fail) was indistinguishable from "port
+    // occupied" and burned all 100 retries. Discard stderr and force exit 0
+    // so the SSH transport result stays the only error signal.
+    std::string cmd = "export PATH=/usr/local/bin:/usr/bin:/usr/sbin:$PATH && "
+                      "(ss -tlnH 2>/dev/null || netstat -tln 2>/dev/null) "
+                      "| grep '[:.]" + std::to_string(port) + " ' || true";
     std::string result;
     
     int ret = remote_ssh_exec(ip, ssh_port, username, password, cmd, result);
     
     if (ret == 0) {
-        // Command executed successfully, check return value
         if (result.empty()) {
+            // Command executed successfully, inspect the listening table itself:
+            // occupied only if its local address column really contains the port.
+        if (result.find(":" + std::to_string(port) + " ") == std::string::npos) {
             // No port found, means port is available
             return 0;
         } else {
