@@ -100,6 +100,11 @@ class TestCaseMgr:
                 # single test case
                 if os.path.isfile(self._result_dir):
                     result_filepath = self._result_dir
+                elif (os.path.isdir(self._result_dir) and
+                      self._result_dir != os.path.realpath(global_base_dir + '/r/')):
+                    # A custom directory holds the selected test's result directly.
+                    # Keep the default r/ mapping below for nested bundled tests.
+                    result_filepath = os.path.join(self._result_dir, testname + ".result")
                 else:
                     assert path == self._test_dir, "Internal error"
                     default_test_dir = os.path.realpath(global_base_dir + '/t/')
