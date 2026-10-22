@@ -3,4 +3,3 @@ comment = 'lightweight graph traversal templates (BFS, shortest path, weighted s
 default_version = '1.2'
 module_pathname = '$libdir/opentenbase_graph'
 relocatable = true
-trusted = true

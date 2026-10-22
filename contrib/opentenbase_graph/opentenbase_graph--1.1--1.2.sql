@@ -20,7 +20,7 @@
 --     path expressions.
 --   * A session-scoped TEMP table is used as a binary-heap stand-in:
 --       cost-min extraction = ORDER BY cost LIMIT 1   (indexed)
---       visited/duplicate suppression = UNIQUE INDEX on node
+--       visited/duplicate suppression = indexed lookup on node
 --     This keeps the algorithm complexity at O((V + E) log V) for the
 --     indexed access path and avoids the O(V^2) worst-case of a flat array
 --     scan inside PL/pgSQL.
@@ -89,7 +89,10 @@ BEGIN
         visited bigint[]
     ) ON COMMIT DROP;
     CREATE INDEX _wsp_frontier_cost_idx  ON _wsp_frontier (cost);
-    CREATE UNIQUE INDEX _wsp_frontier_node_idx ON _wsp_frontier (node);
+    -- OpenTenBase distribution rules require unique indexes to include the
+    -- distribution key. This index is only used for lookup/performance, so a
+    -- regular index is portable across PG10 OpenTenBase and upstream PG13+.
+    CREATE INDEX _wsp_frontier_node_idx ON _wsp_frontier (node);
 
     INSERT INTO _wsp_frontier VALUES (0.0, start_id, ARRAY[start_id], ARRAY[start_id]);
 

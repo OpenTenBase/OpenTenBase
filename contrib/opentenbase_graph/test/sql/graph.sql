@@ -115,13 +115,15 @@ INSERT INTO g_edges VALUES (1, 1, 5.0), (1, 2, 1.0);
 SELECT * FROM opentenbase_graph.weighted_shortest_path(
     'g_edges', 'src', 'dst', 'weight', 1, 2, 100.0);
 
--- cycle + off-tree target: A->B->C->A (1 each), A->D (5); D->C goes D->A->B->C, cost=7
+-- cycle + off-tree target: A<->D (5), A->B->C->A (1 each);
+-- D->C goes D->A->B->C, cost=7
 TRUNCATE g_edges;
 INSERT INTO g_edges VALUES
     (1, 2, 1.0),
     (2, 3, 1.0),
     (3, 1, 1.0),
-    (1, 4, 5.0);
+    (1, 4, 5.0),
+    (4, 1, 5.0);
 SELECT * FROM opentenbase_graph.weighted_shortest_path(
     'g_edges', 'src', 'dst', 'weight', 4, 3, 100.0);
 
