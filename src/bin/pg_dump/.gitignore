@@ -3,3 +3,4 @@
 /pg_restore
 
 /tmp_check/
+/pg_dump_security

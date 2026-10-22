@@ -3,7 +3,14 @@
 .project
 .settings/language.settings.xml
 *.so
+*.so.[0-9]
+*.so.[0-9].[0-9]
+*.so.[0-9].[0-9][0-9]
+*.dylib
+*.a
 *.o
+objfiles.txt
+lib*.pc
 /.idea
 .*/.DS_Store
 /src/.idea/misc.xml
@@ -113,3 +120,6 @@
 /src/gtm/xlog_test/set_gts
 /src/gtm/xlog_test/set_gts.c
 /src/gtm/xlog_test/xlog_reader
+/GNUmakefile
+/config.log
+/config.status
