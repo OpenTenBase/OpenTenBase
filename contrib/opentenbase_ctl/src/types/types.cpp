@@ -1122,16 +1122,18 @@ int fill_ports_for_nodes(OpentenbaseConfig* config) {
         std::string port_str = get_node_port(&node, config);
         if (port_str.empty()) {
             std::cerr << "Error: Failed to get port for node " << node.name << std::endl;
-            continue;
+            return -1;
         }
 
         try {
             int port = std::stoi(port_str);
             node.port = port;
         } catch (const std::invalid_argument& e) {
-            continue;
+            std::cerr << "Error: Invalid port for node " << node.name << ": " << port_str << std::endl;
+            return -1;
         } catch (const std::out_of_range& e) {
-            continue;
+            std::cerr << "Error: Port is out of range for node " << node.name << ": " << port_str << std::endl;
+            return -1;
         }
     }
 

@@ -458,23 +458,21 @@ std::string string_to_base64(const std::string& input) {
 // Check if port is available
 int 
 check_port_available(const char *ip, int port, const char *username, const char *password, int ssh_port) {
-    std::string cmd = "export PATH=/usr/local/bin:/usr/bin:/usr/sbin:$PATH && ss -tln | grep -q ':" + std::to_string(port) + "'";
+    std::string cmd = "if ss -tln | grep -q ':" + std::to_string(port) +
+        "'; then echo occupied; else echo available; fi";
     std::string result;
     
     int ret = remote_ssh_exec(ip, ssh_port, username, password, cmd, result);
     
     if (ret == 0) {
-        // Command executed successfully, check return value
-        if (result.empty()) {
-            // No port found, means port is available
+        if (result.find("available") != std::string::npos) {
             return 0;
-        } else {
-            // Port found, means port is occupied
+        }
+        if (result.find("occupied") != std::string::npos) {
             return 1;
         }
-    } else {
-        // Command execution failed
-        LOG_ERROR_FMT("Failed to check port %d on %s: %s", port, ip, result.c_str());
-        return -1;
     }
+
+    LOG_ERROR_FMT("Failed to check port %d on %s: %s", port, ip, result.c_str());
+    return -1;
 }
