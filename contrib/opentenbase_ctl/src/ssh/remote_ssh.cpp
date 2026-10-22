@@ -16,8 +16,23 @@
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <netinet/in.h>
+#include <sys/wait.h>
 
 #include "../log/log.h"
+
+namespace {
+int close_process_pipe(FILE* pipe) {
+    if (pipe == nullptr) {
+        return -1;
+    }
+
+    const int status = pclose(pipe);
+    if (status == -1 || !WIFEXITED(status)) {
+        return -1;
+    }
+    return WEXITSTATUS(status);
+}
+}
 
 // Execute remote command
 int 
@@ -48,6 +63,11 @@ remote_ssh_exec(const std::string& ip, int port, const std::string& username,
     result = ss.str();
     if (!result.empty()) {
         LOG_INFO_FMT("Command output from %s: %s", ip.c_str(), result.c_str());
+    }
+    const int exit_code = close_process_pipe(pipe.release());
+    if (exit_code != 0) {
+        LOG_ERROR_FMT("Command failed on %s with exit code %d", ip.c_str(), exit_code);
+        return -1;
     }
     return 0;
 }
@@ -200,6 +220,11 @@ local_exec(const std::string& command, std::string& result) {
     result = ss.str();
     if (!result.empty()) {
         LOG_INFO_FMT("Command output: %s", result.c_str());
+    }
+    const int exit_code = close_process_pipe(pipe.release());
+    if (exit_code != 0) {
+        LOG_ERROR_FMT("Local command failed with exit code %d", exit_code);
+        return -1;
     }
     return 0;
 } 
@@ -354,7 +379,12 @@ int local_exec_as_user(const std::string& user, const std::string& command, std:
     if (!result.empty()) {
         LOG_INFO_FMT("Command output from user '%s': %s", user.c_str(), result.c_str());
     }
-    
+
+    const int exit_code = close_process_pipe(pipe.release());
+    if (exit_code != 0) {
+        LOG_ERROR_FMT("Command failed as user '%s' with exit code %d", user.c_str(), exit_code);
+        return -1;
+    }
     return 0;
 }
 
