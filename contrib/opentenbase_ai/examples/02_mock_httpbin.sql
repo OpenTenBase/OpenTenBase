@@ -1,7 +1,7 @@
 -- =============================================================
 -- 02_mock_httpbin.sql — 基于 httpbin.org 的 mock 验证
 -- 与上游回归测试 contrib/opentenbase_ai/sql/opentenbase_ai.sql 同源
--- 状态：语句已核对；真实执行【待实测】（需数据库可访问外网 httpbin.org）
+-- 状态：已在 OpenTenBase 1GTM + 1CN + 1DN / OpenCloudOS 9.4 实测通过
 --
 -- ⚠️ mock 验证范围声明：
 --   ✅ 验证：请求构造（method/header/body 回显）、default_args||user_args 合并、
@@ -12,6 +12,11 @@
 
 CREATE EXTENSION IF NOT EXISTS http;
 CREATE EXTENSION IF NOT EXISTS opentenbase_ai;
+
+-- httpbin 在国际网络下可能超过 pgsql-http 默认的 5 秒总超时。
+-- 这些设置为当前会话级配置，不影响数据库的全局参数。
+SELECT http_set_curlopt('CURLOPT_CONNECTTIMEOUT_MS', '5000');
+SELECT http_set_curlopt('CURLOPT_TIMEOUT_MS', '20000');
 
 -- 通用注册：8 参 add_model。json_path 用 %s 占位响应体（invoke_model 内 format(json_path, content)）
 -- httpbin /post 回显结构：{"json": {...body...}, "headers": {...}, ...}
