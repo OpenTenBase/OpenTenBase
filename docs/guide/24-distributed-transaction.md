@@ -1,12 +1,12 @@
 # 分布式事务原理
 
->[高级使用](04-advanced-use.md) 的「事务使用」一节介绍了 `begin`、`commit`、`rollback`、隔离级别与行锁的**用法**。本节不重复这些操作，而是解释它们在集群内部**是怎么实现的**：全局事务号从哪里来、快照为什么必须是全局的、一个跨数据节点的写事务如何保证原子提交。
+>[高级使用](https://docs.opentenbase.org/guide/04-advanced-use/) 的「事务使用」一节介绍了 `begin`、`commit`、`rollback`、隔离级别与行锁的**用法**。本节不重复这些操作，而是解释它们在集群内部**是怎么实现的**：全局事务号从哪里来、快照为什么必须是全局的、一个跨数据节点的写事务如何保证原子提交。
 
 ## 1、角色分工与问题的由来
 
 ### 1.1、三大角色在事务中的职责
 
-OpenTenBase 的三大角色（详见[快速入门](01-quickstart.md)）在事务处理中的分工如下：
+OpenTenBase 的三大角色（详见[快速入门](https://docs.opentenbase.org/guide/01-quickstart/)）在事务处理中的分工如下：
 
 | 角色                  | 在事务中承担什么                                             | 不承担什么                                   |
 | --------------------- | ------------------------------------------------------------ | -------------------------------------------- |
@@ -102,7 +102,7 @@ DN 执行 CN 下发的计划时，并不各自去 GTM 取一次快照（那样�
 - **READ COMMITTED**：每条语句开始时取一个新快照，因此同一事务内的两条相同查询可能看到不同结果；
 - **REPEATABLE READ**：事务内首次取快照后固定复用，事务全程使用同一份快照，从而保证可重复读。
 
-这与单机行为一致，区别只在于快照的生成者从「本地 ProcArray」换成了「GTM + CN 下发」。可参考[高级使用](04-advanced-use.md)中的 4.4 节查看实际操作示例。
+这与单机行为一致，区别只在于快照的生成者从「本地 ProcArray」换成了「GTM + CN 下发」。可参考[高级使用](https://docs.opentenbase.org/guide/04-advanced-use/)中的 4.4 节查看实际操作示例。
 
 ## 4、提交序号（CSN）与 MVCC 可见性
 
@@ -150,7 +150,7 @@ CSN 来自 GTM 的全局提交时间戳，分配时机在两阶段提交的第�
 sprintf(prepare_cmd, "PREPARE TRANSACTION '%s'", prepareGID);
 ```
 
-`gid` 即该事务在集群范围内的全局标识，与[pg_clean 使用说明](10-pg_clean.md)中看到的 `gid` 是同一个概念。CN 侧的 2PC 状态机集中在 `g_twophase_state` 中维护，参与节点分为数据节点与协调节点两类（`twophase_add_participant()`）。
+`gid` 即该事务在集群范围内的全局标识，与[pg_clean 使用说明](https://docs.opentenbase.org/guide/10-pg_clean/)中看到的 `gid` 是同一个概念。CN 侧的 2PC 状态机集中在 `g_twophase_state` 中维护，参与节点分为数据节点与协调节点两类（`twophase_add_participant()`）。
 
 ### 5.2、第一阶段：PREPARE TRANSACTION
 
@@ -160,7 +160,7 @@ CN 在收到应用的 `COMMIT` 后：
 2. 参与节点把事务的修改落盘、释放锁之外的资源，并进入 prepared 状态，此时数据已「就绪但未生效」；
 3. 各节点返回准备结果。
 
-关于资源位，`max_prepared_transactions` 决定了单个节点上可同时存在的 prepared 事务数量（默认远大于常规并发需求，可在[组件安装及管理](05-component.md)中调整）。该值被占满时，prepare 会失败，进而导致事务回滚。
+关于资源位，`max_prepared_transactions` 决定了单个节点上可同时存在的 prepared 事务数量（默认远大于常规并发需求，可在[组件安装及管理](https://docs.opentenbase.org/guide/05-component/)中调整）。该值被占满时，prepare 会失败，进而导致事务回滚。
 
 ### 5.3、第二阶段：COMMIT PREPARED
 
@@ -179,7 +179,7 @@ CN 在收到应用的 `COMMIT` 后：
 - **第一阶段有节点 prepare 失败**：CN 向已 prepare 成功的节点发送 `ROLLBACK PREPARED`，整个事务回滚；
 - **第二阶段有节点未收到或提交失败**：事务在部分节点上停留在 prepared 状态，形成 2PC 残留。此时各节点上的数据尚未生效，但资源被占用。
 
-残留记录的排查与清理方法见 [pg_clean 使用说明](10-pg_clean.md)：残留的 prepare 记录会体现在 `pg_2pc` 目录与集群的两阶段事务视图中，并且可以通过全局事务状态与各节点状态逐一比对后清理。
+残留记录的排查与清理方法见 [pg_clean 使用说明](https://docs.opentenbase.org/guide/10-pg_clean/)：残留的 prepare 记录会体现在 `pg_2pc` 目录与集群的两阶段事务视图中，并且可以通过全局事务状态与各节点状态逐一比对后清理。
 
 ### 5.5、不需要 2PC 的场景
 
@@ -187,7 +187,7 @@ CN 在收到应用的 `COMMIT` 后：
 
 这从侧面说明了两件事：
 
-- 分片键设计会直接影响事务成本。跨分片的事务才需要 2PC，这也是[基本使用](03-basic-use.md)中「分片键选择准则」强调避免分布式事务的原因；
+- 分片键设计会直接影响事务成本。跨分片的事务才需要 2PC，这也是[基本使用](https://docs.opentenbase.org/guide/03-basic-use/)中「分片键选择准则」强调避免分布式事务的原因；
 - 在 CN 上可以观察到两类事务的统计区分：代码中分别计数了 `autocommit_2pc` 与 `nonautocommit_2pc`（`src/backend/pgxc/pool/execRemote.c`），可用于判断业务的实际跨节点比例。
 
 ## 6、完整时序
@@ -233,7 +233,7 @@ CN 在收到应用的 `COMMIT` 后：
 
 ## 8、对运维与设计的影响
 
-- **GTM 是关键路径节点**。事务开启与提交阶段都需要与 GTM 交互，GTM 需要主备部署并保持低延迟，主备切换方式见[主备切换](06-switching.md)。
+- **GTM 是关键路径节点**。事务开启与提交阶段都需要与 GTM 交互，GTM 需要主备部署并保持低延迟，主备切换方式见[主备切换](https://docs.opentenbase.org/guide/06-switching/)。
 - **跨分片写入有额外成本**。涉及多个 DN 的写事务需要两阶段提交，多两次网络往返与一次落盘；对延迟敏感的业务应优先让事务落在单个分片内。
 - **注意 prepare 残留**。异常场景下 prepared 事务会占用资源，需要定期用 pg_clean 检查，避免达到 `max_prepared_transactions` 上限后写入受阻。
 - **直连 DN 会绕开快照下发**。绕过 CN 直接在 DN 上查询，得到的可见性结论可能与通过 CN 查询不同，不应用于业务判断。
@@ -255,8 +255,8 @@ CN 在收到应用的 `COMMIT` 后：
 
 ## 10、延伸阅读
 
-- [快速入门](01-quickstart.md)：集群架构与三大角色的基本定义
-- [基本使用](03-basic-use.md)：分片表与复制表，以及分片键选择准则
-- [高级使用](04-advanced-use.md)：事务用法、隔离级别与行锁
-- [组件安装及管理](05-component.md)：GTM 主备部署与 `max_prepared_transactions` 等参数
-- [pg_clean 使用说明](10-pg_clean.md)：两阶段事务残留的排查与清理
+- [快速入门](https://docs.opentenbase.org/guide/01-quickstart/)：集群架构与三大角色的基本定义
+- [基本使用](https://docs.opentenbase.org/guide/03-basic-use/)：分片表与复制表，以及分片键选择准则
+- [高级使用](https://docs.opentenbase.org/guide/04-advanced-use/)：事务用法、隔离级别与行锁
+- [组件安装及管理](https://docs.opentenbase.org/guide/05-component/)：GTM 主备部署与 `max_prepared_transactions` 等参数
+- [pg_clean 使用说明](https://docs.opentenbase.org/guide/10-pg_clean/)：两阶段事务残留的排查与清理
