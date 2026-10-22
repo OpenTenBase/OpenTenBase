@@ -43,9 +43,11 @@ class ResultCompare:
         expect_content = open(self.expect_file).read().splitlines(True)
         result_content = open(self.result_file).read().splitlines(True)
         self.has_reg_matched = False
-        for expect, result in zip(expect_content, result_content):
+        # Keep missing expected lines so the second diff can still reject truncated output.
+        for index, expect in enumerate(expect_content):
             this_line_matched = False
-            if expect.startswith('--?'):
+            if expect.startswith('--?') and index < len(result_content):
+                result = result_content[index]
                 pattern = re.compile('^' + expect[3:])
 
                 if pattern.match(result):
