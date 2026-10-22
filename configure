@@ -596,13 +596,13 @@ fi
 # Identity of this package.
 PACKAGE_NAME='OpenTenBase'
 PACKAGE_TARNAME='OpenTenBase'
-PACKAGE_XC_VERSION='10.0'
+PACKAGE_XC_VERSION='11.0'
 OPENTENBASE_VERSION='5.0'
 # used in opentenbase_version()
 PACKAGE_STRING="OpenTenBase V$OPENTENBASE_VERSION"
 PACKAGE_BUGREPORT='bugs@postgres-xl.org'
 PACKAGE_URL=''
-PACKAGE_VERSION="10.0 @ OpenTenBase_v$OPENTENBASE_VERSION $GIT_TAG `date -d today +\"%Y-%m-%d %H:%M:%S\"`"
+PACKAGE_VERSION="11.0 @ OpenTenBase_v$OPENTENBASE_VERSION $GIT_TAG `date -d today +\"%Y-%m-%d %H:%M:%S\"`"
 
 ac_unique_file="src/backend/access/common/heaptuple.c"
 ac_default_prefix=/usr/local/pgsql
