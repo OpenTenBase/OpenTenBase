@@ -509,32 +509,63 @@ header_tuple(TupleDesc header_tuple_desc, const char *field, const char *value)
 	return HeapTupleGetDatum(header_tuple);
 }
 
-/**
-* Our own implementation of strcasestr.
-*/
-static char *
-http_strcasestr(const char *s, const char *find)
+/*
+ * Read MIME parameters instead of treating Content-Type as an SQL identifier
+ * list. In particular charset="ISO-8859-1" is a valid quoted MIME value.
+ */
+static int
+http_content_encoding(const char *content_type)
 {
-	char c, sc;
-	size_t len;
+	const char *p = strchr(content_type, ';');
 
-	if ((c = *find++) != 0)
+	while (p && *p)
 	{
-		c = tolower((unsigned char)c);
-		len = strlen(find);
-		do
+		const char *name;
+		const char *name_end;
+		StringInfoData value;
+		bool quoted;
+		int encoding;
+
+		p++;
+		while (*p == ' ' || *p == '\t') p++;
+		name = p;
+		while (*p && *p != '=' && *p != ';') p++;
+		name_end = p;
+		while (name_end > name && (name_end[-1] == ' ' || name_end[-1] == '\t'))
+			name_end--;
+		if (*p != '=')
+			continue;
+		p++;
+		while (*p == ' ' || *p == '\t') p++;
+		quoted = *p == '"';
+		if (quoted) p++;
+		initStringInfo(&value);
+		while (*p && (quoted ? *p != '"' : *p != ';'))
 		{
-			do
-			{
-				if ((sc = *s++) == 0)
-				return (NULL);
-			}
-			while ((char)tolower((unsigned char)sc) != c);
+			if (quoted && *p == '\\' && p[1]) p++;
+			appendStringInfoChar(&value, *p++);
 		}
-		while (strncasecmp(s, find, len) != 0);
-		s--;
+		if (quoted && *p != '"')
+		{
+			pfree(value.data);
+			return -1;
+		}
+		if (!quoted)
+		{
+			while (value.len && (value.data[value.len-1] == ' ' || value.data[value.len-1] == '\t'))
+				value.data[--value.len] = '\0';
+		}
+		if (name_end - name == 7 && pg_strncasecmp(name, "charset", 7) == 0)
+		{
+			encoding = pg_char_to_encoding(value.data);
+			pfree(value.data);
+			return encoding;
+		}
+		pfree(value.data);
+		if (quoted) p++;
+		p = strchr(p, ';');
 	}
-	return ((char *)s);
+	return -1;
 }
 
 /**
@@ -1337,31 +1368,9 @@ Datum http_request(PG_FUNCTION_ARGS)
 	/* Content type */
 	if ( content_type )
 	{
-		List *ctl;
-		ListCell *lc;
-
 		values[RESP_CONTENT_TYPE] = CStringGetTextDatum(content_type);
 		nulls[RESP_CONTENT_TYPE] = false;
-
-		/* Read the character set name out of the content type */
-		/* if there is one in there */
-		/* text/html; charset=iso-8859-1 */
-		if ( SplitIdentifierString(pstrdup(content_type), ';', &ctl) )
-		{
-			foreach(lc, ctl)
-			{
-				/* charset=iso-8859-1 */
-				const char *param = (const char *) lfirst(lc);
-				const char *paramtype = "charset=";
-				if ( http_strcasestr(param, paramtype) )
-				{
-					/* iso-8859-1 */
-					const char *charset = param + strlen(paramtype);
-					content_charset = pg_char_to_encoding(charset);
-					break;
-				}
-			}
-		}
+		content_charset = http_content_encoding(content_type);
 	}
 	else
 	{
