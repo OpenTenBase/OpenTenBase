@@ -6,6 +6,7 @@
 #include <iostream>
 #include <sstream>
 #include <cstdlib>
+#include <sys/wait.h>
 #include <string>
 #include <cstdio>
 #include <memory>
@@ -163,28 +164,66 @@ void init_shrink_command(CLI::App& app, CommandLineArgs& args) {
     shrink_cmd->add_option("--ssh-port", args.ssh_port, "SSH port");
 }
 
-int setEnvironmentVariableInBashrc(const std::string& var_name, const std::string& var_value) {
-    // 构建 sed 删除命令，删除以 var_name= 开头的行
-    std::string sed_command = "sed -i '/^" + var_name + "=.*$/d' ~/.bashrc";
+// 把字符串安全地放进 shell 的单引号里：' -> '\''
+static std::string shell_quote(const std::string& s) {
+    std::string out = "'";
+    for (char c : s) {
+        if (c == '\'') {
+            out += "'\\''";
+        } else {
+            out += c;
+        }
+    }
+    out += "'";
+    return out;
+}
 
-    // 执行 sed 删除命令
-    int ret = system(sed_command.c_str());
+// system() 返回的是 wait 状态而不是退出码：命令以 1 退出时这里是 256。
+// 需要区分"命令没能启动"和"命令执行后失败"。
+static int shell_status_to_exit_code(int status) {
+    if (status == -1) {
+        return -1;
+    }
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+    }
+    if (WIFSIGNALED(status)) {
+        return 128 + WTERMSIG(status);
+    }
+    return status;
+}
+
+int setEnvironmentVariableInBashrc(const std::string& var_name, const std::string& var_value) {
+    // 确保 ~/.bashrc 存在。原来直接对 ~/.bashrc 跑 sed -i，文件不存在时 sed
+    // 报 "No such file or directory" 并以非零退出，函数于是提前返回，下面的
+    // echo 永远不执行 —— 全新用户或容器里这个变量就从来没写进去过。
+    int status = system("touch ~/.bashrc 2>/dev/null || true");
+    (void)status;
+
+    // 删除以 var_name= 开头的行；名字经过转义，避免其中的 '/' 或引号改变
+    // sed 的语义。
+    std::string sed_command =
+        "sed -i " + shell_quote("/^" + var_name + "=.*$/d") + " ~/.bashrc";
+
+    int ret = shell_status_to_exit_code(system(sed_command.c_str()));
     if (ret != 0) {
         LOG_ERROR_FMT("Failed to execute sed delete command, return code: %d", ret);
         return 1;
     }
 
-    // 构建 echo 追加命令，将新的环境变量追加到 ~/.bashrc
-    std::string echo_command = "echo '" + var_name + "=" + var_value + "' >> ~/.bashrc";
+    // 追加新的环境变量；值经过转义，原来值里的单引号会闭合引号并让后面的
+    // 内容被 shell 当成命令执行。
+    std::string echo_command = "echo " + shell_quote(var_name + "=" + var_value) +
+                               " >> ~/.bashrc";
 
-    // 执行 echo 追加命令
-    ret = system(echo_command.c_str());
+    ret = shell_status_to_exit_code(system(echo_command.c_str()));
     if (ret != 0) {
         LOG_ERROR_FMT("Execution of echo append command failed, return code: %d", ret);
         return 1;
     }
 
-    LOG_INFO_FMT("The environment variable %s has been successfully written to~/. bashrc", var_name.c_str());
+    LOG_INFO_FMT("The environment variable %s has been successfully written to ~/.bashrc",
+                 var_name.c_str());
     return 0;
 }
 
