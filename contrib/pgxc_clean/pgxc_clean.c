@@ -102,7 +102,7 @@ static void parse_pgxc_clean_options(int argc, char *argv[]);
 static void usage(void);
 static char *GetUserName(void);
 static void showVersion(void);
-static PGconn *loginDatabase(char *host, int port, char *user, char *password,
+static PGconn *loginDatabase(char *host, int port, char *user, char *password, int password_size,
 							char *dbname, const char *progname, char *encoding, char *password_prompt);
 static void getMyNodename(PGconn *conn);
 static void recover2PCForDatabase(database_info *db_info);
@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
 				clean_all_databases ? "postgres" : head_database_names->database_name,
 				coordinator_host, coordinator_port);
 	}
-	coord_conn = loginDatabase(coordinator_host, coordinator_port, username, password,
+	coord_conn = loginDatabase(coordinator_host, coordinator_port, username, password, sizeof(password),
 							   clean_all_databases ? "postgres" : head_database_names->database_name,
 							   progname, "auto", password_prompt);
 	if (verbose_opt)
@@ -434,7 +434,7 @@ recover2PCForDatabase(database_info *db_info)
 
 	if (verbose_opt)
 		fprintf(outf, "%s: recovering 2PC for database \"%s\"\n", progname, db_info->database_name);
-	coord_conn = loginDatabase(coordinator_host, coordinator_port, username, password, db_info->database_name,
+	coord_conn = loginDatabase(coordinator_host, coordinator_port, username, password, sizeof(password), db_info->database_name,
 							   progname, "auto", password_prompt);
 	if (coord_conn == NULL)
 	{
@@ -592,7 +592,7 @@ find_database_info(char *dbname)
 
 
 static PGconn *
-loginDatabase(char *host, int port, char *user, char *password, char *dbname, const char *progname, char *encoding, char *password_prompt)
+loginDatabase(char *host, int port, char *user, char *password, int password_size, char *dbname, const char *progname, char *encoding, char *password_prompt)
 {
 	bool new_pass = false;
 	PGconn *coord_conn;
@@ -633,7 +633,7 @@ loginDatabase(char *host, int port, char *user, char *password, char *dbname, co
 			try_password_opt != TRI_NO)
 		{
 			PQfinish(coord_conn);
-			simple_prompt(password_prompt, password, sizeof(password), false);
+			simple_prompt(password_prompt, password, password_size, false);
 			have_password = true;
 			new_pass = true;
 		}
