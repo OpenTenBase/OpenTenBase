@@ -1,0 +1,45 @@
+# OpenTenBase × OpenTelemetry 可观测性演示栈
+# 用法：把本 evidence/ 目录整体传到服务器（或 git 拉取），在含 docker 的环境执行：
+#   docker compose -f otel-stack.compose.yaml up -d
+# 然后浏览器打开 Grafana :3000（admin/见下方环境变量），导入面板 9628，绑定 Prometheus 数据源。
+#
+# 说明：本栈用 Prometheus + postgres-exporter + Grafana 落地"指标可观测"（社区验证路径）。
+# OpenTelemetry 语义化接入的延伸：应用侧用 PgInstrumentation / otelsql 注入，
+# 经 OTLP 发往 OTel Collector → Tempo/Jaeger 做追踪（见 README 的"追踪延伸"小节）。
+
+version: "3.8"
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./targets:/etc/prometheus/targets:ro
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  # 每个 CN / DN 端点各起一个 exporter 实例（端口不同），并在 targets/ 下登记。
+  # 下方示例只给 CN；DN 复制一份改端口与 DATA_SOURCE_NAME 即可。
+  postgres-exporter-cn:
+    image: quay.io/prometheuscommunity/postgres-exporter:latest
+    environment:
+      # 替换为真实 CN 主机/端口与 telemetry_user 口令
+      DATA_SOURCE_NAME: "postgresql://telemetry_user:CHANGE_ME@CN_HOST:CN_PORT/postgres?sslmode=disable"
+    ports:
+      - "9187:9187"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: CHANGE_ME
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    restart: always
+
+volumes:
+  grafana_data:
