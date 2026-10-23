@@ -1626,7 +1626,18 @@ main(int argc, char **argv)
 		/* Rebuild option string to include Proxy ID */
 		if (strcmp(gtm_app, "gtm_proxy") == 0)
 		{
-			gtmdata_opt = (char *) pg_realloc(gtmdata_opt, strlen(gtmdata_opt) + 9);
+			/*
+			 * Size the buffer from what is actually appended. The previous
+			 * realloc only reserved 9 bytes, but the nodename comes straight
+			 * from -i on the command line and can be longer than that, so
+			 * strcat wrote past the end of the allocation.
+			 *
+			 * Needed: " -i " (4) + nodename + " " (1) + NUL (1).
+			 */
+			size_t		extra = nodename ? strlen(nodename) + 6 : 2;
+
+			gtmdata_opt = (char *) pg_realloc(gtmdata_opt,
+											  strlen(gtmdata_opt) + extra);
 			if (nodename)
 			{
 				strcat(gtmdata_opt, " -i ");
