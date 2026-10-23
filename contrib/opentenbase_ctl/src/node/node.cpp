@@ -14,6 +14,27 @@
 #include <algorithm>
 
 
+// 把值作为一个整体交给 shell。路径里出现空格时，未加引号的拼接会被 shell 拆成
+// 多个参数：rm -rf "/data/ob data" 会变成 rm -rf /data/ob data，把 /data/ob 和
+// 当前目录下的 data 一起删掉。
+static std::string shell_quote(const std::string& s) {
+    const char quote = '\'';
+    // A single quote inside a single-quoted word is written as '\'' : close the
+    // word, emit an escaped quote, reopen the word. Built explicitly because the
+    // literal spelling of that sequence is easy to get wrong.
+    const std::string escaped_quote = std::string(1, quote) + "\\" + quote + quote;
+    std::string out(1, quote);
+    for (char c : s) {
+        if (c == quote) {
+            out += escaped_quote;
+        } else {
+            out += c;
+        }
+    }
+    out += quote;
+    return out;
+}
+
 // Create node directories
 int create_node_directories(NodeInfo *node, OpentenbaseConfig *install) {
     LOG_INFO_FMT("Creating directories for node %s (%s)", node->name.c_str(), node->ip.c_str());
@@ -25,7 +46,7 @@ int create_node_directories(NodeInfo *node, OpentenbaseConfig *install) {
     const std::chrono::milliseconds RETRY_INTERVAL(1000); // 重试间隔1秒
 
     // 创建安装目录（带重试机制）
-    command = "mkdir -p " + node->install_path;
+    command = "mkdir -p " + shell_quote(node->install_path);
     LOG_DEBUG_FMT("Executing command: %s", command.c_str());
     
     for (int attempt = 1; attempt <= MAX_RETRIES; ++attempt) {
@@ -54,7 +75,7 @@ int create_node_directories(NodeInfo *node, OpentenbaseConfig *install) {
     }
 
     // 创建数据目录（带重试机制）
-    command = "mkdir -p " + node->data_path;
+    command = "mkdir -p " + shell_quote(node->data_path);
     LOG_DEBUG_FMT("Executing command: %s", command.c_str());
     
     for (int attempt = 1; attempt <= MAX_RETRIES; ++attempt) {
@@ -95,7 +116,7 @@ delete_node_directories(NodeInfo *node, OpentenbaseConfig *install) {
     std::string result;
     int ret;
     // Delete install directory
-    command = "rm -rf " + node->data_path;
+    command = "rm -rf " + shell_quote(node->data_path);
     LOG_DEBUG_FMT("Executing command: %s", command.c_str());
     ret = execute_command(node->ip,
         install->server.ssh_port,
@@ -879,7 +900,8 @@ int configure_gtm_node(NodeInfo *node, OpentenbaseConfig *install) {
     int ret;
  
     // Step 1: 创建 gtm.conf 文件（如果不存在）
-    std::string touch_command = "mkdir -p " + node->data_path + " && touch " + node->data_path + "/gtm.conf";
+    std::string touch_command = "mkdir -p " + shell_quote(node->data_path) +
+                                 " && touch " + shell_quote(node->data_path + "/gtm.conf");
     LOG_DEBUG_FMT("Executing command to touch gtm.conf: %s", touch_command.c_str());
     ret = execute_command(node->ip,
                           install->server.ssh_port,
@@ -1177,7 +1199,8 @@ transfer_and_extract_package(NodeInfo *node, OpentenbaseConfig *install) {
                 node->name.c_str(), node->ip.c_str());
 
         // Extract package
-        command = "cd " + node->install_path + " && tar xzf " + install->instance.package_name;
+        command = "cd " + shell_quote(node->install_path) +
+                  " && tar xzf " + shell_quote(install->instance.package_name);
         LOG_DEBUG_FMT("Executing command: %s", command.c_str());
         ret = execute_command(node->ip,
             install->server.ssh_port,
