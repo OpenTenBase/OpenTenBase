@@ -8,6 +8,7 @@
 // 日志级别
 #define LOG_LEVEL_DEBUG "DEBUG"
 #define LOG_LEVEL_INFO  "INFO"
+#define LOG_LEVEL_WARN  "WARN"
 #define LOG_LEVEL_ERROR "ERROR"
 
 #define LOG_DEBUG_FMT(fmt, ...) log_debug_fmt(fmt, __FILE__, __LINE__, ##__VA_ARGS__)
