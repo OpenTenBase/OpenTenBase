@@ -1470,10 +1470,16 @@ int excute_show_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector
                 failedCount++;
                 // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到 
             } 
-
-            // 成功
-            results[i] = 0; 
-            std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " "<< configInfo->guc.guc_name <<"=" << output << '\n';
+            else
+            {
+                /*
+                 * 成功分支必须放进 else。原来它和失败分支是平级的，失败时先写了
+                 * results[i] = ret，紧接着又被这里的 results[i] = 0 覆盖掉，最后
+                 * 检查 results 的循环永远看不到失败，函数照样返回成功。
+                 */
+                results[i] = 0; 
+                std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " "<< configInfo->guc.guc_name <<"=" << output << '\n';
+            }
             
             tatolCount++;
         });
@@ -1540,10 +1546,13 @@ int excute_del_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector<
                 // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到 
             } 
 
-            // 成功
-            results[i] = 0; 
-            std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Result: " << output << '\n';
-            std::cout << output.c_str() << '\n';
+            else
+            {
+                /* 同上：否则 results[i] = 0 会把刚记下的失败覆盖掉。 */
+                results[i] = 0; 
+                std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Result: " << output << '\n';
+                std::cout << output.c_str() << '\n';
+            }
             
             tatolCount++;
         });
@@ -1623,10 +1632,13 @@ int excute_change_guc_concurrency(OpentenbaseConfig *configInfo, const std::vect
                 // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到
             } 
 
-            // 成功
-            results[i] = 0; 
-            std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " " << configInfo->guc.guc_name << " Change to " << configInfo->guc.guc_value << '\n';
-            std::cout << output.c_str() << '\n';
+            else
+            {
+                /* 同上：否则 results[i] = 0 会把上面两处失败记录覆盖掉。 */
+                results[i] = 0; 
+                std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " " << configInfo->guc.guc_name << " Change to " << configInfo->guc.guc_value << '\n';
+                std::cout << output.c_str() << '\n';
+            }
             
             tatolCount++;
         });
