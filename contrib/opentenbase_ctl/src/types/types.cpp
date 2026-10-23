@@ -290,38 +290,40 @@ std::string get_prefix_by_node_type(const std::string type) {
     return "";
 }
 
-// 函数声明：生成节点列表
-int generate_nodes(const std::vector<std::string>& ips, int nodes_per_server, int rounds_num, const std::string type, OpentenbaseConfig& config) {
+// 生成某一类型的节点列表。
+//
+// start_number 是本类型已经用掉的最后一个编号，函数从它往后接着编号，返回前把
+// 它推进到本次用到的最后一个值，这样 master 和 slave 不会拿到同一个名字。
+// 原来 slave 复用 master 的 rounds_num，超界后又把编号绕回 1，于是
+// 1 master + 1 slave 会得到两个 cn0001；即便不绕回，两类节点也都从 0001 起编。
+int generate_nodes(const std::vector<std::string>& ips, int nodes_per_server, int& start_number, const std::string type, OpentenbaseConfig& config) {
 
-    LOG_DEBUG_FMT("Generate_nodes begin, ips.size=%d, nodes_per_server=%d, rounds_num=%d ", ips.size(), rounds_num);
+    LOG_DEBUG_FMT("Generate_nodes begin, ips.size=%d, nodes_per_server=%d, start_number=%d ", ips.size(), nodes_per_server, start_number);
 
-    if (rounds_num <= 0)
+    if (nodes_per_server <= 0 || ips.empty())
     {
-        return -1;
+        return 0;
     }
-    
+
     const std::string prefix = get_prefix_by_node_type(type);
     const int max_number = 4096;
     const int number_digits = 4;
-    int current_number = 0;
+    const int total = static_cast<int>(ips.size()) * nodes_per_server;
 
+    // 超限时报错并停下：原来只打一行日志然后 continue，节点被悄悄少建。
+    if (start_number + total > max_number) {
+        LOG_ERROR_FMT("Node numbering would exceed %d for type %s (start=%d, count=%d).",
+                      max_number, type.c_str(), start_number, total);
+        return -1;
+    }
+
+    int current_number = start_number;
     for (size_t i = 0; i < ips.size(); ++i) {
         for (int j = 1; j <= nodes_per_server; ++j) {
 
             // 计算当前节点的编号
             current_number++;
-            if (current_number > rounds_num)
-            {
-                current_number = 1;
-            }
-            //current_number = (i * nodes_per_server + j) % rounds_num;
-            LOG_DEBUG_FMT("Generate_nodes begin, current_number=%d, i=%d, nodes_per_server=%d, j=%d, rounds_num=%d ", current_number, i, nodes_per_server, j, rounds_num);
-
-            // 检查是否超过最大节点数
-            if (current_number > max_number) {
-                LOG_ERROR_FMT("The total num is more than 4096.");
-                continue;
-            }
+            LOG_DEBUG_FMT("Generate_nodes begin, current_number=%d, i=%d, nodes_per_server=%d, j=%d ", current_number, i, nodes_per_server, j);
 
             NodeInfo node;
             node.ip = ips[i];
@@ -336,6 +338,7 @@ int generate_nodes(const std::vector<std::string>& ips, int nodes_per_server, in
         }
     }
 
+    start_number = current_number;
     return 0;
 }
 
@@ -372,14 +375,14 @@ build_cn_node_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
     }
 
     // generate CN master nodes
-    int round_num = master_ips.size() * nodes_per_server;
-    if (generate_nodes(master_ips, nodes_per_server, round_num, Constants::NODE_TYPE_CN_MASTER, config) == -1) {
+    int next_number = 0;
+    if (generate_nodes(master_ips, nodes_per_server, next_number, Constants::NODE_TYPE_CN_MASTER, config) == -1) {
         LOG_ERROR_FMT("Generate CN master nodes failed.");
         return -1;
     }
 
     // generate CN slave nodes
-    if (generate_nodes(slave_ips, nodes_per_server, round_num, Constants::NODE_TYPE_CN_SLAVE, config) == -1) {
+    if (generate_nodes(slave_ips, nodes_per_server, next_number, Constants::NODE_TYPE_CN_SLAVE, config) == -1) {
         LOG_ERROR_FMT("Generate CN master nodes failed.");
         return -1;
     }
@@ -433,15 +436,15 @@ build_dn_node_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
     }
 
     // generate DN master nodes
-    int round_num = master_ips.size() * nodes_per_server;
-    if (generate_nodes(master_ips, nodes_per_server, round_num, Constants::NODE_TYPE_DN_MASTER, config) == -1) {
-        LOG_ERROR_FMT("Generate CN master nodes failed.");
+    int next_number = 0;
+    if (generate_nodes(master_ips, nodes_per_server, next_number, Constants::NODE_TYPE_DN_MASTER, config) == -1) {
+        LOG_ERROR_FMT("Generate DN master nodes failed.");
         return -1;
     }
 
     // generate DN slave nodes
-    if (generate_nodes(slave_ips, nodes_per_server, round_num, Constants::NODE_TYPE_DN_SLAVE, config) == -1) {
-        LOG_ERROR_FMT("Generate CN master nodes failed.");
+    if (generate_nodes(slave_ips, nodes_per_server, next_number, Constants::NODE_TYPE_DN_SLAVE, config) == -1) {
+        LOG_ERROR_FMT("Generate DN slave nodes failed.");
         return -1;
     }
 
