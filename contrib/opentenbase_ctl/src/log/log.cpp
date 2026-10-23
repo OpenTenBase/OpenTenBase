@@ -95,8 +95,22 @@ log_message(const char* level, const char* message, const char* file, int line) 
     // Open log file
     std::ofstream log_file;
     log_file.open(log_filename, std::ios_base::app);
-    log_file << "[" << get_timestamp() << "] [" << timestamp << "] [" << level << "] [" << file << ":" << line << "] " << message << std::endl;
-    log_file.close();
+    /*
+     * 打开和写入都要检查。原来这两步都不看状态：目录只读、磁盘满或权限不足时
+     * open 失败，写语句静默丢弃这一条，close 也不报错。而终端只会输出 ERROR
+     * 级别，于是 INFO 日志会消失得一点痕迹都没有。
+     */
+    if (!log_file.is_open()) {
+        std::cerr << "Failed to open log file " << log_filename
+                  << " for writing, log entry dropped: " << message << std::endl;
+    } else {
+        log_file << "[" << get_timestamp() << "] [" << timestamp << "] [" << level << "] [" << file << ":" << line << "] " << message << std::endl;
+        if (!log_file.good()) {
+            std::cerr << "Failed to write to log file " << log_filename
+                      << ", log entry may be incomplete: " << message << std::endl;
+        }
+        log_file.close();
+    }
 
     // Only error logs output to terminal, and only output error content
     if (strcmp(level, LOG_LEVEL_ERROR) == 0) {
