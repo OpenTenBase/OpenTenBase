@@ -276,6 +276,15 @@ std::string build_sql_cmd_for_psql(const std::string& binDir,
 
 // build export env str
 std::string buid_ld_library_path_str(std::string bin_dir) {
-
-    return "export LD_LIBRARY_PATH=" + bin_dir + "/lib  && export PATH=" + bin_dir + "/bin:${PATH} ";
+    /*
+     * LD_LIBRARY_PATH 原来是直接赋值的，于是调用者原本的设置被整段丢掉；PATH 那
+     * 一侧却是追加的，两行写法不一致。install.sh 会把 libssh2/openssl 装到
+     * /usr/local/lib，那个目录不在多数发行版的默认搜索路径里，覆盖之后就找不到
+     * 自己的依赖了。
+     *
+     * 追加时用 ${VAR:+:$VAR} 而不是 :${VAR}：后者在变量为空时会留下一个空的路径
+     * 元素，而空元素等价于当前目录，等于把当前目录加进了库搜索路径。
+     */
+    return "export LD_LIBRARY_PATH=" + bin_dir + "/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+           " && export PATH=" + bin_dir + "/bin${PATH:+:$PATH} ";
 }
