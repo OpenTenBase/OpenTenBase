@@ -833,12 +833,13 @@ std::string build_initdb_cmd(NodeInfo* node, OpentenbaseConfig* install) {
     std::string binDir =  node->install_path;
     std::string encodeType = "UTF8";
     std::string locale = get_db_locale_by_ctype(encodeType);
-    std::string home_dir = "";
-    if (get_home_dir("localhost", install->server.ssh_port, install->server.ssh_user, 
-        install->server.ssh_password, home_dir) == -1) {
-        LOG_ERROR_FMT("Get home dir for server %s failed", node->ip.c_str());
-        return "";
-    }
+    /*
+     * 这里原来会先 get_home_dir("localhost", ...) 取一次 home 目录，但 home_dir
+     * 之后再也没被读过：等于白白多做一次 ssh 往返，而且地址写死成 "localhost"
+     * 而不是 node->ip。更要紧的是它失败时 return ""，调用方拿到空串会原样执行
+     * 一条空命令，命令"成功"返回，initdb 就这么被跳过了。调用方本身不检查空串，
+     * 所以直接去掉这个调用：它没有产出，去掉之后这个函数也不会再返回空串。
+     */
     //std::string log_path = dataDir + "/initdb_" + node->name + "_" + node->ip + ".log";
     std::string  node_type = node->type;
     if (node_type == Constants::NODE_TYPE_GTM_MASTER || node_type == Constants::NODE_TYPE_GTM_SLAVE)
