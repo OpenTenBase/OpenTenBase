@@ -23,20 +23,72 @@ fi
 
 # 创建lib目录
 echo -e "${YELLOW}Creating lib directory...${NC}"
-mkdir -p $LIB_DIR
+mkdir -p "$LIB_DIR"
 
 # 获取所有依赖的库
+#
+# 原来写成  ldd | grep -v vdso | awk '{print $3}' | grep -v "not found"：
+# "not found" 是在取完第三个字段之后才过滤的，而那时那一行已经是 "not"，
+# 于是缺库既不会报错，还会往列表里塞一个叫 "not" 的垃圾项。这里先按整行判断
+# 是否缺失，缺失就直接失败——缺库正是最需要知道的事，打包一套不全的库只会让
+# 问题推迟到运行时。
 echo -e "${YELLOW}Collecting library dependencies...${NC}"
-LIBS=$(ldd $BINARY_PATH | grep -v "linux-vdso.so.1" | awk '{print $3}' | grep -v "not found")
+
+LIBS=""
+MISSING=""
+
+while IFS= read -r line; do
+    case $line in
+        *linux-vdso.so.1*)
+            continue
+            ;;
+    esac
+
+    # 形如 "name => /path/to/lib (0x...)"，或没有 "=>" 的加载器行
+    case $line in
+        *"=> not found"*)
+            name=$(printf '%s\n' "$line" | awk '{print $1}')
+            MISSING="$MISSING $name"
+            continue
+            ;;
+        *"=>"*)
+            path=$(printf '%s\n' "$line" | awk '{print $3}')
+            # 有些平台这一行是 "name => /path (addr)"，$3 就是路径
+            if [ -n "$path" ] && [ -f "$path" ]; then
+                LIBS="$LIBS $path"
+            else
+                name=$(printf '%s\n' "$line" | awk '{print $1}')
+                MISSING="$MISSING $name"
+            fi
+            ;;
+        *)
+            # 没有 "=>" 的行是加载器本身（如 /lib64/ld-linux-x86-64.so.2）
+            path=$(printf '%s\n' "$line" | awk '{print $1}')
+            case $path in
+                /*)
+                    if [ -f "$path" ]; then
+                        LIBS="$LIBS $path"
+                    fi
+                    ;;
+            esac
+            ;;
+    esac
+done <<EOF
+$(ldd "$BINARY_PATH")
+EOF
+
+if [ -n "$MISSING" ]; then
+    echo -e "${RED}Error: these libraries are not found, cannot collect a complete set:${NC}"
+    for name in $MISSING; do
+        echo -e "${RED}  $name${NC}"
+    done
+    exit 1
+fi
 
 # 复制库文件
 for lib in $LIBS; do
-    if [ -f "$lib" ]; then
-        echo -e "${GREEN}Copying $lib${NC}"
-        cp -L "$lib" $LIB_DIR/
-    else
-        echo -e "${RED}Warning: Library $lib not found${NC}"
-    fi
+    echo -e "${GREEN}Copying $lib${NC}"
+    cp -L "$lib" "$LIB_DIR/"
 done
 
 # 创建ld.so.conf文件
