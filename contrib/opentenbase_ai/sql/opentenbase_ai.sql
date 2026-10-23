@@ -22,7 +22,7 @@ SELECT ai.add_model(
     'test-provider',                                -- model_provider
     'POST',                                         -- request_type
     'application/json',                             -- content_type
-    'SELECT json_extract_path_text(''%s''::json, ''json'', ''prompt'')' -- json_path
+    'SELECT json_extract_path_text(%L::json, ''json'', ''prompt'')' -- json_path
 );
 
 -- Test 4: List models 

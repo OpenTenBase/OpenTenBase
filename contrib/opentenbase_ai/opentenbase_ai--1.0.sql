@@ -115,7 +115,18 @@ BEGIN
         RAISE EXCEPTION 'Invalid json path for model %', model_name_v;
     END IF;
 
-    EXECUTE format(json_path_v, response_content) INTO result;
+    -- The response body is attacker-influenced: it comes from whatever endpoint
+    -- the model row points at. A template that interpolates it with %s puts the
+    -- body inside a quoted literal verbatim, so one apostrophe in the response
+    -- ends the literal and the rest of the body runs as SQL. Escape the body for
+    -- those legacy templates instead; templates written with %L are already safe
+    -- because format() quotes the value itself.
+    IF position('%s' IN json_path_v) > 0 THEN
+        EXECUTE format(json_path_v,
+                       replace(response_content, '''', '''''')) INTO result;
+    ELSE
+        EXECUTE format(json_path_v, response_content) INTO result;
+    END IF;
     RAISE DEBUG 'invoke_model: result: %', result;
     
     RETURN result;
