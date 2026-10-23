@@ -572,7 +572,7 @@ BEGIN
     END IF;
 
     -- Convert binary image to base64
-    base64_image := encode(image, 'base64');
+    base64_image := replace(encode(image, 'base64'), E'\n', '');
     
     -- Call the URL version with data URL
     RETURN ai.image(prompt, 'data:' || mime_type || ';base64,' || base64_image, model_name, config);
