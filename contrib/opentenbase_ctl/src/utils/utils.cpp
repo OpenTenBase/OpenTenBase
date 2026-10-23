@@ -105,16 +105,21 @@ std::string get_value_after_equal(const std::string& line) {
     size_t start = line.find_first_not_of(" \t", pos + 1);
     if (start == std::string::npos) return "";
 
-    // 查找从 start 开始的第一个空白字符、'#' 注释符号、换行符或回车符
-    size_t end = line.find_first_of(" \t#\n\r", start);
+    // 取值到空白或换行处
+    size_t end = line.find_first_of(" \t\n\r", start);
     if (end == std::string::npos) {
-        // 如果没有空白、注释或换行符，提取到行尾
+        // 没有空白或换行符，提取到行尾
         end = line.length();
     }
 
     // 提取子字符串
     std::string value = line.substr(start, end - start);
 
+    // '#' 不再作为值的终止符。原来它被当作注释起始，于是
+    // ssh-password=ab#cd 被读成 "ab"，密码里带 '#' 的情况几乎必然出错，而且
+    // 调用方看不出值被截断。现在值只到第一个空白为止，"空白 + '#'" 仍然被
+    // 排除在值之外，所以行尾注释（level=DEBUG   # comment）照样被丢掉。
+    //
     // 移除末尾的空白字符、换行符和回车符
     value.erase(value.find_last_not_of(" \t\n\r") + 1);
 
