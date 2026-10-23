@@ -191,39 +191,62 @@ bool isNullOrEmptyOrWhitespace(const std::string& str) {
     return std::all_of(str.begin(), str.end(), ::isspace);
 }
 
-// 使用 std::stoi 封装的转换函数
-int get_nodes_per_servers(const std::string& str) {
-    try {
-        if (isNullOrEmptyOrWhitespace(str))
-        {
-            return 1;
-        }
-        
-        return std::stoi(str);
-    } catch (const std::invalid_argument& e) {
-        LOG_ERROR_FMT("nodes-per-server in Config file is invalid.");
-        return -1;
-    } catch (const std::out_of_range& e) {
-        LOG_ERROR_FMT("nodes-per-server in Config file is to big.");
-        return -1;
+// std::stoi 只解析前缀："36000abc" 会安静地变成 36000，"1e3" 变成 1，
+// 而且它不做范围检查，所以 ssh-port=70000 或 nodes-per-server=0 都能通过。
+// 这里要求整串都是数字，并把值限定在调用方给出的范围内。
+static bool parse_int_in_range(const std::string& str, int min_value, int max_value, int& out) {
+    // Surrounding whitespace is tolerated: the config reader already trims, and
+    // rejecting it here would turn a formatting nit into a hard failure.
+    size_t begin = str.find_first_not_of(" \t\n\r");
+    if (begin == std::string::npos) {
+        return false;
     }
-    
-    return 1; 
+    size_t end = str.find_last_not_of(" \t\n\r");
+    std::string trimmed = str.substr(begin, end - begin + 1);
+
+    for (char c : trimmed) {
+        if (!std::isdigit(static_cast<unsigned char>(c))) {
+            return false;
+        }
+    }
+    try {
+        long value = std::stol(trimmed);
+        if (value < min_value || value > max_value) {
+            return false;
+        }
+        out = static_cast<int>(value);
+        return true;
+    } catch (const std::exception&) {
+        return false;
+    }
 }
 
-// 使用 std::stoi 封装的转换函数
-int get_ssh_port(const std::string& str) {
-    try {
-        return std::stoi(str);
-    } catch (const std::invalid_argument& e) {
-        LOG_ERROR_FMT("ssh-port in Config file is invalid.");
-        return -1;
-    } catch (const std::out_of_range& e) {
-        LOG_ERROR_FMT("ssh-port in Config file is to big.");
+// 解析 nodes-per-server：空值取默认 1，其余必须是正整数。
+int get_nodes_per_servers(const std::string& str) {
+    if (isNullOrEmptyOrWhitespace(str)) {
+        return 1;
+    }
+
+    int value = 0;
+    if (!parse_int_in_range(str, 1, 1024, value)) {
+        LOG_ERROR_FMT("nodes-per-server in Config file must be an integer between 1 and 1024, got \"%s\"",
+                      str.c_str());
         return -1;
     }
-    
-    return 1; 
+
+    return value;
+}
+
+// 解析 ssh-port：必须是 1..65535 的整数。
+int get_ssh_port(const std::string& str) {
+    int value = 0;
+    if (!parse_int_in_range(str, 1, 65535, value)) {
+        LOG_ERROR_FMT("ssh-port in Config file must be an integer between 1 and 65535, got \"%s\"",
+                      str.c_str());
+        return -1;
+    }
+
+    return value;
 }
 
 // 根据配置文件的内容，生成gtm结构体的信息
