@@ -507,6 +507,10 @@ int pre_install_command_concurrency(OpentenbaseConfig *config) {
     for (auto& thread : threads) {
         thread.join();
     }
+    // 第一批已经 join 完，必须清空：下面第二批会继续往同一个 vector 里追加，
+    // 而第二次 join 循环会把这批已 join 的线程再 join 一次，join() 在
+    // 不可 join 的线程上会抛 std::system_error，未捕获即 std::terminate。
+    threads.clear();
     for (int result : results) {
         if (result != 0) {
             LOG_ERROR_FMT("Failed to create directory for nodes");
@@ -517,11 +521,11 @@ int pre_install_command_concurrency(OpentenbaseConfig *config) {
 
     // Step 2: Transfer and extract package (only for unique IPs)
     std::map<std::string, NodeInfo*> unique_ip_nodes;
-    std::vector<int> result(unique_ip_nodes.size(), 0);
-    int failedCount = 0;
     for (auto& node : config->nodes) {
         unique_ip_nodes[node.ip] = &node;
     }
+    // 多个线程会同时累加，普通 int 会丢更新，失败次数因此可能读成 0。
+    std::atomic<int> failedCount{0};
     LOG_INFO_FMT("Found %zu unique IP nodes", unique_ip_nodes.size());
     for (const auto& ip_node : unique_ip_nodes) {
         LOG_INFO_FMT("Step %d/%d: Transferring and extracting package for %s", 
@@ -545,11 +549,11 @@ int pre_install_command_concurrency(OpentenbaseConfig *config) {
                 LOG_ERROR_FMT("Failed to transfer and extract package to node %s (%s)", 
                     ip_node.second->name.c_str(), ip_node.second->ip.c_str());
 
-                std::cout << "Transfer and extract package to server %s" << ip_node.second->ip.c_str() << "Failed " << std::endl;
+                std::cout << "Transfer and extract package to server " << ip_node.second->ip << " Failed " << std::endl;
                 failedCount++;
                 return;
             } else {
-                std::cout << "Transfer and extract package to server %s" << ip_node.second->ip.c_str() << "Success" << std::endl;
+                std::cout << "Transfer and extract package to server " << ip_node.second->ip << " Success" << std::endl;
             }
         
         });
