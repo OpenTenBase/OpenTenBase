@@ -120,6 +120,7 @@ typedef struct heap_page_items_state
 {
 	TupleDesc tupd;
 	Page page;
+	int page_size;			/* bytes actually passed in, not BLCKSZ */
 	uint16 offset;
 } heap_page_items_state;
 
@@ -197,6 +198,7 @@ items(PG_FUNCTION_ARGS, int log_level, bool with_data, bool only_id)
 
 		inter_call_data->offset = FirstOffsetNumber;
 		inter_call_data->page = VARDATA(raw_page);
+		inter_call_data->page_size = raw_page_size;
 
 		fctx->max_calls = PageGetMaxOffsetNumber(inter_call_data->page);
 		fctx->user_fctx = inter_call_data;
@@ -244,7 +246,14 @@ items(PG_FUNCTION_ARGS, int log_level, bool with_data, bool only_id)
 			ItemIdHasStorage(id) &&
 			lp_len >= MinHeapTupleSize &&
 			lp_offset == MAXALIGN(lp_offset) &&
-			lp_offset + lp_len <= BLCKSZ)
+			/*
+			 * Bound the tuple by the buffer we were actually given. BLCKSZ is
+			 * the compile-time maximum page size, so comparing against it lets
+			 * a line pointer that fits a full page but not the caller's shorter
+			 * buffer through, and PageGetItem below then reads past the end --
+			 * exactly what the comment above promises not to do.
+			 */
+			lp_offset + lp_len <= inter_call_data->page_size)
 		{
 			HeapTupleHeader tuphdr;
 			bytea *tuple_data_bytea;
