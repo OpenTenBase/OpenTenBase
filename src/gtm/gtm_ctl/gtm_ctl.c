@@ -935,9 +935,20 @@ do_status(void)
 			exit(1);
 		}
 
-		if (fscanf(pidf, "%s", datpath) != 1)
+		/*
+		 * 这个字段是数据目录路径，长度不受文件名限制。没有上限的 %s 会一直写到
+		 * 空白为止，路径超过 datpath 的大小时就越过栈上缓冲区；补上宽度，并且
+		 * 在字段确实被截断时报错，而不是悄悄用一个短了一截的路径。
+		 */
+		if (fscanf(pidf, "%1023s", datpath) != 1)
 		{
 			write_stderr(_("%s: invalid data in PID file \"%s\"\n"),
+						progname, pid_file);
+			exit(1);
+		}
+		if (strlen(datpath) >= MAXPGPATH - 1)
+		{
+			write_stderr(_("%s: data directory in PID file \"%s\" is too long\n"),
 						progname, pid_file);
 			exit(1);
 		}
