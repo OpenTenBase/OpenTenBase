@@ -1,0 +1,58 @@
+<svg viewBox="0 0 680 400" width="100%" role="img">
+  <title>OpenTenBase K8s Deployment Proposed Architecture</title>
+  <desc>Proposed Kubernetes architecture for OpenTenBase: GTM StatefulSet, CN StatefulSet, DN StatefulSet, with Service exposure and Operator controller</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5"
+      markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke"
+        stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <style>
+    .t { font-family: Inter, system-ui, sans-serif; font-size: 14px; fill: #2C2C2A; font-weight: 400 }
+    .th { font-family: Inter, system-ui, sans-serif; font-size: 14px; fill: #2C2C2A; font-weight: 500 }
+    .ts { font-family: Inter, system-ui, sans-serif; font-size: 12px; fill: #5F5E5A; font-weight: 400 }
+    .tl { font-family: Inter, system-ui, sans-serif; font-size: 13px; fill: #2C2C2A; font-weight: 500 }
+  </style>
+
+  <rect x="40" y="10" width="600" height="380" rx="16" fill="#E6F1FB" stroke="#378ADD" stroke-width="0.5"/>
+  <text class="tl" x="340" y="32" text-anchor="middle">OpenTenBase K8s proposed architecture</text>
+
+  <rect x="60" y="50" width="160" height="80" rx="8" fill="#CECBF6" stroke="#534AB7" stroke-width="0.5"/>
+  <text class="th" x="140" y="78" text-anchor="middle" dominant-baseline="central">GTM StatefulSet</text>
+  <text class="ts" x="140" y="98" text-anchor="middle" dominant-baseline="central">port: 6666</text>
+  <text class="ts" x="140" y="115" text-anchor="middle" dominant-baseline="central">1 master + 1 standby</text>
+
+  <rect x="260" y="50" width="160" height="80" rx="8" fill="#AFA9EC" stroke="#534AB7" stroke-width="0.5"/>
+  <text class="th" x="340" y="78" text-anchor="middle" dominant-baseline="central">CN StatefulSet</text>
+  <text class="ts" x="340" y="98" text-anchor="middle" dominant-baseline="central">port: 11003</text>
+  <text class="ts" x="340" y="115" text-anchor="middle" dominant-baseline="central">1+ coordinator replicas</text>
+
+  <rect x="460" y="50" width="160" height="80" rx="8" fill="#7F77DD" stroke="#3C3489" stroke-width="0.5"/>
+  <text class="th" x="540" y="78" text-anchor="middle" dominant-baseline="central" fill="#fff">DN StatefulSet</text>
+  <text class="ts" x="540" y="98" text-anchor="middle" dominant-baseline="central" fill="#EEEDFE">port: 11008</text>
+  <text class="ts" x="540" y="115" text-anchor="middle" dominant-baseline="central" fill="#EEEDFE">2+ datanode replicas</text>
+
+  <line x1="140" y1="130" x2="140" y2="175" stroke="#534AB7" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="340" y1="130" x2="340" y2="175" stroke="#534AB7" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="540" y1="130" x2="540" y2="175" stroke="#534AB7" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="60" y="175" width="160" height="44" rx="8" fill="#F1EFE8" stroke="#888780" stroke-width="0.5"/>
+  <text class="th" x="140" y="197" text-anchor="middle" dominant-baseline="central">Svc: gtm-svc</text>
+
+  <rect x="260" y="175" width="160" height="44" rx="8" fill="#F1EFE8" stroke="#888780" stroke-width="0.5"/>
+  <text class="th" x="340" y="197" text-anchor="middle" dominant-baseline="central">Svc: cn-rw</text>
+
+  <rect x="460" y="175" width="160" height="44" rx="8" fill="#F1EFE8" stroke="#888780" stroke-width="0.5"/>
+  <text class="th" x="540" y="197" text-anchor="middle" dominant-baseline="central">Svc: dn-svc</text>
+
+  <rect x="60" y="240" width="560" height="70" rx="8" fill="#EAF3DE" stroke="#639922" stroke-width="0.5"/>
+  <text class="th" x="340" y="260" text-anchor="middle" dominant-baseline="central">OpenTenBase Operator (controller)</text>
+  <text class="ts" x="340" y="280" text-anchor="middle" dominant-baseline="central">Watch OpenTenBaseCluster CRD, reconcile GTM/CN/DN StatefulSets, manage init sequence</text>
+  <text class="ts" x="340" y="298" text-anchor="middle" dominant-baseline="central">Handle ALTER NODE registration, expansion, failover</text>
+
+  <rect x="60" y="320" width="560" height="70" rx="8" fill="#F1EFE8" stroke="#888780" stroke-width="0.5"/>
+  <text class="th" x="340" y="340" text-anchor="middle" dominant-baseline="central">OpenTenBaseCluster CRD</text>
+  <text class="ts" x="340" y="358" text-anchor="middle" dominant-baseline="central">Spec: gtm {}, coordinators {}, datanodes {}, distributedType</text>
+  <text class="ts" x="340" y="376" text-anchor="middle" dominant-baseline="central">Status: phase, nodeStatus [], conditions []</text>
+</svg>

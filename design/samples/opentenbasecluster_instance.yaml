@@ -1,0 +1,75 @@
+apiVersion: opentenbase.io/v1alpha1
+kind: OpenTenBaseCluster
+metadata:
+  name: demo-cluster
+  namespace: opentenbase
+  labels:
+    app.kubernetes.io/name: opentenbase
+    app.kubernetes.io/instance: demo-cluster
+    app.kubernetes.io/managed-by: opentenbase-operator
+spec:
+  distributedType: distributed
+  image: "opentenbase/opentenbase:v5.21.8"
+  gtm:
+    master:
+      replicas: 1
+      resources:
+        requests:
+          cpu: "500m"
+          memory: "512Mi"
+        limits:
+          cpu: "1"
+          memory: "1Gi"
+      storage:
+        size: "5Gi"
+        storageClass: "local-storage"
+    standby:
+      replicas: 1
+      resources:
+        requests:
+          cpu: "250m"
+          memory: "256Mi"
+      storage:
+        size: "5Gi"
+        storageClass: "local-storage"
+  coordinators:
+    replicas: 1
+    resources:
+      requests:
+        cpu: "1"
+        memory: "2Gi"
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+    storage:
+      size: "20Gi"
+      storageClass: "local-storage"
+    pgbouncer:
+      enabled: true
+      replicas: 1
+      poolMode: transaction
+  datanodes:
+    replicas: 2
+    resources:
+      requests:
+        cpu: "1"
+        memory: "4Gi"
+      limits:
+        cpu: "2"
+        memory: "8Gi"
+    storage:
+      size: "50Gi"
+      storageClass: "local-storage"
+    defaultDistribution: hash
+  monitoring:
+    enabled: true
+    prometheus:
+      exporterImage: "prometheus/postgres_exporter:latest"
+  backup:
+    enabled: true
+    walArchiving:
+      enabled: true
+      storage:
+        type: minio
+        bucket: "opentenbase-wal"
+        endpoint: "http://minio.minio-system:9000"
