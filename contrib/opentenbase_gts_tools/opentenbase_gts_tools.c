@@ -268,7 +268,15 @@ items(PG_FUNCTION_ARGS, int log_level, bool with_data, bool only_id)
 			values[12] = Int32GetDatum(tuphdr->t_shardid);
 			values[13] = UInt8GetDatum(tuphdr->t_hoff);
 #else
-			values[12] = UInt8GetDatum(tuphdr->t_hoff);
+			/*
+			 * This build has no shard column on the tuple header. Assigning
+			 * t_hoff to values[12] reported it under the t_shard output column
+			 * and left values[13] -- the t_hoff column -- unset, so the LOG
+			 * line below printed t_share=<t_hoff> t_hoff=0. Report t_shard as
+			 * NULL and put t_hoff in its own slot.
+			 */
+			nulls[12] = true;
+			values[13] = UInt8GetDatum(tuphdr->t_hoff);
 #endif
 
 			if (with_data)
