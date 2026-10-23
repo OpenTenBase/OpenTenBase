@@ -679,13 +679,31 @@ gtm_standby_connectToActiveGTM(int timeout)
 
 	if (timeout != 0)
     {
-        sprintf(connect_string, "host=%s port=%d node_name=%s remote_type=%d connect_timeout=%d",
-                active_address, active_port, NodeName, GTM_NODE_GTM, timeout);
+        /*
+         * NodeName 来自 -n，active_address 来自活动 GTM 登记的地址，两者都不受
+         * connect_string 大小的约束。原先用 sprintf 拼进这个 1024 字节的栈缓冲，
+         * 名字一长就越过栈帧；gcc 自己也会报 -Wformat-overflow。超长时直接失败，
+         * 不带着半截连接串去连。
+         */
+        if (snprintf(connect_string, sizeof(connect_string),
+                     "host=%s port=%d node_name=%s remote_type=%d connect_timeout=%d",
+                     active_address, active_port, NodeName, GTM_NODE_GTM,
+                     timeout) >= (int) sizeof(connect_string))
+        {
+            elog(ERROR, "GTM connection string for standby node exceeds max size");
+            return NULL;
+        }
     }
     else
     {
-	sprintf(connect_string, "host=%s port=%d node_name=%s remote_type=%d",
-			active_address, active_port, NodeName, GTM_NODE_GTM);
+	if (snprintf(connect_string, sizeof(connect_string),
+			"host=%s port=%d node_name=%s remote_type=%d",
+			active_address, active_port, NodeName,
+			GTM_NODE_GTM) >= (int) sizeof(connect_string))
+	{
+		elog(ERROR, "GTM connection string for standby node exceeds max size");
+		return NULL;
+	}
     }
 
 	return PQconnectGTM(connect_string);
