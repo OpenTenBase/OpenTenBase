@@ -1,0 +1,77 @@
+<svg viewBox="0 0 680 520" width="100%" role="img">
+  <title>OpenTenBase vs Standard PG Operator Architecture Comparison</title>
+  <desc>Diagram comparing OpenTenBase's 3-role distributed architecture (GTM + CN + DN) with standard single-role PG Operator architecture</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5"
+      markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke"
+        stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <style>
+    .t { font-family: Inter, system-ui, sans-serif; font-size: 14px; fill: #2C2C2A; font-weight: 400 }
+    .th { font-family: Inter, system-ui, sans-serif; font-size: 14px; fill: #2C2C2A; font-weight: 500 }
+    .ts { font-family: Inter, system-ui, sans-serif; font-size: 12px; fill: #5F5E5A; font-weight: 400 }
+    .tl { font-family: Inter, system-ui, sans-serif; font-size: 13px; fill: #2C2C2A; font-weight: 500 }
+    .box { fill: #F1EFE8; stroke: #5F5E5A; stroke-width: 0.5 }
+  </style>
+
+  <rect x="40" y="10" width="290" height="510" rx="16" fill="#E6F1FB" stroke="#378ADD" stroke-width="0.5"/>
+  <text class="tl" x="185" y="35" text-anchor="middle">OpenTenBase (distributed)</text>
+
+  <rect x="350" y="10" width="290" height="510" rx="16" fill="#E1F5EE" stroke="#1D9E75" stroke-width="0.5"/>
+  <text class="tl" x="495" y="35" text-anchor="middle">Standard PG Operator</text>
+
+  <rect x="80" y="60" width="210" height="56" rx="8" fill="#B5D4F4" stroke="#185FA5" stroke-width="0.5"/>
+  <text class="th" x="185" y="82" text-anchor="middle" dominant-baseline="central">GTM (Global Tx Manager)</text>
+  <text class="ts" x="185" y="100" text-anchor="middle" dominant-baseline="central">Global snapshot + sequence</text>
+
+  <rect x="80" y="160" width="210" height="56" rx="8" fill="#85B7EB" stroke="#185FA5" stroke-width="0.5"/>
+  <text class="th" x="185" y="182" text-anchor="middle" dominant-baseline="central">Coordinator (CN)</text>
+  <text class="ts" x="185" y="200" text-anchor="middle" dominant-baseline="central">SQL entry + query planner</text>
+
+  <rect x="80" y="260" width="210" height="56" rx="8" fill="#378ADD" stroke="#0C447C" stroke-width="0.5"/>
+  <text class="th" x="185" y="282" text-anchor="middle" dominant-baseline="central" fill="#fff">DataNode (DN)</text>
+  <text class="ts" x="185" y="300" text-anchor="middle" dominant-baseline="central" fill="#E6F1FB">Shard storage + local exec</text>
+
+  <line x1="185" y1="116" x2="185" y2="160" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="185" y1="216" x2="185" y2="260" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <text class="ts" x="190" y="140" text-anchor="middle">GTM register</text>
+  <text class="ts" x="190" y="240" text-anchor="middle">RemoteSQL dispatch</text>
+
+  <rect x="80" y="340" width="210" height="90" rx="8" fill="#F1EFE8" stroke="#888780" stroke-width="0.5"/>
+  <text class="th" x="185" y="360" text-anchor="middle" dominant-baseline="central">Startup dependencies</text>
+  <text class="ts" x="185" y="380" text-anchor="middle" dominant-baseline="central">1. GTM must be first</text>
+  <text class="ts" x="185" y="395" text-anchor="middle" dominant-baseline="central">2. DN initdb + ALTER NODE</text>
+  <text class="ts" x="185" y="410" text-anchor="middle" dominant-baseline="central">3. CN initdb + CREATE NODE</text>
+
+  <rect x="80" y="445" width="210" height="56" rx="8" fill="#F1EFE8" stroke="#888780" stroke-width="0.5"/>
+  <text class="th" x="185" y="467" text-anchor="middle" dominant-baseline="central">opentenbase_ctl</text>
+  <text class="ts" x="185" y="485" text-anchor="middle" dominant-baseline="central">SSH-based orchestrator</text>
+
+  <rect x="390" y="60" width="210" height="56" rx="8" fill="#9FE1CB" stroke="#0F6E56" stroke-width="0.5"/>
+  <text class="th" x="495" y="82" text-anchor="middle" dominant-baseline="central">Primary (single role)</text>
+  <text class="ts" x="495" y="100" text-anchor="middle" dominant-baseline="central">RW + streaming replication</text>
+
+  <rect x="390" y="160" width="210" height="56" rx="8" fill="#5DCAA5" stroke="#0F6E56" stroke-width="0.5"/>
+  <text class="th" x="495" y="182" text-anchor="middle" dominant-baseline="central">Replica (standby)</text>
+  <text class="ts" x="495" y="200" text-anchor="middle" dominant-baseline="central">Read-only + failover target</text>
+
+  <rect x="390" y="260" width="210" height="56" rx="8" fill="#1D9E75" stroke="#085041" stroke-width="0.5"/>
+  <text class="th" x="495" y="282" text-anchor="middle" dominant-baseline="central" fill="#fff">Patroni HA</text>
+  <text class="ts" x="495" y="300" text-anchor="middle" dominant-baseline="central" fill="#E1F5EE">DCS-based leader election</text>
+
+  <line x1="495" y1="116" x2="495" y2="160" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text class="ts" x="500" y="140" text-anchor="middle">WAL streaming</text>
+
+  <rect x="390" y="340" width="210" height="90" rx="8" fill="#F1EFE8" stroke="#888780" stroke-width="0.5"/>
+  <text class="th" x="495" y="360" text-anchor="middle" dominant-baseline="central">Startup dependencies</text>
+  <text class="ts" x="495" y="380" text-anchor="middle" dominant-baseline="central">1. PVC mount</text>
+  <text class="ts" x="495" y="395" text-anchor="middle" dominant-baseline="central">2. initdb (standalone)</text>
+  <text class="ts" x="495" y="410" text-anchor="middle" dominant-baseline="central">3. Patroni bootstrap</text>
+
+  <rect x="390" y="445" width="210" height="56" rx="8" fill="#F1EFE8" stroke="#888780" stroke-width="0.5"/>
+  <text class="th" x="495" y="467" text-anchor="middle" dominant-baseline="central">Operator controller</text>
+  <text class="ts" x="495" y="485" text-anchor="middle" dominant-baseline="central">K8s-native reconciler</text>
+</svg>
