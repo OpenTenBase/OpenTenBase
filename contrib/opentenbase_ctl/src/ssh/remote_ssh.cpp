@@ -2,6 +2,7 @@
 #include <string>
 #include <cstdio>
 #include <cstdlib>
+#include <sys/wait.h>
 #include <sstream>
 #include <memory>
 #include <array>
@@ -49,7 +50,27 @@ remote_ssh_exec(const std::string& ip, int port, const std::string& username,
     if (!result.empty()) {
         LOG_INFO_FMT("Command output from %s: %s", ip.c_str(), result.c_str());
     }
-    return 0;
+
+    // Return the remote command's own exit status. The previous code returned 0
+    // unconditionally after draining the pipe, so every remote failure looked
+    // like success: check_port_available reported every port as free, and no
+    // other caller could tell an ssh error from a completed command.
+    int status = pclose(pipe.release());
+    if (status == -1) {
+        LOG_ERROR_FMT("Failed to wait for command on %s", ip.c_str());
+        return -1;
+    }
+    if (WIFEXITED(status)) {
+        int code = WEXITSTATUS(status);
+        if (code != 0) {
+            LOG_DEBUG_FMT("Remote command on %s exited with %d", ip.c_str(), code);
+        }
+        return code;
+    }
+    if (WIFSIGNALED(status)) {
+        return 128 + WTERMSIG(status);
+    }
+    return status;
 }
 
 // Transfer file to remote host
@@ -428,23 +449,30 @@ std::string string_to_base64(const std::string& input) {
 // Check if port is available
 int 
 check_port_available(const char *ip, int port, const char *username, const char *password, int ssh_port) {
-    std::string cmd = "export PATH=/usr/local/bin:/usr/bin:/usr/sbin:$PATH && ss -tln | grep -q ':" + std::to_string(port) + "'";
+    // grep -q never writes to stdout, so the emptiness test this used to make
+    // could not distinguish the two cases: a busy port made grep succeed, the
+    // captured output stayed empty, and the caller was told the port was free.
+    // Print the matching line instead and let its presence decide.
+    //
+    // The port is anchored to the end of the field, so :1100 does not match a
+    // listener on :11000.
+    std::string port_str = std::to_string(port);
+    std::string cmd = "export PATH=/usr/local/bin:/usr/bin:/usr/sbin:$PATH && "
+                      "ss -tln | grep -E ':" + port_str + "([^0-9]|$)'";
     std::string result;
     
     int ret = remote_ssh_exec(ip, ssh_port, username, password, cmd, result);
     
     if (ret == 0) {
-        // Command executed successfully, check return value
-        if (result.empty()) {
-            // No port found, means port is available
-            return 0;
-        } else {
-            // Port found, means port is occupied
-            return 1;
-        }
-    } else {
-        // Command execution failed
-        LOG_ERROR_FMT("Failed to check port %d on %s: %s", port, ip, result.c_str());
-        return -1;
+        // The port appears in the listen table, so it is taken.
+        return 1;
     }
+    if (ret == 1) {
+        // grep found no listener: the port is free. This is a normal result from
+        // the pipeline, not a failure to run the command.
+        return 0;
+    }
+    
+    LOG_ERROR_FMT("Failed to check port %d on %s: %s", port, ip, result.c_str());
+    return -1;
 }
