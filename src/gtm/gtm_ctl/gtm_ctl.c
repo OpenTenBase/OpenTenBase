@@ -294,7 +294,19 @@ start_gtm(void)
 	strncat(gtm_app_path, gtm_app, MAXPGPATH - len - 1);
 
 	if (startup_gts != NULL)
-		snprintf(gtm_startup_gts,MAXPGPATH,"-g %s",startup_gts);
+	{
+		/*
+		 * snprintf 返回的是"本该写入的长度"，超过缓冲区就意味着被截断。这里
+		 * 原来是唯一没检查返回值的一处：被截断的 GTS 是另一个合法的数字，
+		 * GTM 会拿它当起始事务号启动，没有任何提示。
+		 */
+		len = snprintf(gtm_startup_gts, MAXPGPATH, "-g %s", startup_gts);
+		if (len < 0 || len >= MAXPGPATH)
+		{
+			write_stderr("gtm startup gts exceeds max size");
+			exit(1);
+		}
+	}
 	if (log_file != NULL)
 		len = snprintf(cmd, MAXPGPATH - 1, "\"%s\" %s%s %s >> \"%s\" 2>&1 &" ,
 				 gtm_app_path, gtmdata_opt, gtm_opts, gtm_startup_gts, log_file);
