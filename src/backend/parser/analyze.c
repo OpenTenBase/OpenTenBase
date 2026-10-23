@@ -3913,7 +3913,8 @@ transformUpdateTargetList(ParseState *pstate, List *origTlist, Node *targetRange
 		/* could not update distributed columns */
 		if (IS_PGXC_COORDINATOR && pstate->p_target_rangetblentry->rtekind != RTE_SUBQUERY)
 		{
-			checkUpdateColValid(tle, attrno, pstate->p_target_relation, pstate->p_rtable);
+			checkUpdateColValid(tle, attrno, pstate->p_target_relation, pstate->p_rtable,
+								pstate->p_target_rangetblentry);
 		}
 #endif
 
@@ -5462,9 +5463,18 @@ fixResTargetListWithTableNameRef(Relation rd, RangeVar *rel, List *clause_list)
  *
  * Check whether the column can be legally updated.
  * We can not update the distribution key.
+ *
+ * A Var in the SET expression is harmless only when it reads back the very
+ * column that is being written, on the target row itself (a no-op self
+ * assignment).  Compare the RangeTblEntry instead of the relation OID: a
+ * second reference to the same relation (for example the target table joined
+ * again under a different alias in an associated UPDATE ... FROM) has the very
+ * same OID but denotes another row, so updating the distribution key from it
+ * would move the row to the wrong data node.
  */
 void
-checkUpdateColValid(TargetEntry *tle, AttrNumber updateAttrno, Relation targetRel, List *rtables)
+checkUpdateColValid(TargetEntry *tle, AttrNumber updateAttrno, Relation targetRel,
+					List *rtables, RangeTblEntry *targetRte)
 {
 	RelationLocInfo *rd_locator_info = targetRel->rd_locator_info;
 
@@ -5473,23 +5483,18 @@ checkUpdateColValid(TargetEntry *tle, AttrNumber updateAttrno, Relation targetRe
 
 	if (IsA(tle->expr, Var))
 	{
-		Oid            resultrel;
-		Oid            varrel;
 		Var           *var = (Var *) tle->expr;
-		RangeTblEntry *rte = rt_fetch(var->varno, rtables);
-		char          *aliasname = NULL;
 
-		if (rte->eref)
-			aliasname = rte->eref->aliasname;
-
-		resultrel = RelationGetRelid(targetRel);
-		varrel = rte->relid;
-
-		if (resultrel == varrel && var->varattno == updateAttrno)
-		{
-			if (!aliasname || strcmp(aliasname, "excluded") != 0)
-				return;
-		}
+		/*
+		 * A Var of an upper query level does not index rtables, so it can never
+		 * be a self reference; and the "excluded" pseudo relation of INSERT ...
+		 * ON CONFLICT DO UPDATE is a distinct RTE, hence it is rejected like any
+		 * other relation.
+		 */
+		if (var->varlevelsup == 0 &&
+			rt_fetch(var->varno, rtables) == targetRte &&
+			var->varattno == updateAttrno)
+			return;
 	}
 
 	ereport(ERROR,
