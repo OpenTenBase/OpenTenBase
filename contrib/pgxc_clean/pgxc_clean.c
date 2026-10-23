@@ -348,7 +348,7 @@ int main(int argc, char *argv[])
 			{
 				int ii;
 
-				fprintf(outf, "    gxid: %d, xid: \"%s\", owner: %s\n", txn->gxid, txn->xid, txn->owner);
+				fprintf(outf, "    gxid: %u, xid: \"%s\", owner: %s\n", txn->gxid, txn->xid, txn->owner);
 				for (ii = 0; ii < pgxc_clean_node_count; ii++)
 				{
 					fprintf(outf, "        node: %s, status: %s\n",
@@ -465,7 +465,7 @@ recover2PC(PGconn *conn, txn_info *txn)
 	txn_stat = check_txn_global_status(txn);
 	if (verbose_opt)
 	{
-		fprintf(outf, "    Recovering TXN: gxid: %d, xid: \"%s\", owner: \"%s\", global status: %s\n",
+		fprintf(outf, "    Recovering TXN: gxid: %u, xid: \"%s\", owner: \"%s\", global status: %s\n",
 				txn->gxid, txn->xid, txn->owner, str_txn_stat(txn_stat));
 	}
 	switch (txn_stat)
@@ -543,7 +543,7 @@ do_commit_abort(PGconn *conn, txn_info *txn, bool is_commit)
 			{
 				if (res_status != PGRES_COMMAND_OK && res_status != PGRES_TUPLES_OK)
 				{
-					fprintf(errf, "Failed to recover TXN, gxid: %d, xid: \"%s\", owner: \"%s\", node: \"%s\" (%s)\n",
+					fprintf(errf, "Failed to recover TXN, gxid: %u, xid: \"%s\", owner: \"%s\", node: \"%s\" (%s)\n",
 							txn->gxid, txn->xid, txn->owner, pgxc_clean_node_info[ii].node_name,
 							PQresultErrorMessage(res));
 				}
@@ -568,7 +568,7 @@ do_commit_abort(PGconn *conn, txn_info *txn, bool is_commit)
 	}
 	else if (res_status != PGRES_COMMAND_OK && res_status != PGRES_TUPLES_OK)
 	{
-		fprintf(errf, "Failed to recover TXN, gxid: %d, xid: \"%s\", owner: \"%s\", node: \"%s\" (%s)\n",
+		fprintf(errf, "Failed to recover TXN, gxid: %u, xid: \"%s\", owner: \"%s\", node: \"%s\" (%s)\n",
 				txn->gxid, txn->xid, txn->owner, my_nodename, PQresultErrorMessage(res));
 	}
 	PQclear(res);
@@ -651,8 +651,8 @@ getTxnStatus(PGconn *conn, GlobalTransactionId gxid, int node_idx)
 	PGresult *res;
 	char *res_s;
 
-	static const char *STMT_FORM = "EXECUTE DIRECT ON (%s) 'SELECT pgxc_is_committed(''%d''::xid);'";
-	static const char *STMT_FORM_RUNNING = "EXECUTE DIRECT ON (%s) 'SELECT pgxc_is_inprogress(''%d''::xid);'";
+	static const char *STMT_FORM = "EXECUTE DIRECT ON (%s) 'SELECT pgxc_is_committed(''%u''::xid);'";
+	static const char *STMT_FORM_RUNNING = "EXECUTE DIRECT ON (%s) 'SELECT pgxc_is_inprogress(''%u''::xid);'";
 
 	node_name = pgxc_clean_node_info[node_idx].node_name;
 	sprintf(stmt, STMT_FORM, node_name, gxid);
@@ -752,7 +752,7 @@ getPreparedTxnListOfNode(PGconn *conn, int idx)
 		char *owner;
 		char *database_name;
 
-		gxid = atoi(PQgetvalue(res, ii, 0));
+		gxid = (GlobalTransactionId) strtoul(PQgetvalue(res, ii, 0), NULL, 10);
 		xid = strdup(PQgetvalue(res, ii, 1));
 		owner = strdup(PQgetvalue(res, ii, 2));
 		database_name = strdup(PQgetvalue(res, ii, 3));
