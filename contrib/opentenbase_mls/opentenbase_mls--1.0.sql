@@ -2299,7 +2299,7 @@ BEGIN
     --RAISE NOTICE 'polid:%', polid;
     
     --get userid
-    sql_cmd := 'select oid from pg_authid where rolname = '''||username||''' ;';
+    sql_cmd := 'select oid from pg_authid where rolname = '||quote_literal(username)||' ;';
     EXECUTE sql_cmd INTO userid;
     IF polid IS NULL THEN 
         RAISE EXCEPTION 'INVALID INPUT:user name:% dose not exists', username;
@@ -2339,7 +2339,7 @@ BEGIN
     EXECUTE sql_cmd;
     
     --disconnect current connections
-    sql_cmd := 'select pgxc_pool_disconnect('''', '''||username||''');';
+    sql_cmd := 'select pgxc_pool_disconnect('''', '||quote_literal(username)||');';
     EXECUTE sql_cmd;
     
     RETURN TRUE;
@@ -2357,7 +2357,7 @@ DECLARE
     userid       int4;
 BEGIN
     --get userid
-    sql_cmd := 'select oid from pg_authid where rolname = '''||username||''' ;';
+    sql_cmd := 'select oid from pg_authid where rolname = '||quote_literal(username)||' ;';
     EXECUTE sql_cmd INTO userid;
     IF userid IS NULL THEN 
         RAISE EXCEPTION 'INVALID INPUT:user name:% dose not exists', username;
@@ -2375,7 +2375,7 @@ BEGIN
     EXECUTE sql_cmd;
     
     --disconnect current connections
-    sql_cmd := 'select pgxc_pool_disconnect('''', '''||username||''');';
+    sql_cmd := 'select pgxc_pool_disconnect('''', '||quote_literal(username)||');';
     EXECUTE sql_cmd;
     
     RETURN TRUE;
