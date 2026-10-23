@@ -111,8 +111,8 @@ void LicenseShmemInit(void)
 {
 	bool found;
 	license = (ShardLicenseAggrement *)ShmemInitStruct("Licence Aggrement", 
-														sizeof(ShardLicenseAggrement), 
-														&found);
+													sizeof(ShardLicenseAggrement), 
+													&found);
 	if(found)
 	{
 		return;
@@ -122,10 +122,12 @@ void LicenseShmemInit(void)
 	license->is_loaded = false;
 	SpinLockInit(&license->lock);	
 
+#ifndef NOLIC
 	if(IS_PGXC_COORDINATOR)
 	{
 		load_license();
 	}
+#endif
 }
 
 
@@ -282,22 +284,22 @@ decrypt_error:
 }
 
 int create_license_file(const char *filepath,
-							const char *private_keyfile,
-							int licenseid,
-							TimestampTz expired_date,
-							int max_cn,
-							int max_dn,
-							int max_cpu_cores,
-							int max_conn_per_cn,
-							int max_cores_per_cn,
-							int max_cores_per_dn,
-							int max_volumn,
-							char *userid,
-							char *applicant_name,
-							char *group_name,
-							char *company_name,
-							char *product_name,
-							char *type)
+						const char *private_keyfile,
+						int licenseid,
+						TimestampTz expired_date,
+						int max_cn,
+						int max_dn,
+						int max_cpu_cores,
+						int max_conn_per_cn,
+						int max_cores_per_cn,
+						int max_cores_per_dn,
+						int max_volumn,
+						char *userid,
+						char *applicant_name,
+						char *group_name,
+						char *company_name,
+						char *product_name,
+						char *type)
 {
 	int ret = 0;
 	bytea *private_key_src = NULL;
@@ -352,21 +354,21 @@ create_failed:
 }
 
 int create_license_info(LicenseInfo **licinfo,
-							int licenseid,
-							TimestampTz expired_date,
-							int max_cn,
-							int max_dn,
-							int max_cpu_cores,
-							int max_conn_per_cn,
-							int max_cores_per_cn,
-							int max_cores_per_dn,
-							int max_volumn,
-							char *userid,
-							char *applicant_name,
-							char *group_name,
-							char *company_name,
-							char *product_name,
-							char *type)
+						int licenseid,
+						TimestampTz expired_date,
+						int max_cn,
+						int max_dn,
+						int max_cpu_cores,
+						int max_conn_per_cn,
+						int max_cores_per_cn,
+						int max_cores_per_dn,
+						int max_volumn,
+						char *userid,
+						char *applicant_name,
+						char *group_name,
+						char *company_name,
+						char *product_name,
+						char *type)
 {
 	LicenseInfo *license;
 
@@ -897,4 +899,3 @@ char * transparent_crypt_get_private_key(void)
 {
     return PUBLIC_KEY;
 }
-
