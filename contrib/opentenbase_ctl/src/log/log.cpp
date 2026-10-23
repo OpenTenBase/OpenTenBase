@@ -38,12 +38,25 @@ get_timestamp() {
 }
 
 // Check if should record this level log
+//
+// 级别是"门槛"而不是"开关"：设成 ERROR 时 INFO 不该再写进日志。
+// 原来的实现只判断 DEBUG，除 DEBUG 以外一律通过，于是把级别设成 ERROR 之后
+// INFO 仍然照写，-l 参数实际上只能屏蔽 DEBUG。
+static int
+log_level_rank(const char* level) {
+    if (strcmp(level, LOG_LEVEL_DEBUG) == 0) {
+        return 0;
+    }
+    if (strcmp(level, LOG_LEVEL_ERROR) == 0) {
+        return 2;
+    }
+    /* INFO 以及任何未识别的级别按 INFO 处理 */
+    return 1;
+}
+
 static bool 
 should_log(const char* level) {
-    if (strcmp(level, LOG_LEVEL_DEBUG) == 0 && strcmp(current_log_level, LOG_LEVEL_DEBUG) != 0) {
-        return false;
-    }
-    return true;
+    return log_level_rank(level) >= log_level_rank(current_log_level);
 }
 
 // 检查并创建日志目录
