@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="620" viewBox="0 0 1180 620" font-family="Helvetica,Arial,sans-serif">
+<rect width="1180" height="620" fill="#ffffff"/>
+<text x="78" y="30" font-size="17" font-weight="bold">IVFFlat 构建内存预测：新模型（三检查点）与旧模型（0.8.0 口径）对照</text>
+<text x="78" y="50" font-size="12" fill="#555">纵轴对数刻度，单位 MB，取 stderr 里的报错数字；红方上方的倍数为旧模型 / 实测</text>
+<line x1="78" y1="504.0" x2="1156" y2="504.0" stroke="#e8e8e8" stroke-width="1"/>
+<text x="68" y="508.0" font-size="11" fill="#666" text-anchor="end">1</text>
+<line x1="78" y1="394.0" x2="1156" y2="394.0" stroke="#e8e8e8" stroke-width="1"/>
+<text x="68" y="398.0" font-size="11" fill="#666" text-anchor="end">10</text>
+<line x1="78" y1="284.0" x2="1156" y2="284.0" stroke="#e8e8e8" stroke-width="1"/>
+<text x="68" y="288.0" font-size="11" fill="#666" text-anchor="end">100</text>
+<line x1="78" y1="174.0" x2="1156" y2="174.0" stroke="#e8e8e8" stroke-width="1"/>
+<text x="68" y="178.0" font-size="11" fill="#666" text-anchor="end">1000</text>
+<line x1="78" y1="64.0" x2="1156" y2="64.0" stroke="#e8e8e8" stroke-width="1"/>
+<text x="68" y="68.0" font-size="11" fill="#666" text-anchor="end">10000</text>
+<line x1="78" y1="64" x2="78" y2="504" stroke="#333"/>
+<line x1="78" y1="504" x2="1156" y2="504" stroke="#333"/>
+<line x1="107.9" y1="291.2" x2="107.9" y2="470.9" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="103.9" y="287.2" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<text x="107.9" y="282.2" font-size="10" fill="#b52b27" text-anchor="middle">43x</text>
+<path d="M102.9,465.9 L112.9,475.9 M102.9,475.9 L112.9,465.9" stroke="#222" stroke-width="1.8"/>
+<circle cx="107.9" cy="470.9" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="107.9" y="520.0" font-size="11" text-anchor="middle" fill="#333">L1</text>
+<text x="107.9" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C1</text>
+<line x1="167.8" y1="250.2" x2="167.8" y2="451.5" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="163.8" y="246.2" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<text x="167.8" y="241.2" font-size="10" fill="#b52b27" text-anchor="middle">68x</text>
+<path d="M162.8,446.5 L172.8,456.5 M162.8,456.5 L172.8,446.5" stroke="#222" stroke-width="1.8"/>
+<circle cx="167.8" cy="451.5" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="167.8" y="520.0" font-size="11" text-anchor="middle" fill="#333">L2</text>
+<text x="167.8" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C1</text>
+<line x1="227.7" y1="204.0" x2="227.7" y2="350.2" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="223.7" y="200.0" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<text x="227.7" y="195.0" font-size="10" fill="#b52b27" text-anchor="middle">21x</text>
+<path d="M222.7,345.2 L232.7,355.2 M222.7,355.2 L232.7,345.2" stroke="#222" stroke-width="1.8"/>
+<circle cx="227.7" cy="350.2" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="227.7" y="520.0" font-size="11" text-anchor="middle" fill="#333">L3</text>
+<text x="227.7" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C2</text>
+<line x1="287.6" y1="152.1" x2="287.6" y2="343.1" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="283.6" y="148.1" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<text x="287.6" y="143.1" font-size="10" fill="#b52b27" text-anchor="middle">54x</text>
+<path d="M282.6,338.1 L292.6,348.1 M282.6,348.1 L292.6,338.1" stroke="#222" stroke-width="1.8"/>
+<circle cx="287.6" cy="343.1" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="287.6" y="520.0" font-size="11" text-anchor="middle" fill="#333">L4</text>
+<text x="287.6" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C2</text>
+<line x1="347.5" y1="95.2" x2="347.5" y2="368.7" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="343.5" y="91.2" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<text x="347.5" y="86.2" font-size="10" fill="#b52b27" text-anchor="middle">306x</text>
+<path d="M342.5,363.7 L352.5,373.7 M342.5,373.7 L352.5,363.7" stroke="#222" stroke-width="1.8"/>
+<circle cx="347.5" cy="368.7" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="347.5" y="520.0" font-size="11" text-anchor="middle" fill="#333">L5</text>
+<text x="347.5" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C1</text>
+<line x1="407.4" y1="301.0" x2="407.4" y2="356.3" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="403.4" y="297.0" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<text x="407.4" y="292.0" font-size="10" fill="#b52b27" text-anchor="middle">3x</text>
+<path d="M402.4,351.3 L412.4,361.3 M402.4,361.3 L412.4,351.3" stroke="#222" stroke-width="1.8"/>
+<circle cx="407.4" cy="356.3" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="407.4" y="520.0" font-size="11" text-anchor="middle" fill="#333">X1</text>
+<text x="407.4" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C3</text>
+<line x1="467.3" y1="251.1" x2="467.3" y2="368.7" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="463.3" y="247.1" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<text x="467.3" y="242.1" font-size="10" fill="#b52b27" text-anchor="middle">12x</text>
+<path d="M462.3,363.7 L472.3,373.7 M462.3,373.7 L472.3,363.7" stroke="#222" stroke-width="1.8"/>
+<circle cx="467.3" cy="368.7" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="467.3" y="520.0" font-size="11" text-anchor="middle" fill="#333">X2</text>
+<text x="467.3" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C3</text>
+<line x1="527.2" y1="394.0" x2="527.2" y2="394.0" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="523.2" y="390.0" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<path d="M522.2,389.0 L532.2,399.0 M522.2,399.0 L532.2,389.0" stroke="#222" stroke-width="1.8"/>
+<circle cx="527.2" cy="394.0" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="527.2" y="520.0" font-size="11" text-anchor="middle" fill="#333">F1</text>
+<text x="527.2" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C3</text>
+<line x1="587.1" y1="377.9" x2="587.1" y2="377.9" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="583.1" y="373.9" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<path d="M582.1,372.9 L592.1,382.9 M582.1,382.9 L592.1,372.9" stroke="#222" stroke-width="1.8"/>
+<circle cx="587.1" cy="377.9" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="587.1" y="520.0" font-size="11" text-anchor="middle" fill="#333">F2</text>
+<text x="587.1" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C3</text>
+<line x1="646.9" y1="324.3" x2="646.9" y2="324.3" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="642.9" y="320.3" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<path d="M641.9,319.3 L651.9,329.3 M641.9,329.3 L651.9,319.3" stroke="#222" stroke-width="1.8"/>
+<circle cx="646.9" cy="324.3" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="646.9" y="520.0" font-size="11" text-anchor="middle" fill="#333">F3</text>
+<text x="646.9" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C3</text>
+<line x1="706.8" y1="374.6" x2="706.8" y2="374.6" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="702.8" y="370.6" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<path d="M701.8,369.6 L711.8,379.6 M701.8,379.6 L711.8,369.6" stroke="#222" stroke-width="1.8"/>
+<circle cx="706.8" cy="374.6" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="706.8" y="520.0" font-size="11" text-anchor="middle" fill="#333">F4</text>
+<text x="706.8" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C3</text>
+<line x1="766.7" y1="331.5" x2="766.7" y2="331.5" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="762.7" y="327.5" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<path d="M761.7,326.5 L771.7,336.5 M761.7,336.5 L771.7,326.5" stroke="#222" stroke-width="1.8"/>
+<circle cx="766.7" cy="331.5" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="766.7" y="520.0" font-size="11" text-anchor="middle" fill="#333">F5</text>
+<text x="766.7" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C3</text>
+<line x1="826.6" y1="290.1" x2="826.6" y2="290.1" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="822.6" y="286.1" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<path d="M821.6,285.1 L831.6,295.1 M821.6,295.1 L831.6,285.1" stroke="#222" stroke-width="1.8"/>
+<circle cx="826.6" cy="290.1" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="826.6" y="520.0" font-size="11" text-anchor="middle" fill="#333">F6</text>
+<text x="826.6" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C3</text>
+<line x1="886.5" y1="340.0" x2="886.5" y2="451.5" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="882.5" y="336.0" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<text x="886.5" y="331.0" font-size="10" fill="#b52b27" text-anchor="middle">10x</text>
+<path d="M881.5,446.5 L891.5,456.5 M881.5,456.5 L891.5,446.5" stroke="#222" stroke-width="1.8"/>
+<circle cx="886.5" cy="451.5" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="886.5" y="520.0" font-size="11" text-anchor="middle" fill="#333">S2</text>
+<text x="886.5" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C2</text>
+<line x1="946.4" y1="340.0" x2="946.4" y2="399.0" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="942.4" y="336.0" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<text x="946.4" y="331.0" font-size="10" fill="#b52b27" text-anchor="middle">3x</text>
+<path d="M941.4,394.0 L951.4,404.0 M941.4,404.0 L951.4,394.0" stroke="#222" stroke-width="1.8"/>
+<circle cx="946.4" cy="399.0" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="946.4" y="520.0" font-size="11" text-anchor="middle" fill="#333">S3</text>
+<text x="946.4" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C3</text>
+<line x1="1006.3" y1="394.0" x2="1006.3" y2="411.0" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="1002.3" y="390.0" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<text x="1006.3" y="385.0" font-size="10" fill="#b52b27" text-anchor="middle">1x</text>
+<path d="M1001.3,406.0 L1011.3,416.0 M1001.3,416.0 L1011.3,406.0" stroke="#222" stroke-width="1.8"/>
+<circle cx="1006.3" cy="411.0" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="1006.3" y="520.0" font-size="11" text-anchor="middle" fill="#333">S4</text>
+<text x="1006.3" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C3</text>
+<line x1="1066.2" y1="330.2" x2="1066.2" y2="356.3" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="1062.2" y="326.2" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<text x="1066.2" y="321.2" font-size="10" fill="#b52b27" text-anchor="middle">2x</text>
+<path d="M1061.2,351.3 L1071.2,361.3 M1061.2,361.3 L1071.2,351.3" stroke="#222" stroke-width="1.8"/>
+<circle cx="1066.2" cy="356.3" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="1066.2" y="520.0" font-size="11" text-anchor="middle" fill="#333">S5</text>
+<text x="1066.2" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C2</text>
+<line x1="1126.1" y1="389.4" x2="1126.1" y2="389.4" stroke="#d9534f" stroke-width="1" stroke-dasharray="3,3" opacity="0.55"/>
+<rect x="1122.1" y="385.4" width="8" height="8" fill="#d9534f" opacity="0.9"/>
+<path d="M1121.1,384.4 L1131.1,394.4 M1121.1,394.4 L1131.1,384.4" stroke="#222" stroke-width="1.8"/>
+<circle cx="1126.1" cy="389.4" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="1126.1" y="520.0" font-size="11" text-anchor="middle" fill="#333">S6</text>
+<text x="1126.1" y="534.0" font-size="10" text-anchor="middle" fill="#2b6cb0">C3</text>
+<path d="M73,563 L83,573 M73,573 L83,563" stroke="#222" stroke-width="1.8"/>
+<text x="92" y="572" font-size="12" fill="#333">实测报错 MB（stderr 原文）</text>
+<circle cx="378" cy="568" r="7" fill="none" stroke="#2b6cb0" stroke-width="1.8"/>
+<text x="392" y="572" font-size="12" fill="#333">新模型：三检查点取 first_hit</text>
+<rect x="674" y="564" width="8" height="8" fill="#d9534f"/>
+<text x="692" y="572" font-size="12" fill="#333">旧模型：pgvector 0.8.0 单一总量</text>
+<text x="78" y="598" font-size="12" fill="#333">18 组有报错的用例中，新模型全部逐字命中（蓝圈套住黑叉）；旧模型最大偏差 306 倍。</text>
+</svg>
