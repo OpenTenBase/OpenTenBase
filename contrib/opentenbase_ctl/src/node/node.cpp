@@ -4,6 +4,7 @@
 #include "../utils/utils.h"
 #include "../file/file.h"
 #include <unistd.h>
+#include <atomic>
 #include <thread>
 #include <iostream>
 #include <string>
@@ -1358,12 +1359,11 @@ int excute_sql_concurrency(OpentenbaseConfig *configInfo, const std::vector<Node
     // 每个 server 对应一个结果
     std::vector<std::thread> threads;
     std::vector<int> results(node_list.size(), 0);
-    int failedCount = 0;
-    int tatolCount = 0;
+    std::atomic<int> failedCount(0);
+    std::atomic<int> tatolCount(0);
 
     // 手动维护索引
     size_t i = 0; 
-    std::string result;
     std::string cmd = configInfo->shell.shell_cmd;
 
     for (const NodeInfo& node : node_list) {
@@ -1378,7 +1378,12 @@ int excute_sql_concurrency(OpentenbaseConfig *configInfo, const std::vector<Node
 
         // 捕获当前 node、i、以及其它所需变量
         threads.emplace_back([&, node, i]() {
-
+            /*
+             * result 必须是线程私有的。原来它在 lambda 外面，靠 [&] 被所有线程
+             * 共用，execute_sql_by_psql 会往里写，多个线程同时改同一个 std::string
+             * 是未定义行为——实测 8 线程 100% 触发 SIGSEGV。
+             */
+            std::string result;
             std::string psql_cmd = build_sql_cmd_for_psql(node.install_path, 
                                                           node.ip, 
                                                           node.port, 
