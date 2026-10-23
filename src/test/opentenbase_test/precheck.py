@@ -23,6 +23,11 @@ def check_env(name):
 
 
 def check_executable_in_OPENTENBASE_HOME(name):
+    """Require the discovered binary to belong to the selected installation.
+
+    Resolve path components and symlinks before comparing directory ancestry;
+    a textual prefix also accepts a different installation such as home-old.
+    """
     result = subprocess.run(['which', name], stdout=subprocess.PIPE)
     path = result.stdout.decode().strip()
 
@@ -32,7 +37,14 @@ def check_executable_in_OPENTENBASE_HOME(name):
         global_thl_data.logger.error(f'{name} not found')
         exit(1)
 
-    if path.startswith(os.environ['OPENTENBASE_HOME']):
+    home = os.path.normcase(os.path.realpath(os.environ['OPENTENBASE_HOME']))
+    executable = os.path.normcase(os.path.realpath(path))
+    try:
+        inside_home = os.path.commonpath([home, executable]) == home
+    except ValueError:
+        inside_home = False
+
+    if inside_home:
         global_thl_data.logger.info(f'{name} in OPENTENBASE_HOME')
     else:
         global_thl_data.logger.error(f'{name} must be in OPENTENBASE_HOME')
