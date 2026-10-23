@@ -259,13 +259,33 @@ CREATE OR REPLACE FUNCTION ai.update_model(model_name text, config text, value t
 RETURNS boolean AS $$
 DECLARE
     rows_affected integer;
-    sql_command text;
     column_type text;
 BEGIN
-    EXECUTE format('SELECT pg_typeof(ai_model_list.%I)::text FROM public.ai_model_list LIMIT 1', config) INTO column_type;
+    -- The column type is read from the table, so on an empty ai_model_list (or
+    -- for a model that does not exist yet) the SELECT returns no row and
+    -- column_type stays NULL. format() then renders %s as an empty string and
+    -- the statement ends in "::", which Postgres rejects with a bare syntax
+    -- error instead of naming the real problem.
+    IF NOT EXISTS (SELECT 1 FROM public.ai_model_list m
+                   WHERE m.model_name = update_model.model_name) THEN
+        RAISE EXCEPTION 'Model % not found', update_model.model_name
+            USING HINT = 'Use ai.add_model (or ai.add_completion_model) before ai.update_model.';
+    END IF;
 
-	EXECUTE format('UPDATE public.ai_model_list SET %I = %L::%s WHERE model_name = %L', config, value, column_type, model_name);
-	
+    -- Same reason for an unknown column: report it as such rather than letting
+    -- the pg_typeof probe fail with "column does not exist" pointing at a
+    -- dynamically built statement.
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema = 'public'
+                     AND table_name = 'ai_model_list'
+                     AND column_name = update_model.config) THEN
+        RAISE EXCEPTION 'Unknown ai_model_list column %', update_model.config;
+    END IF;
+
+    EXECUTE format('SELECT pg_typeof(m.%I)::text FROM public.ai_model_list m LIMIT 1', config) INTO column_type;
+
+    EXECUTE format('UPDATE public.ai_model_list SET %I = %L::%s WHERE model_name = %L', config, value, column_type, model_name);
+
     GET DIAGNOSTICS rows_affected = ROW_COUNT;
     RETURN rows_affected > 0;
 END;
