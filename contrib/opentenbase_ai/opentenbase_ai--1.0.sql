@@ -273,7 +273,7 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION ai.generate(
     prompt text,
-    dummy anyelement = 'text'::anyelement,
+    dummy anyelement = NULL::text,
     model_name text = NULL,
     config jsonb = '{}'::jsonb
 ) RETURNS anyelement AS $$
