@@ -1,0 +1,6 @@
+[
+  {
+    "targets": ["DN_HOST:DN_PORT"],
+    "labels": { "instance_role": "data_node", "datacenter": "zone-a" }
+  }
+]
