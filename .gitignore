@@ -64,6 +64,8 @@ lib*.pc
 /src/gtm/.ycm_extra_conf.py
 /src/gtm/CMakeLists.txt
 /src/gtm/client/libgtmclient.pc
+/src/gtm/test/affinity_probe
+/src/gtm/tmp_check_affinity_*/
 /src/gtm/cmake-build-debug/CMakeCache.txt
 /src/gtm/cmake-build-debug/CMakeFiles/3.9.6/CMakeCCompiler.cmake
 /src/gtm/cmake-build-debug/CMakeFiles/3.9.6/CMakeCXXCompiler.cmake

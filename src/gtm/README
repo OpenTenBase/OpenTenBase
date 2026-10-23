@@ -46,6 +46,19 @@ $ ./main/gtm
 
 The server will start listening on port 6666 for incoming connections.
 
+On Linux, GTM reads the main thread's allowed CPU set at startup, before
+creating any workers (including the standby's early status worker).  CPU IDs
+need not be contiguous or start at zero.  With at least three allowed logical
+CPUs, the first is left unused by GTM, the second is assigned to the timekeeper,
+and the remainder to service threads.  With two CPUs the first is used for
+services and the second for the timekeeper.  With one CPU they share it.
+This keeps thread placement within a launcher or container's initial CPU set;
+it does not reserve CPUs against other processes.  If the affinity query is
+unavailable, GTM logs a warning and retains the inherited affinity instead.
+CPU hotplug or changing the allowed CPU set after startup is not handled by
+this startup policy.  Small CPU sets can limit throughput and clock-update
+latency; the fallback does not imply equivalent performance on smaller hosts.
+
 
 4. Building test clients:
 -------------------------
@@ -99,3 +112,50 @@ The test will be:
 6) See if transaction keeps running.
 
 The test sequence will be expanded as GTM-Standby feature improves.
+
+
+CPU affinity integration test
+----------------------------
+
+In a configured Linux build tree, after building the portability libraries:
+
+$ make -C src/port
+$ make -C src/common
+$ make -C src/gtm check-affinity
+
+The test requires Python 3 with os.sched_getaffinity/os.sched_setaffinity,
+readable /proc thread status files, and permission to start local processes
+and bind loopback TCP ports. It builds GTM and a small libgtmclient probe; it
+does not need initgtm, an installed database, root, or cgroup configuration.
+Each case uses a new private temporary data directory. The XLOG-enabled GTM
+initializes its own missing control and store files, just as it does after
+initgtm creates the configuration and gtm_xlog directory.
+
+Cases cover one CPU, two CPUs, three CPUs, a nonzero noncontiguous CPU set,
+and the complete inherited CPU set. Unsupported topologies are reported as
+SKIP rather than counted as tested. Worker-count configuration stays at its
+defaults. After successful real timestamp requests spanning more than one
+timekeeper synchronization cycle, the test checks each thread's actual CPU
+mask. Named TimeKeeper/ThreadMain roles are checked when thread names are
+enabled; otherwise it checks the main thread and both expected role masks.
+The standby case keeps its primary endpoint unreachable, requests GTM status,
+and checks the early status worker before normal thread startup. It does not
+test replication or promotion.
+
+To run the same checks against a separately built baseline or fixed binary:
+
+$ python3 src/gtm/test/test_affinity.py --gtm /path/to/gtm \
+    --probe /path/to/affinity_probe --output-dir /path/to/new-results
+
+The probe is generated at src/gtm/test/affinity_probe in the build tree by
+check-affinity. The output directory must not already exist. Without an
+explicit output directory, logs and JSON results are retained in a new
+tmp_check_affinity_<time>_<pid> directory under the current working directory.
+Only this test's child GTM processes are stopped, and only its temporary GTM
+data directories are removed; the retained results are not removed by clean.
+
+These checks apply inherited affinity like taskset and verify that GTM does
+not widen it. They do not change the host's online CPUs or impose hard cgroup
+cpusets/CPU quotas, and do not establish performance or high-availability
+equivalence on small CPU sets. They exercise the normal successful-affinity-
+query path; the warning fallback on an unsupported affinity query is separate.
