@@ -5,6 +5,7 @@
 #include "../file/file.h"
 #include <unistd.h>
 #include <thread>
+#include <atomic>
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -1220,7 +1221,7 @@ int transfer_package_concurrency(OpentenbaseConfig *configInfo,
     std::vector<std::thread> threads;
     std::vector<int> results(server_list.size(), 0);  // 每个 server 对应一个结果
 
-    int failedCount = 0;
+    std::atomic<int> failedCount = 0;
 
     size_t i = 0;  // 手动维护索引
     for (const std::string& server : server_list) {
@@ -1287,18 +1288,19 @@ int excute_cmd_concurrency(OpentenbaseConfig *configInfo, const std::vector<std:
     // 每个 server 对应一个结果
     std::vector<std::thread> threads;
     std::vector<int> results(server_list.size(), 0);
-    int failedCount = 0;
+    std::atomic<int> failedCount = 0;
 
     // 手动维护索引
-    size_t i = 0; 
-    std::string result;
+    size_t i = 0;
     std::string cmd = configInfo->shell.shell_cmd;
     for (const std::string& server : server_list) {
         LOG_INFO_FMT("Start to excute cmd(%s) on %s", cmd, server);
 
         // 捕获当前 server、i、以及其它所需变量
         threads.emplace_back([&, server, i]() {
-            int ret = execute_command( 
+            // 每个线程独享一份输出，避免并发写共享 std::string 的数据竞争
+            std::string result;
+            int ret = execute_command(
                 server,
                 configInfo->server.ssh_port,
                 configInfo->server.ssh_user,
@@ -1358,12 +1360,11 @@ int excute_sql_concurrency(OpentenbaseConfig *configInfo, const std::vector<Node
     // 每个 server 对应一个结果
     std::vector<std::thread> threads;
     std::vector<int> results(node_list.size(), 0);
-    int failedCount = 0;
-    int tatolCount = 0;
+    std::atomic<int> failedCount = 0;
+    std::atomic<int> tatolCount = 0;
 
     // 手动维护索引
-    size_t i = 0; 
-    std::string result;
+    size_t i = 0;
     std::string cmd = configInfo->shell.shell_cmd;
 
     for (const NodeInfo& node : node_list) {
@@ -1373,13 +1374,15 @@ int excute_sql_concurrency(OpentenbaseConfig *configInfo, const std::vector<Node
         {
             continue;
         }
-        
+
         LOG_DEBUG_FMT("Start to excute cmd(%s) on %s", cmd, node);
 
         // 捕获当前 node、i、以及其它所需变量
         threads.emplace_back([&, node, i]() {
 
-            std::string psql_cmd = build_sql_cmd_for_psql(node.install_path, 
+            // 每个线程独享一份输出，避免并发写共享 std::string 的数据竞争
+            std::string result;
+            std::string psql_cmd = build_sql_cmd_for_psql(node.install_path,
                                                           node.ip, 
                                                           node.port, 
                                                           configInfo->sql.user_name, 
@@ -1443,12 +1446,11 @@ int excute_show_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector
     // 每个 server 对应一个结果
     std::vector<std::thread> threads;
     std::vector<int> results(node_list.size(), 0);
-    int failedCount = 0;
-    int tatolCount = 0;
+    std::atomic<int> failedCount = 0;
+    std::atomic<int> tatolCount = 0;
 
     // 手动维护索引
-    size_t i = 0; 
-    std::string output;
+    size_t i = 0;
     for (const NodeInfo& node : node_list) {
 
         // 如果不是操作的节点，继续下一个
@@ -1460,7 +1462,8 @@ int excute_show_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector
         // 捕获当前 node、i、以及其它所需变量
         threads.emplace_back([&, node, i]() {
 
-
+            // 每个线程独享一份输出，避免并发写共享 std::string 的数据竞争
+            std::string output;
             int ret = show_guc(configInfo, node, output);
             if (ret != 0) {
                 LOG_WARN_FMT("Failed to show config item %s on node %s (%s)", 
@@ -1513,8 +1516,8 @@ int excute_del_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector<
     // 每个 server 对应一个结果
     std::vector<std::thread> threads;
     std::vector<int> results(node_list.size(), 0);
-    int failedCount = 0;
-    int tatolCount = 0;
+    std::atomic<int> failedCount = 0;
+    std::atomic<int> tatolCount = 0;
 
     // 手动维护索引
     size_t i = 0; 
@@ -1583,8 +1586,8 @@ int excute_change_guc_concurrency(OpentenbaseConfig *configInfo, const std::vect
     // 每个 server 对应一个结果
     std::vector<std::thread> threads;
     std::vector<int> results(node_list.size(), 0);
-    int failedCount = 0;
-    int tatolCount = 0;
+    std::atomic<int> failedCount = 0;
+    std::atomic<int> tatolCount = 0;
     std::string sql = "";
 
     // 手动维护索引
