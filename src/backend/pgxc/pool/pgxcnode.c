@@ -8005,8 +8005,12 @@ void
 RefreshQueryId(void)
 {
 	PGXCDigitalQueryId = pg_atomic_add_fetch_u64(query_id, 1);
-	sprintf(PGXCQueryId, "%s_%lld", PGXCNodeName,
-			(long long int) PGXCDigitalQueryId);
+	/* PGXCQueryId is a fixed NAMEDATALEN buffer: a node name near the
+	 * NAMEDATALEN-1 limit plus '_' and a 20-digit counter overflows it on
+	 * every refresh; bound the write (pgxc_get_global_trace_id already uses
+	 * snprintf for the same class of id) */
+	snprintf(PGXCQueryId, NAMEDATALEN, "%s_%lld", PGXCNodeName,
+			 (long long int) PGXCDigitalQueryId);
 	pgstat_refresh_queryid();
 }
 
