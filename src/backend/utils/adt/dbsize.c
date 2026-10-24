@@ -528,6 +528,16 @@ db_dir_size_parallel(const char *path, int64 *alloc_size)
 static int64
 db_dir_size(const char *path, int64 *alloc_size)
 {
+#ifdef _SHARDING_
+	/*
+	 * Initialize *alloc_size before any early return, so that callers
+	 * accumulating it over several directories never add a stale value
+	 * when a directory does not exist.
+	 */
+	if(alloc_size)
+		*alloc_size = 0;
+#endif
+
 	if (calc_db_size_worker_num <= 1)
 		return db_dir_size_serial(path, alloc_size);
 
