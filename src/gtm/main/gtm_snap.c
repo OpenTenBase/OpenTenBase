@@ -374,6 +374,13 @@ ProcessGetSnapshotCommandMulti(Port *myport, StringInfo message)
 
 	txn_count = pq_getmsgint(message, sizeof (int));
 
+	/* the count comes from the wire: bound it against the fixed stack arrays
+	 * below, a crafted packet would otherwise write past them */
+	if (txn_count <= 0 || txn_count > GTM_MAX_GLOBAL_TRANSACTIONS)
+		ereport(ERROR,
+					(EPROTO,
+				errmsg("Invalid transaction count %d", txn_count)));
+
 	for (ii = 0; ii < txn_count; ii++)
 	{
 		const char *data = pq_getmsgbytes(message, sizeof (gxid[ii]));
