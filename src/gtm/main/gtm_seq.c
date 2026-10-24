@@ -3430,6 +3430,12 @@ GTM_FormSeqOfStore(GTM_SequenceKey seqkey)
 		ret = GTM_StoreReserveSeqValue(seqinfo->gs_store_handle, SEQ_RESERVE_COUNT);
 		if (ret)
 		{
+			/* the seqinfo was added to the hash by seq_add_seqinfo above:
+			 * remove it before freeing, otherwise the bucket keeps a dangling
+			 * pointer after the ereport(ERROR) longjmp (the GTM_SeqOpen error
+			 * path removes it the same way) */
+			seq_release_seqinfo(seqinfo);
+			seq_remove_seqinfo(seqinfo);
 			GTM_RWLockDestroy(&seqinfo->gs_lock);
 			pfree(seqinfo->gs_key);
 			pfree(seqinfo);
