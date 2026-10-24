@@ -70,11 +70,7 @@ static GTM_SequenceKey seq_copy_key(GTM_SequenceKey key);
 static int seq_drop_with_dbkey(GTM_SequenceKey nsp);
 static bool GTM_NeedSeqRestoreUpdateInternal(GTM_SeqInfo *seqinfo);
 
-#ifdef __OPENTENBASE__
 static GTM_Sequence get_rangemax(GTM_SeqInfo *seqinfo, GTM_Sequence range,GTM_Sequence *used_count);
-#else
-static GTM_Sequence get_rangemax(GTM_SeqInfo *seqinfo, GTM_Sequence range);
-#endif
 
 #ifdef __OPENTENBASE__
 static void  GTM_JudgeReserve(GTM_SeqInfo *seqinfo);
@@ -1585,13 +1581,8 @@ GTM_SeqGetNext(GTM_SequenceKey seqkey, char *coord_name,
  * particular we need to be careful about overflow and underflow for
  * mix and max types of sequences..
  */
-#ifdef __OPENTENBASE__
 static GTM_Sequence
 get_rangemax(GTM_SeqInfo *seqinfo, GTM_Sequence range,GTM_Sequence *used_count)
-#else
-static GTM_Sequence
-get_rangemax(GTM_SeqInfo *seqinfo, GTM_Sequence range,GTM_Sequence *used_count)
-#endif
 {
 	GTM_Sequence rangemax = seqinfo->gs_value;
 
