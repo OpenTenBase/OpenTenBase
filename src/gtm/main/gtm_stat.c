@@ -211,6 +211,14 @@ GTM_GetMergeResult(int clear_flag, pg_time_t *stat_start_time, pg_time_t *stat_e
     {
         result[i].avg_costtime = (result[i].total_request_times == 0) ? 0 :
                                  result[i].total_costtime / result[i].total_request_times;
+        /* the PG_UINT32_MAX "no data" sentinel must not leak to the client:
+         * a command type no thread ever sampled would report
+         * min_costtime = 4294967295 while avg is correctly zeroed */
+        if (result[i].total_request_times == 0)
+        {
+            result[i].min_costtime = 0;
+            result[i].max_costtime = 0;
+        }
     }
 
     if (clear_flag)
