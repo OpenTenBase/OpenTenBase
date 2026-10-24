@@ -370,6 +370,9 @@ void FinishSeqOp(bool commit)
 		}
 		foreach(renamelc, renameList)
 		{
+			/* re-fetch the entry: without this the loop keeps deleting the
+			 * last element examined by the collection loop above */
+			rename_info = (RenameInfo *) lfirst(renamelc);
 			g_AlterSeqList = list_delete_ptr(g_AlterSeqList, rename_info);
 		}
 		list_free(renameList);
