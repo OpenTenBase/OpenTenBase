@@ -445,10 +445,20 @@ void GetNotShardRelations(bool is_contain_replic, List **rellist, List **nslist)
 		pgxc_class = (Form_pgxc_class)GETSTRUCT(tup);
 		
 		discolsDatum = heap_getattr(tup, Anum_pgxc_class_discolnums, RelationGetDescr(rel), &isNull);
-		Assert (!isNull);
-		
-		discolnums = (int2vector *) DatumGetPointer(discolsDatum);
-		if (discolnums->dim1 > 0)
+		/* the ALTER path (AtExecDistributeBy -> PgxcClassAlter with
+		 * PGXC_CLASS_ALTER_DISTRIBUTION, ndiscols == 0) stores SQL NULL here;
+		 * only the CREATE path guarantees a non-NULL empty int2vector, so the
+		 * Assert is not enough in release builds */
+		if (isNull || DatumGetPointer(discolsDatum) == NULL)
+		{
+			discolnums = NULL;
+		}
+		else
+		{
+			discolnums = (int2vector *) DatumGetPointer(discolsDatum);
+		}
+
+		if (discolnums != NULL && discolnums->dim1 > 0)
 		{
 			if(discolnums->values[0] == 0)
 			{
