@@ -1109,6 +1109,16 @@ GTM_SeqRename(GTM_SequenceKey seqkey, GTM_SequenceKey newseqkey,
  * Get current value for the sequence without incrementing it
  */
 void
+/* the short (unqualified) sequence name for error messages: falls back to
+ * the full key when it contains no '.' separator */
+static char *
+gtm_seq_short_name(GTM_SeqInfo *seqinfo)
+{
+	char *seqshort = strrchr(seqinfo->gs_key->gsk_key, '.');
+
+	return seqshort ? seqshort + 1 : seqinfo->gs_key->gsk_key;
+}
+
 GTM_SeqGetCurrent(GTM_SequenceKey seqkey, char *coord_name,
 				  int coord_procid, GTM_Sequence *result)
 {
@@ -1173,10 +1183,15 @@ GTM_SeqGetCurrent(GTM_SequenceKey seqkey, char *coord_name,
 	GTM_RWLockRelease(&seqinfo->gs_lock);
 	seq_release_seqinfo(seqinfo);
 	if (!found)
+	{
+		/* keys without a '.' (unqualified names) make strrchr return NULL */
+		char *seqshort = strrchr(seqinfo->gs_key->gsk_key, '.');
+
 		ereport(ERROR,
 				(ERANGE,
 				 errmsg("currval of sequence \"%s\" is not yet defined in this session",
-						strrchr(seqinfo->gs_key->gsk_key, '.') + 1)));
+						seqshort ? seqshort + 1 : seqinfo->gs_key->gsk_key)));
+	}
 
 	elog(LOG, "[GTM_SeqGetCurrent]seqname:%s  gs_increment_by:%lld result:%lld coord_name:%s coord_procid:%d", 
 			seqinfo->gs_key->gsk_key, (long long int)seqinfo->gs_increment_by, (long long int)(*result), coord_name, coord_procid);
@@ -1449,7 +1464,7 @@ GTM_SeqGetNext(GTM_SequenceKey seqkey, char *coord_name,
 				ereport(ERROR,
 						(ERANGE,
 						 errmsg("nextval: reached maximum value of sequence \"%s\" (%s)",
-									strrchr(seqinfo->gs_key->gsk_key, '.') + 1, buf)));
+									gtm_seq_short_name(seqinfo), buf)));
 #else				
 				ereport(LOG,
 						(ERANGE,
@@ -1493,7 +1508,7 @@ GTM_SeqGetNext(GTM_SequenceKey seqkey, char *coord_name,
 				ereport(ERROR,
 						(ERANGE,
 						 errmsg("nextval: reached minimum value of sequence \"%s\" (%s)",
-									strrchr(seqinfo->gs_key->gsk_key, '.') + 1, buf)));
+									gtm_seq_short_name(seqinfo), buf)));
 #else
 				ereport(LOG,
 						(ERANGE,
