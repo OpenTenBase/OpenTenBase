@@ -51,7 +51,6 @@ make install
 `opentenbase_ctl`是为 Opentenbase 5 版本提供的极简的运维工具，支持对集群进行初始化、删除、节点启停、集群启停、查看状态，shell、sql等常用操作，还支持针对某一类节点操作，提升运维效率。
 使用说明如下：
 ``` bash
-[root@VM-16-49-tencentos opentenbase_ctl]# ./opentenbase_ctl -h
 [opentenbase@VM-32-21-tencentos ~/install/opentenbase_bin_v5.0/bin]$ ./opentenbase_ctl -h
 Opentenbase cluster management tool
 Usage: opentenbase_ctl [OPTIONS] [SUBCOMMAND]
@@ -647,51 +646,41 @@ Delete node gtm0001(172.16.32.34) Success
 
 ### 12、帮助和指引
 
-查看工具支持的功能，可以执行命令 `./opentenbase_ctl -h `来看详细支持的功能。其中 `expand` 和 `shrink` 目前只有云数仓形态支持，其他产品形态暂时不支持。
+查看工具支持的功能，可以执行命令 `./opentenbase_ctl -h` 查看当前版本支持的全部子命令。
+
+当前版本只注册了下列 9 个子命令，不提供 `--version` 选项；`expand` 和 `shrink` 也未在当前版本中提供，传入这些参数时 CLI 会提示参数不被支持。
 
 #### 1)     查看支持的基本功能
 ``` bash
-[root@VM-16-49-tencentos opentenbase_ctl]# ./opentenbase_ctl -h
-OpenTenBase cluster management tool 
- 
- 
-opentenbase_ctl [OPTIONS] [SUBCOMMAND]
- 
- 
-OPTIONS:
-  -h,     --help              Print this help message and exit 
-          --version           Display program version information and exit 
- 
-SUBCOMMANDS:
-  install                     Install a new OpenTenBase cluster 
-  delete                      Delete an existing OpenTenBase cluster 
-  start                       Start a OpenTenBase cluster 
-  stop                        Stop a OpenTenBase cluster 
-  status                      Show OpenTenBase cluster status 
-  expand                      Expand a OpenTenBase cluster 
-  shrink                      Shrink a OpenTenBase cluster 
+[opentenbase@VM-32-21-tencentos ~/install/opentenbase_bin_v5.0/bin]$ ./opentenbase_ctl -h
+Opentenbase cluster management tool
+Usage: opentenbase_ctl [OPTIONS] [SUBCOMMAND]
+
+Options:
+  -h,--help                   Print this help message and exit
+
+Subcommands:
+  install                     Install a new instance
+  delete                      Delete an existing instance
+  start                       Start a Instance
+  stop                        Stop a instance
+  status                      Show instance status
+  scp                         scp files to cluster nodes
+  shell                       Execute shell command
+  sql                         Execute sql command
+  guc                         Display or set GUC parameters
 ```
 
-#### 2）查看具体某个功能（比如 stop）的命令参数： 
+#### 2）查看具体某个功能（比如 stop）的命令参数：
 ``` bash
-[opentenbase@VM-32-21-tencentos ~]# ./opentenbase_ctl stop -h
-Stop a OpenTenBase cluster 
- 
- 
-opentenbase_ctl stop [OPTIONS]
- 
- 
-OPTIONS:
-  -h,     --help              Print this help message and exit 
-  -c,     --config TEXT       Path to configuration file 
-          --instance-name TEXT 
-                              Instance name 
-          --package-path TEXT Package path 
-          --node-name TEXT    Node name 
-          --node-ip TEXT      Node IP 
-          --ssh-user TEXT     SSH user 
-          --ssh-password TEXT SSH password 
-          --ssh-port TEXT     SSH port 
+[opentenbase@VM-32-21-tencentos ~]$ ./opentenbase_ctl stop -h
+Stop a instance
+Usage: opentenbase_ctl stop [OPTIONS]
+
+Options:
+  -h,--help                   Print this help message and exit
+  -c,--config TEXT            Path to configuration file
+  -n,--node TEXT              Node to stop. A certain type of node, Or a certain node. The available options are: cn-master, cn-slave, dn-master, dn-slave, cn0001, ip:port
 ```
 
 ### 13、常见问题的解决方法
@@ -735,99 +724,10 @@ openten+  7604     1  0 Nov05 ?        00:00:01 /data/opentenbase/install/opente
 openten+  7605     1  0 Nov05 ?        00:00:01 /data/opentenbase/install/opentenbase/5.21.8/bin/postgres --coordinator -D /data/opentenbase/run/instance/opentenbase01/cn0001/data -i
 ```
 
-### 12、帮助和指引
+## 节点命名规则
 
-查看工具支持的功能，可以执行命令 `./opentenbase_ctl -h `来看详细支持的功能。其中 `expand` 和 `shrink` 目前只有云数仓形态支持，其他产品形态暂时不支持。
+自动生成节点名称：
 
-#### 1)     查看支持的基本功能
-``` java
-[root@VM-16-49-tencentos opentenbase_ctl]# ./opentenbase_ctl -h
-OpenTenBase cluster management tool 
- 
- 
-opentenbase_ctl [OPTIONS] [SUBCOMMAND]
- 
- 
-OPTIONS:
-  -h,     --help              Print this help message and exit 
-          --version           Display program version information and exit 
- 
-SUBCOMMANDS:
-  install                     Install a new OpenTenBase cluster 
-  delete                      Delete an existing OpenTenBase cluster 
-  start                       Start a OpenTenBase cluster 
-  stop                        Stop a OpenTenBase cluster 
-  status                      Show OpenTenBase cluster status 
-  expand                      Expand a OpenTenBase cluster 
-  shrink                      Shrink a OpenTenBase cluster 
-```
-
-#### 2）查看具体某个功能（比如 stop）的命令参数： 
-``` java
-[root@VM-16-49-tencentos opentenbase_ctl]# ./opentenbase_ctl stop -h
-Stop a OpenTenBase cluster 
- 
- 
-opentenbase_ctl stop [OPTIONS]
- 
- 
-OPTIONS:
-  -h,     --help              Print this help message and exit 
-  -c,     --config TEXT       Path to configuration file 
-          --instance-name TEXT 
-                              Instance name 
-          --package-path TEXT Package path 
-          --node-name TEXT    Node name 
-          --node-ip TEXT      Node IP 
-          --ssh-user TEXT     SSH user 
-          --ssh-password TEXT SSH password 
-          --ssh-port TEXT     SSH port 
-```
-
-### 13、常见问题的解决方法
-
-#### 问题1、我需要提前在每个机器上做哪些准备呢？
-
-答：需要在每个机器上创建opentenbase用户名，并检查确认cpu、内存和磁盘信息满足基本测试需要。
-
-#### 问题2、是否需要配置执行机和其他机器之间的互信？
-
-答：不需要配置互信。工具是通过配置文件中的SSH账号进行远程命令执行。为了操作更高效，建议部署集群的各节点的ssh账号和端口保持一致。
-
-#### 问题3、初始化实例后，如何通过psql工具连接到实例上？
-
-答：参考如下步骤：
-
-1）查看实例的状态：通过status命令（参考命令： ./opentenbase_ctl status） 命令可以获取到节点的状态。最下面会有显示Master CN的环境变量Environment variable的声明语句和PSQL的命令行。
-
-2）切换到opentenbase命令，声明环境变量并执行psql语句，参考示例：
-``` java
-[root@VM-16-131-tencentos data]# su opentenbase
-[opentenbase@VM-16-131-tencentos data]$ export LD_LIBRARY_PATH=/home/opentenbase/install/opentenbase/5.0/lib  && export PATH=/home/opentenbase/install/opentenbase/5.0/bin:${PATH} 
-[opentenbase@VM-16-131-tencentos data]$ psql -h 172.16.16.131 -p 11000 -U opentenbase postgres
-psql (PostgreSQL 10.0 @ OpenTenBase_v5.0 (commit: a469acaa5) 2025-06-17 20:36:55)
-Type "help" for help.
- 
-postgres=#
-```
-
-#### 问题4、如何查看节点的data目录？
-
-答：1）执行 `./opentenbase_ctl status` 可以查看具体的节点信息。
-
-2）SSH登录到节点上，执行 `ps -ef | egrep 'cn|dn|gtm' | grep -v grep` 可以查看到具体的节点的主进程，然后cd到具体节点目录下。
-
-补充说明：节点的目录拼凑规则：`${opentenbase home路径}/run/instance/${实例名}/${节点名}/data`
-``` java
-[root@VM-16-49-tencentos opentenbase_ctl]# ps -ef | egrep 'cn|dn|gtm' | grep -v grep 
-opentenbase    2198524       1  0 10:45 pts/0    00:03:20 gtm -D /home/opentenbase/run/instance/test_cluster06/gtm002/data
-opentenbase    2198525       1  0 10:45 pts/0    00:00:00 /home/opentenbase/install/opentenbase/5.0/bin/postgres --datanode -D /home/opentenbase/run/instance/test_cluster06/dn001/data -i
-opentenbase    2198530       1  0 10:45 pts/0    00:00:02 /home/opentenbase/install/opentenbase/5.0/bin/postgres --coordinator -D /home/opentenbase/run/instance/test_cluster06/cn001/data -i
-```
-
-
-### 节点命名规则
-自动生成节点名称
 - CN 节点：以 `cn` 开头，例如 `cn0001`, `cn0002` 等
 - DN 节点：以 `dn` 开头，例如 `dn0001`, `dn0002` 等
 
@@ -855,8 +755,8 @@ opentenbase    2198530       1  0 10:45 pts/0    00:00:02 /home/opentenbase/inst
 
 ## 许可证
 
-[许可证类型]
+本项目使用 BSD 3-Clause License，版权与许可信息见根目录的 [LICENSE.txt](../../LICENSE.txt)。
 
 ## 贡献指南
 
-[贡献指南内容] 
+提交贡献前请阅读根目录的 [CONTRIBUTING_ZH.md](../../CONTRIBUTING_ZH.md)（英文版：[CONTRIBUTING.md](../../CONTRIBUTING.md)）。
