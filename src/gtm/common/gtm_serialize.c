@@ -88,21 +88,13 @@ gtm_serialize_snapshotdata(GTM_SnapshotData *data, char *buf, size_t buflen)
 	memcpy(buf + len, &(data->sn_xcnt), sizeof(uint32));
 	len += sizeof(uint32);
 
-	/* GTM_SnapshotData.sn_xip */
-#if 0
-	/*
-	 * This block of code seems to be wrong.  data->sn_xip is an array of GlobalTransacionIDs
-	 * and the number of elements are indicated by sn_xcnt.
-	 */
-	memcpy(buf + len, &(data->sn_xip), sizeof(GlobalTransactionId));
-	len += sizeof(GlobalTransactionId);
-#else
+	/* GTM_SnapshotData.sn_xip: an array of GlobalTransactionIds whose element
+	 * count is indicated by sn_xcnt */
 	if(data->sn_xcnt > 0)
 	{
 		memcpy(buf + len, data->sn_xip, sizeof(GlobalTransactionId) * data->sn_xcnt);
 		len += sizeof(GlobalTransactionId) * data->sn_xcnt;
 	}
-#endif
 
 	return len;
 }
