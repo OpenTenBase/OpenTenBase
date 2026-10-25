@@ -425,6 +425,39 @@ The phases for IVFFlat are:
 
 Note: `%` is only populated during the `loading tuples` phase
 
+## Index Diagnostics
+
+When recall comes back lower than expected, the first thing to check is the index build parameters. `ivfflat_index_info` and `hnsw_index_info` return them for a given index:
+
+```sql
+SELECT * FROM ivfflat_index_info('my_ivfflat_idx'::regclass);
+--  lists | dimensions |   opclass    | probes
+-- -------+------------+--------------+--------
+--     100 |          3 | vector_l2_ops |      1
+
+SELECT * FROM hnsw_index_info('my_hnsw_idx'::regclass);
+--  m | ef_construction | dimensions |   opclass    | ef_search
+-- ---+-----------------+------------+--------------+----------
+--  16 |              64 |          3 | vector_l2_ops |       40
+```
+
+`probes` and `ef_search` are the current session's values, so they show what the running query actually used. `lists`, `m` and `ef_construction` are the build-time options; when an index was created without an explicit `WITH (...)` clause, the extension defaults are reported.
+
+Two more helpers turn a target recall into a range for those query-time parameters:
+
+```sql
+SELECT * FROM ivfflat_recommend_probes('my_ivfflat_idx'::regclass, 0.95);
+--  probes_min | probes_recommended | probes_max
+-- ------------+--------------------+-----------
+--           5 |                 10 |        50
+
+SELECT * FROM hnsw_recommend_ef_search('my_hnsw_idx'::regclass, 10, 0.95);
+--  ef_search_min | ef_search_recommended | ef_search_max
+-- ---------------+----------------------+---------------
+--             64 |                   64 |           256
+```
+
+The target recall is clamped to `[0, 1]` and drives a multiplier of `0.7x` (below 0.9), `1.0x` (below 0.95), `1.5x` (up to 0.99) or `2.5x`. The result is a starting point to try, not a guarantee of recall, so measure it against your own data.
 ## Filtering
 
 There are a few ways to index nearest neighbor queries with a `WHERE` clause.

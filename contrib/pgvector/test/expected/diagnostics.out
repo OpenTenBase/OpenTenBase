@@ -1,0 +1,61 @@
+-- Diagnostic helper functions: ivfflat_index_info / hnsw_index_info, plus the
+-- query-time parameter recommendation helpers.
+CREATE TABLE diag_items (id int, v vector(3)) DISTRIBUTE BY REPLICATION;
+INSERT INTO diag_items VALUES (1, '[1,2,3]'), (2, '[4,5,6]'), (3, '[7,8,9]'), (4, '[1,1,1]');
+CREATE INDEX diag_ivfflat_idx ON diag_items USING ivfflat (v vector_l2_ops) WITH (lists = 4);
+NOTICE:  (00000) ivfflat index created with little data
+DETAIL:  This will cause low recall.
+HINT:  Drop the index until the table has more data.
+CREATE INDEX diag_hnsw_idx ON diag_items USING hnsw (v vector_l2_ops) WITH (m = 8, ef_construction = 32);
+SET ivfflat.probes = 2;
+SET hnsw.ef_search = 40;
+SELECT * FROM ivfflat_index_info('diag_ivfflat_idx');
+ lists | dimensions |    opclass    | probes 
+-------+------------+---------------+--------
+     4 |          3 | vector_l2_ops |      2
+(1 row)
+
+SELECT * FROM hnsw_index_info('diag_hnsw_idx');
+ m | ef_construction | dimensions |    opclass    | ef_search 
+---+-----------------+------------+---------------+-----------
+ 8 |              32 |          3 | vector_l2_ops |        40
+(1 row)
+
+-- an index created without WITH (...) falls back to the extension defaults
+CREATE INDEX diag_ivfflat_default_idx ON diag_items USING ivfflat (v vector_l2_ops);
+NOTICE:  (00000) ivfflat index created with little data
+DETAIL:  This will cause low recall.
+HINT:  Drop the index until the table has more data.
+SELECT * FROM ivfflat_index_info('diag_ivfflat_default_idx');
+ lists | dimensions |    opclass    | probes 
+-------+------------+---------------+--------
+   100 |          3 | vector_l2_ops |      2
+(1 row)
+
+-- recommendation helpers
+SELECT * FROM ivfflat_recommend_probes('diag_ivfflat_idx');
+ probes_min | probes_recommended | probes_max 
+------------+--------------------+------------
+          1 |                  2 |          2
+(1 row)
+
+SELECT * FROM ivfflat_recommend_probes('diag_ivfflat_idx', 0.95);
+ probes_min | probes_recommended | probes_max 
+------------+--------------------+------------
+          1 |                  3 |          3
+(1 row)
+
+SELECT * FROM hnsw_recommend_ef_search('diag_hnsw_idx', 10, 0.95);
+ ef_search_min | ef_search_recommended | ef_search_max 
+---------------+-----------------------+---------------
+            32 |                    48 |           128
+(1 row)
+
+-- the wrong index type is rejected
+SELECT * FROM ivfflat_index_info('diag_hnsw_idx');
+ERROR:  (P0001) relation "diag_hnsw_idx" is not an ivfflat index
+CONTEXT:  PL/pgSQL function ivfflat_index_info(regclass) line 17 at RAISE
+SELECT * FROM hnsw_index_info('diag_ivfflat_idx');
+ERROR:  (P0001) relation "diag_ivfflat_idx" is not an hnsw index
+CONTEXT:  PL/pgSQL function hnsw_index_info(regclass) line 18 at RAISE
+DROP TABLE diag_items;
