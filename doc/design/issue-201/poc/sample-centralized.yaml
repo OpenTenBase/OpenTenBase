@@ -1,0 +1,50 @@
+# Copyright (C) 2019-2025 OpenTenBase Authors. All rights reserved.
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# 集中式模式最小示例
+#
+# 重要：centralized 模式下部署工具会忽略 gtm 与 coordinators 配置，
+# 只构建一组 DataNode。因此本示例故意不写 gtm 与 coordinators 段。
+# 依据：contrib/opentenbase_ctl/src/config/config.h ConfigFileInstance::type 注释
+#       「centralized代表集中式，此时会忽略gtm和协调节点的配置，只有1组数据节点」
+#
+# 客户端在此模式下直接连接 DataNode，不存在 CN 入口。
+# 不要把分布式模式的查询路径套用到集中式实例。
+---
+apiVersion: opentenbase.org/v1alpha1
+kind: OpenTenBaseCluster
+metadata:
+  name: otb-single
+  namespace: opentenbase
+spec:
+  mode: centralized
+  image: opentenbase/opentenbase:5.21.8
+
+  ports:
+    node: 11000
+    pooler: 11001
+    forward: 11002
+
+  # 集中式模式只需要一组数据节点
+  datanodes:
+    shards: 1
+    standbysPerShard: 1     # 1 主 1 备
+    storage:
+      size: 50Gi
+      storageClassName: standard
+    resources:
+      requests:
+        cpu: "1"
+        memory: 2Gi
+      limits:
+        cpu: "4"
+        memory: 8Gi
+
+  topologyReconcile:
+    enabled: true
+    intervalSeconds: 60
+    poolReloadAfterChange: true
+
+  monitoring:
+    enabled: true
+    postgresExporter: true
