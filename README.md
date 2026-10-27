@@ -17,6 +17,57 @@ An OpenTenBase cluster consists of multiple CoordinateNodes, DataNodes, and GTM 
 
 Users always connect to the CoordinateNodes, which divide up the query into fragments that are executed in the DataNodes, and collect the results.
 
+### Architecture at a Glance
+
+The solid arrows below show the query and data path. The dotted arrows show the transaction metadata path. GTM does not store user tables or execute query fragments.
+
+```mermaid
+flowchart LR
+    APP["Application / psql"]
+    CN["Coordinator (CN)"]
+    DN1["DataNode 1 (DN)"]
+    DN2["DataNode 2 (DN)"]
+    GTM["Global Transaction Manager (GTM)"]
+
+    APP -->|"SQL"| CN
+    CN -->|"query fragment"| DN1
+    CN -->|"query fragment"| DN2
+    DN1 -->|"partial result"| CN
+    DN2 -->|"partial result"| CN
+    CN -->|"final result"| APP
+
+    GTM -.->|"GXID / global snapshot"| CN
+    GTM -.->|"transaction metadata"| DN1
+    GTM -.->|"transaction metadata"| DN2
+```
+
+A request therefore normally follows this path:
+
+1. The client connects to a CN and sends SQL.
+2. The CN parses and plans the SQL, decides which DNs are involved, and sends each DN a query fragment.
+3. The DNs read or modify their local data and return partial results. The CN combines them and returns the final result.
+4. For a distributed transaction, GTM supplies the cluster-wide transaction identity and visibility information used by the CNs and DNs.
+
+### Core Architecture Glossary
+
+| Term | Beginner-friendly explanation |
+|------|-------------------------------|
+| **Share-nothing architecture** | Each database node owns its CPU, memory, and storage instead of sharing one storage engine. Nodes exchange data over the network, so capacity and compute can be expanded by adding nodes. |
+| **Coordinator / CoordinateNode (CN)** | The SQL entry point for applications. A CN parses and plans SQL, routes work to the required DNs, and combines their results. It keeps cluster metadata, but not user table rows. |
+| **DataNode (DN)** | The node that stores user table rows and executes the local part of a query. A table can be distributed across several DNs or replicated to them. |
+| **Global Transaction Manager (GTM)** | The cluster service that assigns global transaction identities and provides global snapshots. It lets work on different CNs and DNs use one consistent view of transaction state. |
+| **Distributed mode** | A deployment with GTM, CN, and DN roles. Data and query work can be spread across multiple DNs for horizontal scale-out. |
+| **Centralized mode** | A deployment without separate GTM and CN roles. It uses a PostgreSQL-like DN primary/standby topology when distributed scale-out is not required. |
+| **Node group** | A named set of DNs used as a placement and routing scope. Distributed or replicated table data is placed on the DNs that belong to the selected group. |
+| **Distributed table / sharding** | A table whose rows are divided into logical shards and stored on different DNs. The CN routes a row or query to the DN or DNs that own the relevant shards. |
+| **Distribution key** | The table column or columns whose values decide the target shard and DN for a row. A well-chosen key spreads data evenly and can reduce cross-node traffic. |
+| **Replicated table** | A table with a full copy on every target DN. Reads may use one copy, while writes must update all copies, so this is most useful for small, frequently read reference tables. |
+| **GXID and global snapshot** | A GXID is a cluster-wide transaction identifier. A global snapshot records which transactions are active, committed, or aborted so every participating node makes consistent row-visibility decisions. |
+| **Query fragment / Remote Fragment** | A subplan produced by the CN for execution on one or more DNs. DNs can return partial results to the CN or exchange intermediate data when a distributed operation requires it. |
+| **Primary / standby** | Two availability roles for the same logical node. The primary serves the active role and one or more standbys provide recoverable copies; this is separate from distributing different shards across DNs. |
+| **Metadata / system catalog** | Definitions such as databases, schemas, tables, columns, and node information. CNs use this metadata to plan and route SQL, and cluster-wide DDL keeps the relevant catalogs consistent across nodes. |
+| **`opentenbase_ctl`** | The cluster deployment and operations tool. It reads a topology configuration and provides commands for installing, starting, stopping, deleting, checking, and operating an OpenTenBase instance; it is not a query-processing node. |
+
 The latest version of this software may be obtained at:
 
 	https://github.com/OpenTenBase/OpenTenBase
