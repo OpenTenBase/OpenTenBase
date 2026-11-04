@@ -3354,6 +3354,12 @@ RecoverShardStatistic(void)
 	int size   = sizeof(ShardRecord) * nelems;
 	ShardRecord *rec = (ShardRecord *)malloc(size);
 
+	if (rec == NULL)
+	{
+		elog(LOG, "could not allocate memory for shard statistic recovery, size %d", size);
+		return;
+	}
+
 	if(access(SHARD_STATISTIC_FILE_PATH, F_OK) == 0)
 	{
 		fd = open(SHARD_STATISTIC_FILE_PATH, O_RDONLY, S_IRUSR | S_IWUSR);
