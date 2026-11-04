@@ -1468,13 +1468,13 @@ int excute_show_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector
                 std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to show config item " << configInfo->guc.guc_name  << '\n';
                 results[i] = ret;
                 failedCount++;
-                // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到 
-            } 
+                // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到
+            } else {
+                // 成功
+                results[i] = 0;
+                std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " "<< configInfo->guc.guc_name <<"=" << output << '\n';
+            }
 
-            // 成功
-            results[i] = 0; 
-            std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " "<< configInfo->guc.guc_name <<"=" << output << '\n';
-            
             tatolCount++;
         });
         // 手动递增索引
@@ -1537,14 +1537,14 @@ int excute_del_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector<
                 std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
                 results[i] = ret;
                 failedCount++;
-                // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到 
-            } 
+                // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到
+            } else {
+                // 成功
+                results[i] = 0;
+                std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Result: " << output << '\n';
+                std::cout << output.c_str() << '\n';
+            }
 
-            // 成功
-            results[i] = 0; 
-            std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Result: " << output << '\n';
-            std::cout << output.c_str() << '\n';
-            
             tatolCount++;
         });
         // 手动递增索引
@@ -1605,29 +1605,30 @@ int excute_change_guc_concurrency(OpentenbaseConfig *configInfo, const std::vect
 
             int ret = delete_guc(configInfo, node);
             if (ret != 0) {
-                LOG_WARN_FMT("Failed to delete config item %s on node %s (%s)", 
-                        configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str());
-                std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
-                results[i] = ret;
-                failedCount++;
-                // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到 
-            } 
-
-            ret = add_guc(configInfo, node);
-            if (ret != 0) {
-                LOG_WARN_FMT("Failed to delete config item %s on node %s (%s)", 
+                LOG_WARN_FMT("Failed to delete config item %s on node %s (%s)",
                         configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str());
                 std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
                 results[i] = ret;
                 failedCount++;
                 // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到
-            } 
+            } else {
+                // 删除成功后再写入新值，避免删除失败时追加导致配置重复
+                ret = add_guc(configInfo, node);
+                if (ret != 0) {
+                    LOG_WARN_FMT("Failed to add config item %s on node %s (%s)",
+                            configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str());
+                    std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to add config item " << configInfo->guc.guc_name  << '\n';
+                    results[i] = ret;
+                    failedCount++;
+                    // todo：failedCount++ 应该用原子操作或加锁，否则多线程下不安全！下面会提到
+                } else {
+                    // 成功
+                    results[i] = 0;
+                    std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " " << configInfo->guc.guc_name << " Change to " << configInfo->guc.guc_value << '\n';
+                    std::cout << output.c_str() << '\n';
+                }
+            }
 
-            // 成功
-            results[i] = 0; 
-            std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " " << configInfo->guc.guc_name << " Change to " << configInfo->guc.guc_value << '\n';
-            std::cout << output.c_str() << '\n';
-            
             tatolCount++;
         });
         // 手动递增索引
