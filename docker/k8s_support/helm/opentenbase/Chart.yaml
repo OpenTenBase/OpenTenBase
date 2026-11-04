@@ -1,0 +1,18 @@
+apiVersion: v2
+name: opentenbase
+description: A Helm chart for OpenTenBase distributed database cluster on Kubernetes
+type: application
+version: 0.1.0
+appVersion: "v5.0.0"
+keywords:
+  - opentenbase
+  - database
+  - distributed
+  - postgresql
+  - postgres-xl
+home: https://github.com/OpenTenBase/OpenTenBase
+sources:
+  - https://github.com/OpenTenBase/OpenTenBase
+maintainers:
+  - name: OpenTenBase Contributors
+    email: opentenbase@tencent.com

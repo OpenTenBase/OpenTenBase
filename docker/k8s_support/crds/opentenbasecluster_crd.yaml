@@ -1,0 +1,256 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: opentenbaseclusters.opentenbase.org
+  labels:
+    app.kubernetes.io/name: opentenbase
+spec:
+  group: opentenbase.org
+  names:
+    kind: OpenTenBaseCluster
+    listKind: OpenTenBaseClusterList
+    plural: opentenbaseclusters
+    singular: opentenbasecluster
+    shortNames:
+      - otb
+      - otc
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: OpenTenBaseCluster is the Schema for the opentenbaseclusters API
+          properties:
+            spec:
+              type: object
+              required:
+                - gtm
+                - coordinator
+                - datanode
+              properties:
+                gtm:
+                  type: object
+                  description: Global Transaction Manager configuration
+                  required:
+                    - replicas
+                  properties:
+                    replicas:
+                      type: integer
+                      minimum: 1
+                      maximum: 2
+                      description: Number of GTM replicas (1 master + optional standby)
+                    resources:
+                      type: object
+                      properties:
+                        limits:
+                          type: object
+                          properties:
+                            cpu:
+                              type: string
+                              default: "2"
+                            memory:
+                              type: string
+                              default: "4Gi"
+                        requests:
+                          type: object
+                          properties:
+                            cpu:
+                              type: string
+                              default: "1"
+                            memory:
+                              type: string
+                              default: "2Gi"
+                    persistence:
+                      type: object
+                      properties:
+                        size:
+                          type: string
+                          default: "10Gi"
+                        storageClassName:
+                          type: string
+                coordinator:
+                  type: object
+                  description: Coordinator Node configuration
+                  required:
+                    - replicas
+                  properties:
+                    replicas:
+                      type: integer
+                      minimum: 1
+                      description: Number of CN replicas
+                    resources:
+                      type: object
+                      properties:
+                        limits:
+                          type: object
+                          properties:
+                            cpu:
+                              type: string
+                              default: "4"
+                            memory:
+                              type: string
+                              default: "8Gi"
+                datanode:
+                  type: object
+                  description: Data Node configuration
+                  required:
+                    - replicas
+                  properties:
+                    replicas:
+                      type: integer
+                      minimum: 1
+                      description: Number of DN replicas
+                    resources:
+                      type: object
+                      properties:
+                        limits:
+                          type: object
+                          properties:
+                            cpu:
+                              type: string
+                              default: "4"
+                            memory:
+                              type: string
+                              default: "16Gi"
+                    storage:
+                      type: object
+                      required:
+                        - size
+                      properties:
+                        size:
+                          type: string
+                          default: "100Gi"
+                        storageClassName:
+                          type: string
+                          default: "local-ssd"
+                backup:
+                  type: object
+                  description: Backup configuration
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: false
+                    schedule:
+                      type: string
+                      default: "0 2 * * *"
+                    retention:
+                      type: integer
+                      default: 7
+                      description: Number of backups to retain
+                image:
+                  type: object
+                  properties:
+                    repository:
+                      type: string
+                      default: "opentenbase/opentenbase"
+                    tag:
+                      type: string
+                      default: "v5.0.0"
+                    pullPolicy:
+                      type: string
+                      default: "IfNotPresent"
+                      enum:
+                        - Always
+                        - IfNotPresent
+                        - Never
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  description: Current phase of the cluster
+                  enum:
+                    - Pending
+                    - Creating
+                    - Running
+                    - Scaling
+                    - Updating
+                    - Failed
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                nodes:
+                  type: object
+                  properties:
+                    gtm:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          host:
+                            type: string
+                          port:
+                            type: integer
+                          role:
+                            type: string
+                            enum:
+                              - master
+                              - standby
+                          ready:
+                            type: boolean
+                    coordinators:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          host:
+                            type: string
+                          port:
+                            type: integer
+                          role:
+                            type: string
+                          ready:
+                            type: boolean
+                    datanodes:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                          host:
+                            type: string
+                          port:
+                            type: integer
+                          role:
+                            type: string
+                          ready:
+                            type: boolean
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: GTM
+          type: integer
+          jsonPath: .spec.gtm.replicas
+        - name: CN
+          type: integer
+          jsonPath: .spec.coordinator.replicas
+        - name: DN
+          type: integer
+          jsonPath: .spec.datanode.replicas
+        - name: Status
+          type: string
+          jsonPath: .status.phase
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

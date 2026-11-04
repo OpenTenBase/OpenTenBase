@@ -8904,6 +8904,26 @@ ExecInitRemoteQuery(RemoteQuery *node, EState *estate, int eflags)
 	combiner->ss.ps.ExecProcNode = ExecRemoteQuery;
 	combiner->request_type = REQUEST_TYPE_QUERY;
 
+#ifdef __OPENTENBASE__
+	/*
+	 * For vector search queries (ORDER BY distance LIMIT K), the planner
+	 * sets SimpleSort on the RemoteQuery to indicate that results from
+	 * multiple DNs need to be merge-sorted at the CN.
+	 *
+	 * Activate merge_sort mode in the combiner so that:
+	 * 1. Data rows from each DN are collected into per-connection tuplestores
+	 * 2. FetchTuple reads from tuplestores in merge order
+	 * 3. The wrapping Limit node trims to final TopK
+	 *
+	 * Skip merge_sort activation in EXPLAIN_ONLY mode since no actual data
+	 * is received.
+	 */
+	if (node->sort != NULL && !(eflags & EXEC_FLAG_EXPLAIN_ONLY))
+	{
+		combiner->merge_sort = true;
+	}
+#endif
+
 	if (node->exec_nodes && node->exec_nodes->nExprs > 0 && node->exec_nodes->dis_exprs[0])
 	{
 		Expr *expr = node->exec_nodes->dis_exprs[0];

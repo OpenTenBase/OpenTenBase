@@ -38,7 +38,7 @@ PG_MODULE_MAGIC;
 /* This constant defines the magic number in the stats file header */
 static const uint32 STORM_FILE_HEADER = 0x20120229;
 
-#define STORM_STATS_COLS 7
+#define STORM_STATS_COLS 20
 
 typedef struct ssHashKey
 {
@@ -48,12 +48,39 @@ typedef struct ssHashKey
 
 typedef struct EventCounters
 {
+	/* Basic operation counters (existing) */
 	int64       conn_cnt;
 	int64		select_cnt;
 	int64		insert_cnt;
 	int64		update_cnt;
 	int64		delete_cnt;
 	int64		ddl_cnt;
+
+	/* Transaction counters */
+	int64		trans_total;			/* total transactions */
+	int64		trans_2pc_prepared;		/* 2PC prepared count */
+	int64		trans_rolled_back;		/* rolled back transactions */
+
+	/* Lock counters */
+	int64		lock_wait_count;		/* lock wait events */
+	int64		lock_wait_time_us;		/* total lock wait time (us) */
+	int64		deadlock_count;			/* deadlocks detected */
+
+	/* IO counters */
+	int64		read_bytes;				/* bytes read from storage */
+	int64		write_bytes;			/* bytes written to storage */
+
+	/* Connection counters */
+	int64		connections_active_hwm;	/* high water mark of active connections */
+	int64		connections_idle_hwm;	/* high water mark of idle connections */
+
+	/* Distributed query counters */
+	int64		cross_shard_queries;	/* queries spanning multiple shards */
+	int64		data_transfer_bytes;	/* inter-node data transfer */
+
+	/* GTM counters */
+	int64		gtm_snapshot_requests;	/* GTM snapshot requests */
+	int64		gtm_txid_requests;		/* GTM txid requests */
 } EventCounters;
 
 typedef struct StormStatsEntry
@@ -584,15 +611,19 @@ stats_store(const char *dbname, CmdType c, bool isConnEvent, bool isUtilEvent)
 			{
 				case CMD_SELECT:
 					e->counters.select_cnt += 1;
+					e->counters.trans_total += 1;
 					break;
 				case CMD_INSERT:
 					e->counters.insert_cnt += 1;
+					e->counters.trans_total += 1;
 					break;
 				case CMD_UPDATE:
 					e->counters.update_cnt += 1;
+					e->counters.trans_total += 1;
 					break;
 				case CMD_DELETE:
 					e->counters.delete_cnt += 1;
+					e->counters.trans_total += 1;
 					break;
 				case CMD_UTILITY:
 				case CMD_UNKNOWN:
@@ -801,13 +832,26 @@ Datum storm_database_stats(PG_FUNCTION_ARGS)
 		LocalStatsHash = storm_gather_remote_coord_info(fcinfo->flinfo->fn_oid);
 
 	tupdesc = CreateTemplateTupleDesc(STORM_STATS_COLS, false);
-	TupleDescInitEntry(tupdesc, (AttrNumber) 1, "dbname",     TEXTOID, -1, 0);
-	TupleDescInitEntry(tupdesc, (AttrNumber) 2, "conn_cnt",   INT8OID, -1, 0);
-	TupleDescInitEntry(tupdesc, (AttrNumber) 3, "select_cnt", INT8OID, -1, 0);
-	TupleDescInitEntry(tupdesc, (AttrNumber) 4, "insert_cnt", INT8OID, -1, 0);
-	TupleDescInitEntry(tupdesc, (AttrNumber) 5, "update_cnt", INT8OID, -1, 0);
-	TupleDescInitEntry(tupdesc, (AttrNumber) 6, "delete_cnt", INT8OID, -1, 0);
-	TupleDescInitEntry(tupdesc, (AttrNumber) 7, "ddl_cnt",    INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 1,  "dbname",                TEXTOID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 2,  "conn_cnt",              INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 3,  "select_cnt",            INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 4,  "insert_cnt",            INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 5,  "update_cnt",            INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 6,  "delete_cnt",            INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 7,  "ddl_cnt",               INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 8,  "trans_total",           INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 9,  "trans_2pc_prepared",    INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 10, "trans_rolled_back",     INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 11, "lock_wait_count",       INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 12, "lock_wait_time_us",     INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 13, "deadlock_count",        INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 14, "read_bytes",            INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 15, "write_bytes",           INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 16, "connections_active_hwm",INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 17, "connections_idle_hwm",  INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 18, "cross_shard_queries",   INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 19, "data_transfer_bytes",   INT8OID, -1, 0);
+	TupleDescInitEntry(tupdesc, (AttrNumber) 20, "gtm_snapshot_requests", INT8OID, -1, 0);
 
 	tupstore = tuplestore_begin_heap(true, false, work_mem);
 	rsinfo->returnMode = SFRM_Materialize;
@@ -856,24 +900,27 @@ Datum storm_database_stats(PG_FUNCTION_ARGS)
 			/* Find an entry with desired hash code */
 			le = (LocalStatsEntry *) hash_search(LocalStatsHash, &key, HASH_FIND, &found);
 
-			/*
-			 * What should we do if entry is not found on the other
-			 * coordinators? WARN for now..
-			 */
-			if (!found)
+			if (found)
 			{
-				ereport(WARNING,
-					(errmsg("no stats collected from remote coordinators for database %s!",
-					 entry->dbname)));
-			}
-			else
-			{
-				tmp.ddl_cnt += le->counters.ddl_cnt;
 				tmp.conn_cnt += le->counters.conn_cnt;
 				tmp.select_cnt += le->counters.select_cnt;
 				tmp.insert_cnt += le->counters.insert_cnt;
 				tmp.update_cnt += le->counters.update_cnt;
 				tmp.delete_cnt += le->counters.delete_cnt;
+				tmp.ddl_cnt += le->counters.ddl_cnt;
+				tmp.trans_total += le->counters.trans_total;
+				tmp.trans_2pc_prepared += le->counters.trans_2pc_prepared;
+				tmp.trans_rolled_back += le->counters.trans_rolled_back;
+				tmp.lock_wait_count += le->counters.lock_wait_count;
+				tmp.lock_wait_time_us += le->counters.lock_wait_time_us;
+				tmp.deadlock_count += le->counters.deadlock_count;
+				tmp.read_bytes += le->counters.read_bytes;
+				tmp.write_bytes += le->counters.write_bytes;
+				tmp.connections_active_hwm += le->counters.connections_active_hwm;
+				tmp.connections_idle_hwm += le->counters.connections_idle_hwm;
+				tmp.cross_shard_queries += le->counters.cross_shard_queries;
+				tmp.data_transfer_bytes += le->counters.data_transfer_bytes;
+				tmp.gtm_snapshot_requests += le->counters.gtm_snapshot_requests;
 			}
 		}
 
@@ -883,6 +930,19 @@ Datum storm_database_stats(PG_FUNCTION_ARGS)
 		values[i++] = Int64GetDatumFast(tmp.update_cnt);
 		values[i++] = Int64GetDatumFast(tmp.delete_cnt);
 		values[i++] = Int64GetDatumFast(tmp.ddl_cnt);
+		values[i++] = Int64GetDatumFast(tmp.trans_total);
+		values[i++] = Int64GetDatumFast(tmp.trans_2pc_prepared);
+		values[i++] = Int64GetDatumFast(tmp.trans_rolled_back);
+		values[i++] = Int64GetDatumFast(tmp.lock_wait_count);
+		values[i++] = Int64GetDatumFast(tmp.lock_wait_time_us);
+		values[i++] = Int64GetDatumFast(tmp.deadlock_count);
+		values[i++] = Int64GetDatumFast(tmp.read_bytes);
+		values[i++] = Int64GetDatumFast(tmp.write_bytes);
+		values[i++] = Int64GetDatumFast(tmp.connections_active_hwm);
+		values[i++] = Int64GetDatumFast(tmp.connections_idle_hwm);
+		values[i++] = Int64GetDatumFast(tmp.cross_shard_queries);
+		values[i++] = Int64GetDatumFast(tmp.data_transfer_bytes);
+		values[i++] = Int64GetDatumFast(tmp.gtm_snapshot_requests);
 
 		Assert(i == STORM_STATS_COLS);
 

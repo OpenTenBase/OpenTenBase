@@ -1,0 +1,80 @@
+# OpenTenBase Helm Chart - Default values
+
+# Cluster name (used for resource naming)
+clusterName: opentenbase-cluster
+
+# Docker image configuration
+image:
+  repository: opentenbase/opentenbase
+  tag: v5.0.0
+  pullPolicy: IfNotPresent
+
+# Global Transaction Manager
+gtm:
+  replicas: 1
+  resources:
+    limits:
+      cpu: "2"
+      memory: 4Gi
+    requests:
+      cpu: "1"
+      memory: 2Gi
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClassName: ""
+  service:
+    port: 6666
+
+# Coordinator Nodes
+coordinator:
+  replicas: 2
+  resources:
+    limits:
+      cpu: "4"
+      memory: 8Gi
+    requests:
+      cpu: "2"
+      memory: 4Gi
+  service:
+    port: 11000  # PG protocol port
+
+# Data Nodes
+datanode:
+  replicas: 3
+  resources:
+    limits:
+      cpu: "4"
+      memory: 16Gi
+    requests:
+      cpu: "2"
+      memory: 8Gi
+  storage:
+    size: 100Gi
+    storageClassName: local-ssd
+  service:
+    port: 12000
+
+# Backup configuration
+backup:
+  enabled: false
+  schedule: "0 2 * * *"
+  retention: 7
+
+# ServiceAccount for operator RBAC
+serviceAccount:
+  create: true
+  name: opentenbase-operator
+
+# RBAC configuration
+rbac:
+  create: true
+
+# Monitoring
+monitoring:
+  enabled: false
+  prometheus:
+    port: 9187
+    path: /metrics
+  grafana:
+    enabled: false
