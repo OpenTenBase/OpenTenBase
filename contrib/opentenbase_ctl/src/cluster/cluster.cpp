@@ -518,7 +518,8 @@ int pre_install_command_concurrency(OpentenbaseConfig *config) {
     // Step 2: Transfer and extract package (only for unique IPs)
     std::map<std::string, NodeInfo*> unique_ip_nodes;
     std::vector<int> result(unique_ip_nodes.size(), 0);
-    int failedCount = 0;
+    // 工作线程并发递增，必须原子操作
+    std::atomic<int> failedCount = 0;
     for (auto& node : config->nodes) {
         unique_ip_nodes[node.ip] = &node;
     }
@@ -1362,9 +1363,10 @@ int status_command(OpentenbaseConfig *config) {
 
     std::vector<std::thread> threads;
     std::vector<int> results(opNodes.size(), 0);
-    int runningCount = 0;
-    int stoppedCount = 0;
-    int unkownCount = 0;
+    // 工作线程并发递增，必须原子操作
+    std::atomic<int> runningCount = 0;
+    std::atomic<int> stoppedCount = 0;
+    std::atomic<int> unkownCount = 0;
 
     // instance
     std::cout << "\n ------------- Instance status -----------  " << std::endl;
@@ -1410,8 +1412,8 @@ int status_command(OpentenbaseConfig *config) {
             << ", Running: " << runningCount 
             << ", Stopped: " << stoppedCount
             << ", Unknown: " << unkownCount << "\n" << std::endl;
-    LOG_INFO_FMT("[Result] Total: %zu, Running: %zu, Stopped: %zu, Unknown: %zu", 
-             opNodes.size(), runningCount , stoppedCount, unkownCount);
+    LOG_INFO_FMT("[Result] Total: %zu, Running: %zu, Stopped: %zu, Unknown: %zu",
+             opNodes.size(), runningCount.load(), stoppedCount.load(), unkownCount.load());
 
 
     // connection info
@@ -1602,9 +1604,10 @@ int get_instance_status(OpentenbaseConfig *config) {
 
     std::vector<std::thread> threads;
     std::vector<int> results(config->nodes.size(), 0);
-    int runningCount = 0;
-    int stoppedCount = 0;
-    int unkownCount = 0;
+    // 工作线程并发递增，必须原子操作
+    std::atomic<int> runningCount = 0;
+    std::atomic<int> stoppedCount = 0;
+    std::atomic<int> unkownCount = 0;
 
     // node status
     std::cout << "\n -------------- Node status --------------  " << std::endl;
@@ -1643,8 +1646,8 @@ int get_instance_status(OpentenbaseConfig *config) {
             << ", Running: " << runningCount 
             << ", Stopped: " << stoppedCount
             << ", Unknown: " << unkownCount << "\n" << std::endl;
-    LOG_INFO_FMT("[Result] Total: %zu, Running: %zu, Stopped: %zu, Unknown: %zu", 
-             config->nodes.size(), runningCount , stoppedCount, unkownCount);
+    LOG_INFO_FMT("[Result] Total: %zu, Running: %zu, Stopped: %zu, Unknown: %zu",
+             config->nodes.size(), runningCount.load(), stoppedCount.load(), unkownCount.load());
 
 
     // connection info
