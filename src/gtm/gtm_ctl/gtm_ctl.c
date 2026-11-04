@@ -1449,6 +1449,11 @@ main(int argc, char **argv)
 					{
 						char	   *gtmdata_D;
 						char	   *env_var = pg_malloc(strlen(optarg) + 9);
+						if (env_var == NULL)
+						{
+							fprintf(stderr, "out of memory for env_var\n");
+							exit(1);
+						}
 
 						gtmdata_D = xstrdup(optarg);
 						canonicalize_path(gtmdata_D);
@@ -1462,6 +1467,11 @@ main(int argc, char **argv)
 						 * 'ps' display
 						 */
 						gtmdata_opt = (char *) pg_malloc(strlen(gtmdata_D) + 8);
+						if (gtmdata_opt == NULL)
+						{
+							fprintf(stderr, "out of memory for gtmdata_opt\n");
+							exit(1);
+						}
 						snprintf(gtmdata_opt, strlen(gtmdata_D) + 8,
 								 "-D \"%s\" ",
 								 gtmdata_D);
