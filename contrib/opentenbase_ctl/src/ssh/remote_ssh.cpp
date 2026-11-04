@@ -13,11 +13,25 @@
 #include <string>
 #include <sstream>
 #include <algorithm>
+#include <mutex>
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <netinet/in.h>
 
 #include "../log/log.h"
+#include "../utils/utils.h"
+
+namespace {
+    // 保护 setenv 避免多线程并发调用导致环境变量块损坏
+    std::mutex g_sshpass_mutex;
+
+    // 将 ssh 密码写入 SSHPASS 环境变量，配合 `sshpass -e` 使用，
+    // 避免密码出现在命令行参数（ps 可见）中，同时防止密码中的单引号等字符注入 shell。
+    void set_sshpass_env(const std::string& password) {
+        std::lock_guard<std::mutex> lock(g_sshpass_mutex);
+        setenv("SSHPASS", password.c_str(), 1);
+    }
+}
 
 // Execute remote command
 int 
@@ -26,8 +40,10 @@ remote_ssh_exec(const std::string& ip, int port, const std::string& username,
                    std::string& result) {
                         // 将命令进行 Base64 编码
     std::string encoded_command = string_to_base64(command);
-    std::string cmd = "sshpass -p '" + password + "' ssh -o StrictHostKeyChecking=no -p " + 
-                    std::to_string(port) + " " + username + "@" + ip + 
+    // 密码通过 SSHPASS 环境变量传递给 sshpass -e，避免出现在命令行与 shell 解析中
+    set_sshpass_env(password);
+    std::string cmd = "sshpass -e ssh -o StrictHostKeyChecking=no -p " +
+                    std::to_string(port) + " " + shell_quote(username + "@" + ip) +
                     " 'echo " + encoded_command + " | base64 --decode | bash' 2>&1";
 
     LOG_INFO_FMT("Executing remote command on %s: %s", ip.c_str(), command.c_str());
@@ -57,9 +73,11 @@ int
 remote_scp_file(const std::string& ip, int port, const std::string& username,
                    const std::string& password, const std::string& local_path,
                    const std::string& remote_path) {
-    std::string cmd = "sshpass -p '" + password + "' scp -o StrictHostKeyChecking=no -P " + 
-                     std::to_string(port) + " " + local_path + " " + 
-                     username + "@" + ip + ":" + remote_path + " 2>&1";
+    // 密码通过 SSHPASS 环境变量传递；路径与目标用单引号引用，防止注入
+    set_sshpass_env(password);
+    std::string cmd = "sshpass -e scp -o StrictHostKeyChecking=no -P " +
+                     std::to_string(port) + " " + shell_quote(local_path) + " " +
+                     shell_quote(username + "@" + ip + ":" + remote_path) + " 2>&1";
     
     LOG_INFO_FMT("Transferring file to %s: %s -> %s", ip.c_str(), local_path.c_str(), remote_path.c_str());
     
@@ -152,7 +170,7 @@ get_home_dir(const std::string& ip, int port, const std::string& username,
     if (should_execute_local) {
 
         // Local execution
-        std::string command = "echo \\$HOME";
+        std::string command = "echo $HOME";
         int ret = local_exec_as_user(username, command, result);
         if (ret != 0) {
             LOG_ERROR_FMT("Failed to execute command locally: %s", command.c_str());
@@ -334,8 +352,8 @@ int execute_sql_by_psql(const std::string& ip, int port, const std::string& user
 int local_exec_as_user(const std::string& user, const std::string& command, std::string& result) {
     LOG_INFO_FMT("Executing local command as user '%s': %s", user.c_str(), command.c_str());
     
-    // 使用sudo -u以指定用户身份执行命令
-    std::string full_command = "sudo -u " + user + " bash -c \"" + command + "\"";
+    // 使用sudo -u以指定用户身份执行命令；用户与命令均用单引号引用，防止注入
+    std::string full_command = "sudo -u " + shell_quote(user) + " bash -c " + shell_quote(command);
     
     std::array<char, 4096> buffer;
     std::stringstream ss;
