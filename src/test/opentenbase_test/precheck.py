@@ -8,6 +8,7 @@ if __name__ == "__main__":
 
 import os
 import subprocess
+import time
 
 from common import ExecCommand
 from common import global_thl_data
