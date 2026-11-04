@@ -19,37 +19,59 @@
 
 #include "../log/log.h"
 
+#include <sys/wait.h>
+
+// Decode the raw pclose() status into the child's exit code; -1 when the
+// child could not be reaped or died from a signal.
+static int
+decode_exit_status(int status) {
+    if (status == -1) {
+        return -1;
+    }
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+    }
+    return -1;
+}
+
 // Execute remote command
-int 
-remote_ssh_exec(const std::string& ip, int port, const std::string& username, 
+int
+remote_ssh_exec(const std::string& ip, int port, const std::string& username,
                    const std::string& password, const std::string& command,
                    std::string& result) {
                         // 将命令进行 Base64 编码
     std::string encoded_command = string_to_base64(command);
-    std::string cmd = "sshpass -p '" + password + "' ssh -o StrictHostKeyChecking=no -p " + 
-                    std::to_string(port) + " " + username + "@" + ip + 
+    std::string cmd = "sshpass -p '" + password + "' ssh -o StrictHostKeyChecking=no -p " +
+                    std::to_string(port) + " " + username + "@" + ip +
                     " 'echo " + encoded_command + " | base64 --decode | bash' 2>&1";
 
     LOG_INFO_FMT("Executing remote command on %s: %s", ip.c_str(), command.c_str());
-    
+
     std::array<char, 4096> buffer;
     std::stringstream ss;
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
-    
+
     if (!pipe) {
         LOG_ERROR_FMT("Failed to execute command on %s", ip.c_str());
         return -1;
     }
-    
+
     while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
         ss << buffer.data();
     }
-    
+
     result = ss.str();
     if (!result.empty()) {
         LOG_INFO_FMT("Command output from %s: %s", ip.c_str(), result.c_str());
     }
-    return 0;
+
+    // The ssh exit status carries the remote command's exit code, so callers
+    // can tell an unreachable host (255) from a failed command (non-zero).
+    int exit_code = decode_exit_status(pclose(pipe.release()));
+    if (exit_code != 0) {
+        LOG_ERROR_FMT("Command on %s exited with code %d", ip.c_str(), exit_code);
+    }
+    return exit_code;
 }
 
 // Transfer file to remote host
@@ -180,29 +202,29 @@ get_home_dir(const std::string& ip, int port, const std::string& username,
 }
 
 // Execute local command
-int 
+int
 local_exec(const std::string& command, std::string& result) {
     LOG_INFO_FMT("Executing local command: %s", command.c_str());
-    
+
     std::array<char, 4096> buffer;
     std::stringstream ss;
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
-    
+
     if (!pipe) {
         LOG_ERROR_FMT("Failed to execute local command");
         return -1;
     }
-    
+
     while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
         ss << buffer.data();
     }
-    
+
     result = ss.str();
     if (!result.empty()) {
         LOG_INFO_FMT("Command output: %s", result.c_str());
     }
-    return 0;
-} 
+    return decode_exit_status(pclose(pipe.release()));
+}
 
 // 将字符串IP转换为in_addr结构
 bool ip_to_in_addr(const std::string& ip_str, in_addr& addr) {
@@ -293,10 +315,13 @@ int execute_command(const std::string& ip, int port, const std::string& username
 
     } else {
 
-        // Remote execution
-        if (remote_ssh_exec(ip, port, username, password, command, result) != 0) {
+        // Remote execution: keep the child's exit status (not flattened to
+        // -1) so callers like is_node_running can tell a "no match" grep
+        // pipeline (1) from an unreachable host (255).
+        int ret = remote_ssh_exec(ip, port, username, password, command, result);
+        if (ret != 0) {
             LOG_ERROR_FMT("Failed to execute command Remote : %s", command.c_str());
-            return -1;
+            return ret;
         }
     }
 
@@ -320,10 +345,12 @@ int execute_sql_by_psql(const std::string& ip, int port, const std::string& user
         }
 
     } else {
-        // Remote execution
-        if (remote_ssh_exec(ip, port, username, password, command, result) != 0) {
+        // Remote execution: keep the child's exit status for callers that
+        // classify results by exit code.
+        int ret = remote_ssh_exec(ip, port, username, password, command, result);
+        if (ret != 0) {
             LOG_ERROR_FMT("Failed to excute(%s) on server %s, err: %s",command.c_str(),ip.c_str(),result.c_str());
-            return -1;
+            return ret;
         }
     }
 
@@ -333,29 +360,29 @@ int execute_sql_by_psql(const std::string& ip, int port, const std::string& user
 
 int local_exec_as_user(const std::string& user, const std::string& command, std::string& result) {
     LOG_INFO_FMT("Executing local command as user '%s': %s", user.c_str(), command.c_str());
-    
+
     // 使用sudo -u以指定用户身份执行命令
     std::string full_command = "sudo -u " + user + " bash -c \"" + command + "\"";
-    
+
     std::array<char, 4096> buffer;
     std::stringstream ss;
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(full_command.c_str(), "r"), pclose);
-    
+
     if (!pipe) {
         LOG_ERROR_FMT("Failed to execute command as user '%s'", user.c_str());
         return -1;
     }
-    
+
     while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
         ss << buffer.data();
     }
-    
+
     result = ss.str();
     if (!result.empty()) {
         LOG_INFO_FMT("Command output from user '%s': %s", user.c_str(), result.c_str());
     }
-    
-    return 0;
+
+    return decode_exit_status(pclose(pipe.release()));
 }
 
 // Base64 编码表
@@ -426,25 +453,24 @@ std::string string_to_base64(const std::string& input) {
 
 
 // Check if port is available
-int 
+int
 check_port_available(const char *ip, int port, const char *username, const char *password, int ssh_port) {
     std::string cmd = "export PATH=/usr/local/bin:/usr/bin:/usr/sbin:$PATH && ss -tln | grep -q ':" + std::to_string(port) + "'";
     std::string result;
-    
+
     int ret = remote_ssh_exec(ip, ssh_port, username, password, cmd, result);
-    
+
+    // grep -q prints no output: it exits 0 when ss lists the port and 1 when
+    // it does not, so classify by the propagated exit status. Any other code
+    // means the remote probe itself failed.
     if (ret == 0) {
-        // Command executed successfully, check return value
-        if (result.empty()) {
-            // No port found, means port is available
-            return 0;
-        } else {
-            // Port found, means port is occupied
-            return 1;
-        }
-    } else {
-        // Command execution failed
-        LOG_ERROR_FMT("Failed to check port %d on %s: %s", port, ip, result.c_str());
-        return -1;
+        // Port found, means port is occupied
+        return 1;
     }
+    if (ret == 1) {
+        // No port found, means port is available
+        return 0;
+    }
+    LOG_ERROR_FMT("Failed to check port %d on %s: %s", port, ip, result.c_str());
+    return -1;
 }
