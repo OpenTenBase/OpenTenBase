@@ -366,6 +366,10 @@ build_cn_node_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
     // 获得IP列表
     std::vector<std::string> master_ips = parse_ip_list(cfg_file.coordinators.master);
     std::vector<std::string> slave_ips = parse_ip_list(cfg_file.coordinators.slave);
+    if (master_ips.empty()) {
+        LOG_ERROR_FMT("The master IP list of coordinators in the Config file is empty. Please correct your configuration.");
+        return -1;
+    }
     if (slave_ips.size() % master_ips.size() != 0) {
         LOG_ERROR_FMT("The number of IPs contained in master should be exactly several times that of the number of IPs in slave. Please correct your configuration..");
         return -1;
@@ -417,6 +421,10 @@ build_dn_node_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
     // 获得IP列表
     std::vector<std::string> master_ips = parse_ip_list(cfg_file.datanodes.master);
     std::vector<std::string> slave_ips = parse_ip_list(cfg_file.datanodes.slave);
+    if (master_ips.empty()) {
+        LOG_ERROR_FMT("The master IP list of datanodes in the Config file is empty. Please correct your configuration.");
+        return -1;
+    }
     if (slave_ips.size() % master_ips.size() != 0) {
         LOG_ERROR_FMT("The number of IPs contained in master should be exactly several times that of the number of IPs in slave. Please correct your configuration..");
         return -1;
