@@ -22,6 +22,10 @@ OpenTenBase具有许多类似于PostgreSQL的语言接口，其中的一些可�
 
 	https://www.opentenbase.org/
 
+## 文档
+
+- [新手导览](doc/beginner-guide_ZH.md)
+
 ## 构建
 ### 系统要求
 
