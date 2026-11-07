@@ -124,6 +124,8 @@ It is recommended to write the environment variables to `~/.bash_profile` (not `
 cat >> ~/.bash_profile <<'EOF'
 
 # OpenTenBase environment variables
+export INSTALL_PATH=/data/opentenbase/install/
+
 PG_HOME=${INSTALL_PATH}/opentenbase_bin_v5.0
 export PATH="$PG_HOME/bin:$PATH"
 export LD_LIBRARY_PATH="$PG_HOME/lib:$LD_LIBRARY_PATH"
