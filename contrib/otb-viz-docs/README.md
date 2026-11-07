@@ -18,7 +18,7 @@ OpenTenBase、看到 `CN`、`DN`、`GTM` 三个缩写就卡住的同学。
 | `diagram/cluster-architecture.png` | 位图版本，可直接贴进 Issue / PR / PPT |
 | `evidence/diagram-review.md` | 图中每一条技术表述与仓库文件的逐项核对表 |
 | `evidence/ai-usage-log.md` | 使用 AI 辅助的过程记录（生成了什么、人工核对了什么） |
-| `evidence/peer-feedback.md` | 另一位同学试读后的复述与反馈记录 |
+| `evidence/peer-feedback.md` | 试读记录模板（要求另一位同学复述概念），现场试读后填写 |
 
 ## 一句话结论
 
@@ -78,9 +78,17 @@ psql -h 127.0.0.1 -p 11003 -U opentenbase -d postgres \
 
 ## 与方向 1 的关系
 
-本卡片负责"概念"，团队的方向 1（SQL 入门手册）负责"第一条 SQL"。
+本卡片负责"概念"，方向 1（[SQL 入门手册](../otb-sql-primer/README.md)）负责"第一条 SQL"。
 建议阅读顺序：先看这张图建立角色分工，再去看 SQL 示例，就不会困惑于
 "这条语句到底在哪台机器上跑"。
+
+两份材料互相引用：
+
+- 本图第 2 步"CN 只存元数据"的实证，就是 SQL 手册第 1 条查 `pgxc_node` 的结果；
+- SQL 手册第 3 条 `distribute by shard(id) to group default_group` 里的 `default_group`，
+  就是本图右侧两个 DN 所在的组（SQL 手册第 2 条查 `pgxc_group` 可看到）。
+
+读完图再读手册：`contrib/otb-sql-primer/sql-primer.md`
 
 ## 设计说明
 
