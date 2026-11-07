@@ -27,8 +27,13 @@ Checking only the process list is not enough. Hence this script.
 
 ```bash
 bash otb_health.sh              # full check, includes a DDL/DML smoke test
-bash otb_health.sh --no-write   # read-only: skip the create/insert/drop test
+bash otb_health.sh --no-write   # read-only: skip the DDL/DML smoke test
 ```
+
+The script returns `0` when all requested SQL checks complete successfully, or
+`1` when a SQL check fails. The process monitor is informational. Review the
+process and catalog output to confirm that the expected nodes and groups are present.
+The script skips `psql` startup files so that they cannot change error handling.
 
 Defaults (override by exporting the variable):
 
@@ -46,7 +51,9 @@ Defaults (override by exporting the variable):
 - Section [2]: three rows — `gtm`, `cn001`, `dn001` — each with the correct host
   and port. A row of `localhost:5432` means node registration never ran.
 - Section [3]: at least one group (normally `default_group`).
-- Section [4]: the table is created, two rows are returned, then dropped.
+- Section [4]: a per-run sharded table is created, two rows are returned, and
+  the transaction is rolled back. If SQL fails, `psql` stops and disconnects,
+  which rolls back any open transaction.
 
 If [2] is empty or shows `localhost:5432`, the cluster was initialized with a
 broken client library; see the note below.
@@ -87,6 +94,9 @@ printf 'start all\nmonitor all\n' | pgxc_ctl -c ~/pgxc_ctl/pgxc_ctl.conf
 ```
 
 ## Scope
+
+Run the shell regression tests without a cluster using
+`bash test_otb_health.sh` from this directory. They use a mock `psql`.
 
 Verified on a single-machine minimal cluster (1 GTM + 1 CN + 1 DN),
 OpenTenBase v5.0, Ubuntu 24.04. Multi-node and HA topologies are untested here.
