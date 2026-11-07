@@ -123,3 +123,6 @@ lib*.pc
 /GNUmakefile
 /config.log
 /config.status
+
+# CodeGraph index: local tooling, machine-specific (db, sockets, logs)
+/.codegraph/
