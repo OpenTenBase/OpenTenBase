@@ -1,0 +1,72 @@
+{
+  "query": "SELECT aid, abalance FROM pgbench_accounts WHERE aid = 42;",
+  "captured_at": "2026-11-07T08:45:19.224933+00:00",
+  "method": "EXPLAIN (VERBOSE, COSTS OFF, FORMAT JSON); BEGIN READ ONLY; SET LOCAL; ROLLBACK; no ANALYZE",
+  "plans": {
+    "on": [
+      {
+        "Plan": {
+          "Node Type": "Remote Fast Query Execution",
+          "Parallel Aware": false,
+          "Output": [
+            "pgbench_accounts.aid",
+            "pgbench_accounts.abalance"
+          ],
+          "Node/s": "dn001",
+          "Remote query": "SELECT aid, abalance FROM public.pgbench_accounts WHERE (aid = 42)",
+          "Remote plan": [
+            {
+              "Plan": {
+                "Node Type": "Index Scan",
+                "Parallel Aware": false,
+                "Scan Direction": "Forward",
+                "Index Name": "pgbench_accounts_pkey",
+                "Relation Name": "pgbench_accounts",
+                "Schema": "public",
+                "Alias": "pgbench_accounts",
+                "Output": [
+                  "aid",
+                  "abalance"
+                ],
+                "Index Cond": "(pgbench_accounts.aid = 42)"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "off": [
+      {
+        "Plan": {
+          "Node Type": "Remote Subquery Scan",
+          "Parallel Aware": false,
+          "Replicated": "no",
+          "Node List": [
+            "dn001"
+          ],
+          "Output": [
+            "aid",
+            "abalance"
+          ],
+          "Plans": [
+            {
+              "Node Type": "Index Scan",
+              "Parent Relationship": "Outer",
+              "Parallel Aware": false,
+              "Scan Direction": "Forward",
+              "Index Name": "pgbench_accounts_pkey",
+              "Relation Name": "pgbench_accounts",
+              "Schema": "public",
+              "Alias": "pgbench_accounts",
+              "Output": [
+                "aid",
+                "abalance"
+              ],
+              "Index Cond": "(pgbench_accounts.aid = 42)"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

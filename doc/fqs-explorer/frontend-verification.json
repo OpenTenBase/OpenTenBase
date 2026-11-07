@@ -1,0 +1,8 @@
+{
+  "pages": 5,
+  "functions": 17,
+  "relations": 17,
+  "sourceTargets": 25,
+  "status": "passed",
+  "visualBrowserQA": "not verified: authentication and local preview access gates"
+}

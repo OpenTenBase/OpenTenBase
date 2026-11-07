@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#142c32">
+  <meta name="description" content="基于 OpenTenBase v5.0 真实源码，交互探索快速查询下推 FQS 的规划分支、远程协议、状态结构和真实 EXPLAIN。">
+  <title>OpenTenBase · FQS 源码探索台</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script src="data.js" defer></script>
+  <script src="mechanism.js" defer></script>
+  <link rel="stylesheet" href="mechanism.css">
+</head>
+<body>
+  <a class="skip" href="#main">跳到内容</a>
+  <aside class="sidebar">
+    <a class="brand" href="#overview" aria-label="OpenTenBase 源码探索台首页"><span class="brand-symbol">O<span>↗</span></span><span>OpenTenBase<small>源码探索台 / FQS INSIDE</small></span></a>
+    <div class="side-caption">深入一个核心机制</div>
+    <nav aria-label="主导航">
+      <a href="#overview" data-page="overview"><span class="nav-icon">◇</span>机制总览<span class="nav-no">01</span></a>
+      <a href="#planning" data-page="planning"><span class="nav-icon">⌁</span>计划生成<span class="nav-no">02</span></a>
+      <a href="#execution" data-page="execution"><span class="nav-icon">⇄</span>远程收发<span class="nav-no">03</span></a>
+      <a href="#structures" data-page="structures"><span class="nav-icon">▦</span>关键数据结构<span class="nav-no">04</span></a>
+      <a href="#evidence" data-page="evidence"><span class="nav-icon">▤</span>真实计划与依据<span class="nav-no">05</span></a>
+    </nav>
+    <div class="side-note"><span class="tiny-label">本次源码切片</span><strong>Fast Query Shipping</strong><p>17 个函数 · 17 条关系<br>10 个文件 · 真实计划对照</p><a href="#evidence">v5.0 原始源码与核对记录 ↗</a></div>
+    <div class="side-bottom"><span class="status-dot"></span>静态代码分析 · 不是调用栈采样</div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><div>核心机制 <span>/</span> <strong id="breadcrumb">机制总览</strong></div><div class="top-meta"><span class="version-badge">SOURCE VERIFIED</span><span>v5.0 源码 · 2026.11.07</span></div></header>
+    <main id="main" tabindex="-1"></main>
+    <footer><span>沿着代码关系，理解 Fast Query Shipping。</span><div><a href="COPYRIGHT.txt" target="_blank">原项目版权与许可</a><a href="#evidence">查看依据 ↗</a></div></footer>
+  </div>
+  <dialog id="source-dialog" aria-labelledby="source-title"><div class="dialog-top"><div><span class="eyebrow">PROJECT SOURCE / 原文快照</span><h2 id="source-title"></h2></div><button class="icon-button" id="close-source" aria-label="关闭原文">×</button></div><div class="source-meta" id="source-meta"></div><div class="source-lines" id="source-lines"></div></dialog>
+  <div role="status" class="toast" id="toast"></div>
+</body>
+</html>

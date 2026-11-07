@@ -1,0 +1,8 @@
+{
+  "nodes": 17,
+  "relations": 17,
+  "direct_calls": 14,
+  "source_files": 10,
+  "explain_comparison": "verified",
+  "note": "Static source verification, not a runtime call trace."
+}
