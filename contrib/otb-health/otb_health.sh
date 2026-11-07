@@ -74,13 +74,17 @@ if [ "${1-}" = "--no-write" ]; then
     echo ""
     echo "PASS: read-only SQL queries completed; write capability was not tested."
 else
+    # DDL is transactional: an error makes psql disconnect and the server
+    # rolls back the new table. Never pre-drop an existing relation: CREATE
+    # must fail safely if this name is already in use in the target schema.
     "${PSQL[@]}" <<'SQL' 2>&1
-drop table if exists otb_health_check;
+begin;
 create table otb_health_check(id int, name text)
     distribute by shard(id) to group default_group;
 insert into otb_health_check values (1,'ok'),(2,'good');
 select * from otb_health_check order by id;
 drop table otb_health_check;
+commit;
 SQL
     rc=$?
     if [ "$rc" -ne 0 ]; then

@@ -123,8 +123,8 @@ case "$mode" in
                 printf '%s\n' ' ?column? ' '----------' '        1' ;;
         esac ;;
     stdin)
-        printf '%s\n' 'DROP TABLE' 'CREATE TABLE' 'COPY 2' \
-            ' id | name ' '----+------' '  1 | ok' '  2 | good' '(2 rows)' 'DROP TABLE' ;;
+        printf '%s\n' 'BEGIN' 'CREATE TABLE' 'INSERT 0 2' \
+            ' id | name ' '----+------' '  1 | ok' '  2 | good' '(2 rows)' 'DROP TABLE' 'COMMIT' ;;
 esac
 exit 0
 FAKE
@@ -181,17 +181,22 @@ else
     assert_psql_flags "$D" 3 "U01 all calls carry -X and ON_ERROR_STOP=1"
     s3="$D/stdin.3"
     if [ -f "$s3" ]; then ok "U01 smoke delivered on stdin"; else bad "U01 smoke delivered on stdin"; fi
-    l1=$(grep -n '^drop table if exists otb_health_check' "$s3" 2>/dev/null | cut -d: -f1)
+    l1=$(grep -n '^begin;$' "$s3" 2>/dev/null | cut -d: -f1)
     l2=$(grep -n '^create table otb_health_check' "$s3" 2>/dev/null | cut -d: -f1)
     l3=$(grep -n '^insert into otb_health_check' "$s3" 2>/dev/null | cut -d: -f1)
     l4=$(grep -n '^select \* from otb_health_check' "$s3" 2>/dev/null | cut -d: -f1)
     l5=$(grep -n '^drop table otb_health_check' "$s3" 2>/dev/null | cut -d: -f1)
-    if [ -n "$l1" ] && [ -n "$l2" ] && [ -n "$l3" ] && [ -n "$l4" ] && [ -n "$l5" ] \
-       && [ "$l1" -lt "$l2" ] && [ "$l2" -lt "$l3" ] && [ "$l3" -lt "$l4" ] && [ "$l4" -lt "$l5" ]; then
-        ok "U01 smoke contains DROP/CREATE/INSERT/SELECT/DROP in order"
+    l6=$(grep -n '^commit;$' "$s3" 2>/dev/null | cut -d: -f1)
+    if [ -n "$l1" ] && [ -n "$l2" ] && [ -n "$l3" ] && [ -n "$l4" ] && [ -n "$l5" ] && [ -n "$l6" ] \
+       && [ "$l1" -eq 1 ] && [ "$l1" -lt "$l2" ] && [ "$l2" -lt "$l3" ] \
+       && [ "$l3" -lt "$l4" ] && [ "$l4" -lt "$l5" ] && [ "$l5" -lt "$l6" ] \
+       && [ "$l6" -eq "$(wc -l < "$s3")" ]; then
+        ok "U01 smoke transaction wraps CREATE/INSERT/SELECT/DROP before COMMIT"
     else
         bad "U01 smoke statement order"
     fi
+    assert_not_contains "$s3" "drop table if exists" "U01 never pre-drops an existing relation"
+    assert_not_contains "$s3" "create table if not exists" "U01 name collision must fail rather than reuse a relation"
     assert_contains "$OUT" "PASS: required SQL checks completed; distributed DDL/DML smoke test passed." "U01 narrowed success line"
     assert_not_contains "$OUT" "FAIL:" "U01 no FAIL line"
     assert_not_contains "$OUT" "All green" "U01 old over-broad banner removed"
@@ -287,6 +292,9 @@ smoke_case U06 'create table otb_health_check' "CREATE"
 smoke_case U07 'insert into otb_health_check' "INSERT"
 smoke_case U07b 'select * from otb_health_check' "SELECT"
 smoke_case U07c 'drop table otb_health_check' "final DROP"
+if [ "$EXPECT_BASELINE" != "1" ]; then
+    smoke_case U07d 'commit;' "COMMIT"
+fi
 
 # ------------------------------------------------------------
 # U08: PGXC_CONF missing -> process section SKIP, SQL success -> 0

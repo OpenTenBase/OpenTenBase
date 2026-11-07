@@ -62,11 +62,21 @@ while `--no-write` prints `PASS: read-only SQL queries completed; write
 capability was not tested.` Section [1] is diagnostic and not part of the
 exit status.
 
-Note: the smoke test writes a fixed table `otb_health_check` in the target
-database (`DROP TABLE IF EXISTS` first, `DROP TABLE` last), so point
-`DB_NAME` at a dedicated test database, not at one holding production data.
-If a statement fails mid-script, the final `DROP TABLE` may not run and the
-table can be left behind.
+The smoke test creates, writes, reads and drops `otb_health_check` in one
+explicit transaction. On success it commits after dropping the table; on
+a SQL error, `ON_ERROR_STOP` terminates psql and disconnecting rolls back
+the transaction, including creation of the test table.
+
+There is no initial `DROP TABLE IF EXISTS`. If the name is already in use
+in the target schema, `CREATE TABLE` fails and the check exits 1 without
+modifying or deleting the existing relation. This also means an old leftover
+table requires inspection rather than being silently removed on the next run.
+
+Use a dedicated test database: the write-mode check still performs real DDL
+and DML and consumes locks and database resources. Rollback depends on server
+connection-loss detection and transaction recovery; it is not a promise of
+instant cleanup during a server or network failure. `--no-write` skips this
+transaction entirely.
 
 ## Tests
 
