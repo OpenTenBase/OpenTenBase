@@ -14,6 +14,8 @@ OpenTenBase具有许多类似于PostgreSQL的语言接口，其中的一些可�
 
 用户总是连接到 CoordinateNodes，CoordinateNodes 将查询分解为在 DataNodes 中执行的片段，并收集结果。
 
+初次接触分布式部署？阅读 [CN 与 DN 图解卡片](doc/cn-concept-card.zh.md)，通过部署与查询流程图、订单示例和生活类比理解 CN 与 DN 的分工。
+
 您可以在以下链接获取 OpenTenBase 软件的最新版本：
 
 	https://github.com/OpenTenBase/OpenTenBase
