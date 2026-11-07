@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright (c) 2026 OpenTenBase Authors. SPDX-License-Identifier: BSD-3-Clause -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1456" viewBox="0 0 1600 1456" role="img" aria-labelledby="title desc">
+  <title id="title">JOIN 之前，数据先碰面：分布式 JOIN 中的数据重分布</title>
+  <desc id="desc">教学示例。重分布前，DN1 有学号1的小林和学号2的92分成绩；DN2 有学号2的小周和学号1的85分成绩。保留学生记录，交换对应成绩记录后，DN1 在本地得到小林85分，DN2 在本地得到小周92分。颜色与文字共同区分学号1和学号2。此图是一次查询的数据流示意，不改变原表的永久分片定义。</desc>
+  <metadata>Copyright (c) 2026 OpenTenBase Authors. SPDX-License-Identifier: BSD-3-Clause. Sources: https://docs.opentenbase.org/guide/03-basic-use/ ; https://docs.opentenbase.org/guide/09-problem-performance/ . Teaching example; no measured performance results.</metadata>
+  <defs>
+    <marker id="arrow-teal" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1L11 6L1 11Z" fill="#087e83"/></marker>
+    <marker id="arrow-orange" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1L11 6L1 11Z" fill="#bb6438"/></marker>
+    <marker id="arrow-grey" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L11 6L1 11Z" fill="#94a5ac"/></marker>
+    <style>
+      text { font-family: 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif; fill: #1e3441; }
+      .small { font-size: 21px; }
+      .body { font-size: 23px; }
+      .muted { fill: #566e79; }
+      .bold { font-weight: 700; }
+      .teal { fill: #087e83; }
+      .orange { fill: #a9542d; }
+      .node { fill: #ffffff; stroke: #d6e1e4; stroke-width: 1.5; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1456" fill="#f1f5f5"/>
+  <rect x="72" y="58" width="54" height="6" rx="3" fill="#087e83"/>
+  <text x="146" y="70" font-size="22" class="bold">OpenTenBase · 数据库图解卡片 01</text>
+  <rect x="1178" y="40" width="350" height="48" rx="24" fill="#e3eeee"/>
+  <text x="1353" y="71" text-anchor="middle" font-size="20" letter-spacing="1.7" class="teal bold">QUERY OPTIMIZATION</text>
+  <text x="72" y="164" font-size="61" class="bold">JOIN 之前，数据先「碰面」</text>
+  <text x="74" y="215" font-size="28" class="muted">数据重分布 · Data Redistribution</text>
+
+  <rect x="72" y="258" width="1456" height="94" rx="20" fill="#ffffff"/>
+  <rect x="72" y="278" width="5" height="54" rx="2" fill="#087e83"/>
+  <text x="105" y="316" font-size="28">按连接键重新分发查询记录，让需要配对的数据在同一节点完成 JOIN。</text>
+
+  <rect x="72" y="384" width="1456" height="676" rx="28" fill="#ffffff"/>
+  <circle cx="129" cy="431" r="18" fill="#e6eeee"/>
+  <text x="129" y="438" text-anchor="middle" font-size="20" class="bold">1</text>
+  <text x="162" y="440" font-size="26" class="bold">原有分布未对齐</text>
+  <circle cx="1018" cy="431" r="18" fill="#dcefee"/>
+  <text x="1018" y="438" text-anchor="middle" font-size="20" class="teal bold">2</text>
+  <text x="1051" y="440" font-size="26" class="bold">成绩按学号重分布，再 JOIN</text>
+
+  <!-- Initial data: students stay local; grades move during the query. -->
+  <rect x="112" y="470" width="490" height="210" rx="18" class="node"/>
+  <text x="136" y="510" font-size="25" class="bold">DN1</text>
+  <text x="578" y="509" text-anchor="end" class="small muted">数据节点</text>
+  <rect x="132" y="533" width="450" height="44" rx="9" fill="#e6f3f2"/>
+  <text x="150" y="563" class="small muted">学生表</text>
+  <text x="310" y="563" class="body teal bold">学号 1</text>
+  <text x="554" y="563" text-anchor="end" class="body teal bold">小林</text>
+  <rect x="132" y="587" width="450" height="44" rx="9" fill="#fff0e6"/>
+  <text x="150" y="617" class="small muted">成绩表</text>
+  <text x="310" y="617" class="body orange bold">学号 2</text>
+  <text x="554" y="617" text-anchor="end" class="body orange bold">92 分</text>
+  <text x="136" y="660" class="small muted">小林的成绩，在另一个节点</text>
+
+  <rect x="112" y="760" width="490" height="210" rx="18" class="node"/>
+  <text x="136" y="800" font-size="25" class="bold">DN2</text>
+  <text x="578" y="799" text-anchor="end" class="small muted">数据节点</text>
+  <rect x="132" y="823" width="450" height="44" rx="9" fill="#fff0e6"/>
+  <text x="150" y="853" class="small muted">学生表</text>
+  <text x="310" y="853" class="body orange bold">学号 2</text>
+  <text x="554" y="853" text-anchor="end" class="body orange bold">小周</text>
+  <rect x="132" y="877" width="450" height="44" rx="9" fill="#e6f3f2"/>
+  <text x="150" y="907" class="small muted">成绩表</text>
+  <text x="310" y="907" class="body teal bold">学号 1</text>
+  <text x="554" y="907" text-anchor="end" class="body teal bold">85 分</text>
+  <text x="136" y="950" class="small muted">小周的成绩，在另一个节点</text>
+
+  <!-- Query result on each destination node. -->
+  <rect x="1000" y="470" width="490" height="210" rx="18" class="node"/>
+  <text x="1024" y="510" font-size="25" class="bold">DN1</text>
+  <text x="1466" y="509" text-anchor="end" class="small muted">节点内完成连接</text>
+  <rect x="1020" y="533" width="450" height="44" rx="9" fill="#e6f3f2"/>
+  <text x="1038" y="563" class="small muted">学生表</text>
+  <text x="1198" y="563" class="body teal bold">学号 1</text>
+  <text x="1442" y="563" text-anchor="end" class="body teal bold">小林</text>
+  <rect x="1020" y="587" width="450" height="44" rx="9" fill="#e6f3f2"/>
+  <text x="1038" y="617" class="small muted">成绩表</text>
+  <text x="1198" y="617" class="body teal bold">学号 1</text>
+  <text x="1442" y="617" text-anchor="end" class="body teal bold">85 分</text>
+  <text x="1024" y="660" class="body teal bold">JOIN 结果：小林，85 分</text>
+
+  <rect x="1000" y="760" width="490" height="210" rx="18" class="node"/>
+  <text x="1024" y="800" font-size="25" class="bold">DN2</text>
+  <text x="1466" y="799" text-anchor="end" class="small muted">节点内完成连接</text>
+  <rect x="1020" y="823" width="450" height="44" rx="9" fill="#fff0e6"/>
+  <text x="1038" y="853" class="small muted">学生表</text>
+  <text x="1198" y="853" class="body orange bold">学号 2</text>
+  <text x="1442" y="853" text-anchor="end" class="body orange bold">小周</text>
+  <rect x="1020" y="877" width="450" height="44" rx="9" fill="#fff0e6"/>
+  <text x="1038" y="907" class="small muted">成绩表</text>
+  <text x="1198" y="907" class="body orange bold">学号 2</text>
+  <text x="1442" y="907" text-anchor="end" class="body orange bold">92 分</text>
+  <text x="1024" y="950" class="body orange bold">JOIN 结果：小周，92 分</text>
+
+  <!-- Grey dashed paths indicate local retention, not network traffic. -->
+  <path d="M610 555H988" fill="none" stroke="#94a5ac" stroke-width="2" stroke-dasharray="7 7" marker-end="url(#arrow-grey)"/>
+  <text x="799" y="536" text-anchor="middle" class="small muted">学生记录留在本地</text>
+  <path d="M610 845H988" fill="none" stroke="#94a5ac" stroke-width="2" stroke-dasharray="7 7" marker-end="url(#arrow-grey)"/>
+
+  <!-- Each coloured path carries exactly one grade record. -->
+  <path d="M610 899C765 899 835 609 988 609" fill="none" stroke="#087e83" stroke-width="4" marker-end="url(#arrow-teal)"/>
+  <path d="M610 609C765 609 835 899 988 899" fill="none" stroke="#ffffff" stroke-width="13"/>
+  <path d="M610 609C765 609 835 899 988 899" fill="none" stroke="#bb6438" stroke-width="4" marker-end="url(#arrow-orange)"/>
+  <rect x="650" y="639" width="210" height="39" rx="19" fill="#fff0e6"/>
+  <text x="755" y="666" text-anchor="middle" class="small orange bold">成绩 2 → DN2</text>
+  <rect x="650" y="879" width="210" height="39" rx="19" fill="#e6f3f2"/>
+  <text x="755" y="906" text-anchor="middle" class="small teal bold">成绩 1 → DN1</text>
+  <line x1="112" y1="996" x2="1488" y2="996" stroke="#e4ebed"/>
+  <text x="112" y="1030" class="small muted">教学示意：仅重分布成绩侧。实线表示跨节点传输，虚线表示本地保留。</text>
+
+  <!-- Three short explanations keep the card independently readable. -->
+  <rect x="72" y="1092" width="464" height="208" rx="20" fill="#ffffff"/>
+  <rect x="568" y="1092" width="464" height="208" rx="20" fill="#ffffff"/>
+  <rect x="1064" y="1092" width="464" height="208" rx="20" fill="#ffffff"/>
+  <text x="100" y="1134" font-size="24" class="bold">生活类比</text>
+  <text x="100" y="1180" class="body muted">像两位老师交换成绩单，</text>
+  <text x="100" y="1216" class="body muted">先把同一学号的材料凑齐，</text>
+  <text x="100" y="1252" class="body muted">再把姓名和分数对起来。</text>
+  <text x="596" y="1134" font-size="24" class="bold">优化器关心什么？</text>
+  <text x="596" y="1180" class="body muted">不仅要考虑怎样匹配，</text>
+  <text x="596" y="1216" class="body muted">还要考虑数据搬到哪里、</text>
+  <text x="596" y="1252" class="body muted">搬多少，以及传输代价。</text>
+  <text x="1092" y="1134" font-size="24" class="bold">每次 JOIN 都要搬数据吗？</text>
+  <text x="1092" y="1180" class="body muted">数据已按相容规则对齐时，</text>
+  <text x="1092" y="1216" class="body muted">就可能省去这一步重分布。</text>
+  <text x="1092" y="1252" class="body muted">本图展示一种可行数据流。</text>
+
+  <text x="74" y="1341" font-size="19" class="muted">资料依据 · OpenTenBase 官方文档「基本使用 §2.4」「问题定位及性能优化」</text>
+  <a href="https://docs.opentenbase.org/guide/03-basic-use/"><text x="74" y="1375" font-size="18" class="teal">docs.opentenbase.org/guide/03-basic-use/</text></a>
+  <a href="https://docs.opentenbase.org/guide/09-problem-performance/"><text x="74" y="1405" font-size="18" class="teal">docs.opentenbase.org/guide/09-problem-performance/</text></a>
+  <text x="1526" y="1375" text-anchor="end" font-size="18" class="muted">示例为假设数据 · 查询过程中的记录传输</text>
+  <text x="1526" y="1405" text-anchor="end" font-size="18" class="muted">© 2026 OpenTenBase Authors · BSD-3-Clause</text>
+</svg>

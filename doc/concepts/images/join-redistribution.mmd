@@ -1,0 +1,19 @@
+%% Copyright (c) 2026 OpenTenBase Authors. SPDX-License-Identifier: BSD-3-Clause
+%% Teaching example: only the grades side is redistributed during this query.
+flowchart TB
+    subgraph BEFORE["① 初始：对应记录分散在不同 DN"]
+        direction LR
+        A["DN1<br/>学生：学号1，小林<br/>成绩：学号2，92分"]
+        B["DN2<br/>学生：学号2，小周<br/>成绩：学号1，85分"]
+    end
+
+    subgraph AFTER["② 按学号重分布成绩记录，再在节点内 JOIN"]
+        direction LR
+        C["DN1 本地 JOIN<br/>学号1：小林 + 85分"]
+        D["DN2 本地 JOIN<br/>学号2：小周 + 92分"]
+    end
+
+    A -->|"学生1留在本地"| C
+    B -->|"学生2留在本地"| D
+    A ==>|"跨节点发送：学号2的成绩"| D
+    B ==>|"跨节点发送：学号1的成绩"| C

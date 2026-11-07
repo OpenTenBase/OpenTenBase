@@ -25,6 +25,8 @@ For more information look at our website located at:
 
 	https://www.opentenbase.org/
 
+Illustrated concepts (Chinese): [Data redistribution in distributed JOINs](doc/concepts/join-redistribution.zh-CN.md).
+
 ## Building
 ### System Requirements: 
 
