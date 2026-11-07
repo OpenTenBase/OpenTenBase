@@ -40,6 +40,30 @@ Defaults (override by exporting the variable):
 | `DB_NAME`     | `postgres`                       |
 | `PGXC_CONF`   | `$HOME/pgxc_ctl/pgxc_ctl.conf`   |
 
+## Exit codes
+
+- `0` — all required checks passed. Sections skipped on purpose (`--no-write`,
+  missing `PGXC_CONF`) are marked in the output and are not counted as checks.
+- `1` — at least one required check failed: psql unreachable **or** a SQL
+  statement failed. The psql invocations use `-v ON_ERROR_STOP=1`, without
+  which psql exits 0 even when statements fail; the success banner is only
+  printed after every required check has passed.
+
+Note: the smoke test writes a fixed table `otb_health_check` in the target
+database (`DROP TABLE IF EXISTS` first, `DROP TABLE` last), so point
+`DB_NAME` at a dedicated test database, not at one holding production data.
+
+## Tests
+
+`tests/test_otb_health.sh` is a self-contained black-box contract test suite;
+it needs no running cluster. A stub `psql` is installed into a temporary
+`PG_HOME`, and it only simulates a SQL failure when it sees
+`-v ON_ERROR_STOP=1`, so a regression that drops that flag fails the suite.
+
+```bash
+bash tests/test_otb_health.sh
+```
+
 ## What "healthy" looks like
 
 - Section [1]: every node reports `Running`.
