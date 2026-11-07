@@ -135,6 +135,7 @@ CREATE EXTENSION <replaceable>module_name</> FROM unpackaged;
  &pgstattuple;
  &pgsurgery;
  &pgtrgm;
+ &pg-graph-search;
  &pgxcclean;
  &pgxcctl;
  &pgxcddl;

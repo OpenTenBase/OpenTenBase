@@ -56,6 +56,7 @@ SUBDIRS = \
 		pgvector	\
 		pgsql-http \
 		opentenbase_ai \
+		pg_graph_search \
                 opentenbase_ctl	
 
 ifeq ($(with_openssl),yes)

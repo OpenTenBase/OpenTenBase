@@ -1,0 +1,50 @@
+CREATE SCHEMA
+CREATE TABLE
+COPY 4
+CREATE EXTENSION
+ has_advice
+------------
+ t
+(1 row)
+
+ ddl_count
+-----------
+        11
+(1 row)
+
+ executed_ddls
+---------------
+            11
+(1 row)
+
+ o_path  | o_depth
+---------+---------
+ {1,2}   |       1
+ {1,5}   |       1
+ {1,2,3} |       2
+ {1,2,3,4} |     3
+(4 rows)
+
+  o_path   | o_depth
+-----------+---------
+ {1,2,3,4} |       3
+(1 row)
+
+ has_nodes
+-----------
+ t
+(1 row)
+
+ target_schema | prefix |    edge_table    | node_type | directed | max_depth_cap |                                api
+---------------+--------+------------------+-----------+----------+---------------+--------------------------------------------------------------------
+ graph_demo    | user   | graph_demo.edges | integer   | f        |             4 | {user_search,user_cursor,user_shortest_path,user_subgraph,user_stats}
+(1 row)
+
+ removed
+---------
+ t
+(1 row)
+
+DROP EXTENSION
+DROP SCHEMA
+
