@@ -24,9 +24,15 @@ CLI11_INCLUDE = /usr/local/include
 INDICATORS_INCLUDE = /usr/local/include
 
 # 库搜索路径
+# 把 pg_config 报告的 libdir 也加进来：OpenTenBase 从源码装到自定义前缀时，
+# 不加这里链接期找不到 -lpq，运行期还会因为找不到 libpq.so.5 而启动失败。
+PG_LIBDIR := $(shell pg_config --libdir 2>/dev/null)
 LDFLAGS = -L/usr/local/lib -L/usr/local/lib64
+ifneq ($(PG_LIBDIR),)
+LDFLAGS += -L$(PG_LIBDIR) -Wl,-rpath,$(PG_LIBDIR)
+endif
 
-# 链接库
+# 链接库（libpqxx 用系统库还是就地编译，由下面的 PQXX_* 变量决定）
 LIBS = -lpthread -lssh2 -lssl -lpqxx -lpq
 
 # 项目目录结构
@@ -44,6 +50,42 @@ TYPES_DIR = $(SRC_DIR)/types
 BUILD_DIR = build
 BIN_DIR = $(BUILD_DIR)/bin
 LIB_DIR = $(BUILD_DIR)/lib
+
+# ---------------------------------------------------------------------------
+# libpqxx
+#
+# 优先用系统里已经装好的 libpqxx；没有的话，就用 lib/ 下随仓库携带的源码包
+# 就地编到 $(BUILD_DIR)/pqxx —— 不需要 root，也不会写到 /usr/local。
+#
+# 旧实现在 check-deps 里直接 `sudo yum install` + `sudo make install`，问题有二：
+#   1) 只认 yum/rpm，Debian/Ubuntu 上第一句就挂（issue #183 就是这类报错）；
+#   2) 非交互环境（CI、容器）里 sudo 要么失败要么卡住。
+# 同时旧实现没有 rpath，导致二进制装好后运行期报
+#   "libpqxx.so: cannot open shared object file"。
+# ---------------------------------------------------------------------------
+PQXX_VERSION = 7.7.5
+PQXX_TARBALL = lib/libpqxx-$(PQXX_VERSION).tar.gz
+PQXX_PREFIX  = $(abspath $(BUILD_DIR)/pqxx)
+# 用 stamp 文件而不是具体库文件做目标：libpqxx 7.x 的 cmake 默认产出静态库，
+# 目标写成 libpqxx.so 会导致每次都判定"没编好"而重复构建。
+PQXX_STAMP   = $(PQXX_PREFIX)/.installed
+
+# 在常见库目录里找系统 libpqxx（注意：make 的 wildcard 会按逗号拆参数，
+# 这里的目录列表只能用空格分隔，不能出现逗号）
+PQXX_SYSTEM_DIRS = /usr/local/lib64 /usr/local/lib /usr/lib64 /usr/lib/x86_64-linux-gnu /usr/lib
+PQXX_SYSTEM_DIR := $(firstword $(foreach d,$(PQXX_SYSTEM_DIRS),$(if $(wildcard $d/libpqxx.so*),$d)))
+
+ifeq ($(strip $(PQXX_SYSTEM_DIR)),)
+PQXX_CPPFLAGS = -I$(PQXX_PREFIX)/include
+PQXX_LDFLAGS  = -L$(PQXX_PREFIX)/lib
+PQXX_LIB_DIR  = $(PQXX_PREFIX)/lib
+PQXX_DEP      = $(PQXX_STAMP)
+else
+PQXX_CPPFLAGS =
+PQXX_LDFLAGS  = -L$(PQXX_SYSTEM_DIR) -Wl,-rpath,$(PQXX_SYSTEM_DIR)
+PQXX_LIB_DIR  = $(PQXX_SYSTEM_DIR)
+PQXX_DEP      =
+endif
 
 # 源文件
 MAIN_SRC = $(SRC_DIR)/main.cpp
@@ -95,49 +137,85 @@ GTEST_FLAGS = -lgtest -lgtest_main -pthread
 
 all: check-deps opentenbase_ctl
 
-# 检查依赖
+# 检查依赖：只检查 + 给出可执行提示，不再 sudo 安装，也不再绑定 yum/rpm。
+# 缺依赖时直接说清楚该装什么，而不是让用户对着 "No such file or directory" 猜。
 check-deps:
 	@echo "Checking dependencies..."
-	@if ! command -v cmake &> /dev/null; then \
-		echo "cmake not found, installing..."; \
-		sudo yum install -y cmake; \
-	fi
-	@if ! rpm -q postgresql-devel &> /dev/null; then \
-		echo "postgresql-devel not found, installing..."; \
-		sudo yum install -y postgresql-devel; \
-	fi
-	@if ! rpm -q libssh2-devel &> /dev/null; then \
-		echo "libssh2-devel not found, installing..."; \
-		sudo yum install -y libssh2-devel; \
-	fi
-	@if ! ls /usr/local/lib/libpqxx* >/dev/null 2>&1 && ! ls /usr/local/lib64/libpqxx* >/dev/null 2>&1; then \
-		echo "libpqxx not found, installing from source..."; \
-		if [ ! -f "lib/libpqxx-7.7.5.tar.gz" ]; then \
-			echo "Error: libpqxx source package not found in lib/ directory"; \
-			exit 1; \
-		fi; \
-                tar xf lib/libpqxx-7.7.5.tar.gz -C lib && \
-		cd lib/libpqxx-7.7.5; \
-		mkdir -p build && cd build; \
-		cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local; \
-		make -j$(nproc); \
-		sudo make install; \
-		cd ../../..; \
+	@missing=""; \
+	have() { ls $$1 >/dev/null 2>&1; }; \
+	command -v $(CXX) >/dev/null 2>&1 || missing="$$missing g++"; \
+	if ! have /usr/include/ssh2.h && ! have /usr/include/libssh2.h && ! have /usr/local/include/ssh2.h; then \
+		missing="$$missing libssh2-dev"; \
+	fi; \
+	if ! have /usr/include/postgresql/libpq-fe.h && ! have /usr/local/include/libpq-fe.h; then \
+		pginc=$$(pg_config --includedir 2>/dev/null); \
+		if [ -z "$$pginc" ] || [ ! -f "$$pginc/libpq-fe.h" ]; then missing="$$missing libpq-dev"; fi; \
+	fi; \
+	if ! have /usr/include/CLI/CLI.hpp && ! have /usr/local/include/CLI/CLI.hpp; then \
+		missing="$$missing CLI11"; \
+	fi; \
+	if [ -n "$$missing" ]; then \
+		echo ""; \
+		echo "ERROR: missing build prerequisites:$$missing"; \
+		echo "  Debian/Ubuntu: sudo apt-get install -y g++ libssh2-1-dev libssl-dev libpq-dev cmake libcli11-dev"; \
+		echo "  RHEL/CentOS  : sudo dnf install -y gcc-c++ libssh2-devel openssl-devel postgresql-devel cmake"; \
+		echo "  CLI11 is header-only; if your distro has no package, fetch the single header:"; \
+		echo "    sudo mkdir -p /usr/local/include/CLI"; \
+		echo "    sudo curl -sSL https://github.com/CLIUtils/CLI11/releases/download/v1.9.1/CLI11.hpp \\"; \
+		echo "         -o /usr/local/include/CLI/CLI.hpp"; \
+		exit 1; \
 	fi
 
+# 就地编译随仓库携带的 libpqxx（不需要 root，也不写 /usr/local）
+$(PQXX_STAMP):
+	@echo "libpqxx: no system library found, building bundled $(PQXX_VERSION) into $(PQXX_PREFIX)"
+	@if [ ! -f "$(PQXX_TARBALL)" ]; then \
+		echo "ERROR: $(PQXX_TARBALL) is missing."; \
+		echo "       Install libpqxx (libpqxx-dev / libpqxx-devel), or restore the bundled tarball."; \
+		exit 1; \
+	fi
+	@if ! command -v cmake >/dev/null 2>&1; then \
+		echo "ERROR: cmake is required to build the bundled libpqxx."; \
+		echo "  Debian/Ubuntu: sudo apt-get install -y cmake"; \
+		echo "  RHEL/CentOS  : sudo dnf install -y cmake"; \
+		exit 1; \
+	fi
+	@if ! command -v pg_config >/dev/null 2>&1; then \
+		echo "ERROR: pg_config not found in PATH; libpqxx needs the PostgreSQL client headers."; \
+		echo "       Add \$$OPENTENBASE_HOME/bin to PATH (it ships pg_config), or install libpq-dev / postgresql-devel."; \
+		exit 1; \
+	fi
+	@rm -rf $(BUILD_DIR)/libpqxx-src
+	@mkdir -p $(BUILD_DIR)/libpqxx-src
+	@tar xf $(PQXX_TARBALL) -C $(BUILD_DIR)/libpqxx-src --strip-components=1
+	@mkdir -p $(BUILD_DIR)/libpqxx-src/_build && cd $(BUILD_DIR)/libpqxx-src/_build && \
+		cmake .. \
+			-DCMAKE_INSTALL_PREFIX=$(PQXX_PREFIX) \
+			-DCMAKE_BUILD_TYPE=Release \
+			-DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+			-DSKIP_BUILD_EXAMPLES=ON \
+			-DBUILD_TESTING=OFF \
+			-DPostgreSQL_LIBRARY="$$(pg_config --libdir)/libpq.so" \
+			-DPostgreSQL_INCLUDE_DIR="$$(pg_config --includedir)" >/dev/null && \
+		$(MAKE) -j$(shell nproc 2>/dev/null || echo 2) >/dev/null && $(MAKE) install >/dev/null
+	@touch $(PQXX_STAMP)
+	@echo "libpqxx: installed into $(PQXX_PREFIX)"
+
 # 主程序
+$(OBJS): $(PQXX_DEP)
+
 opentenbase_ctl: $(OBJS)
-	$(CXX) -o $@ $^ $(LDFLAGS) $(LIBS)
+	$(CXX) -o $@ $(OBJS) $(LDFLAGS) $(PQXX_LDFLAGS) $(LIBS)
 
 # 编译规则
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(PQXX_CPPFLAGS) $(INCLUDES) -c $< -o $@
 
 # 测试目标
 test: $(TEST_TARGET)
 
-$(TEST_TARGET): $(TEST_OBJS) $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $@ $^ -L$(GTEST_LIB) $(GTEST_FLAGS) $(LIBS)
+$(TEST_TARGET): $(PQXX_DEP) $(TEST_OBJS) $(OBJS)
+	$(CXX) $(CXXFLAGS) -o $@ $(TEST_OBJS) $(OBJS) $(LDFLAGS) $(PQXX_LDFLAGS) -L$(GTEST_LIB) $(GTEST_FLAGS) $(LIBS)
 
 $(TEST_DIR)/%.o: $(TEST_DIR)/%.cpp
 	$(CXX) $(CXXFLAGS) -I$(GTEST_DIR) -c $< -o $@
@@ -179,7 +257,7 @@ package: opentenbase_ctl
 	@cp /usr/lib64/libicu* $(LIB_DIR)/
 	@cp /usr/lib64/libgcc_s*  $(LIB_DIR)/
 	@cp /usr/lib64/libstdc*  $(LIB_DIR)/
-	@cp /usr/local/lib64/libpqxx*  $(LIB_DIR)/
+	-@cp $(PQXX_LIB_DIR)/libpqxx* $(LIB_DIR)/ 2>/dev/null || true
 
 	@echo "Package created in $(BUILD_DIR)"
 	@tar -czvf opentenbase_ctl.tar.gz $(BUILD_DIR)

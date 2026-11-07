@@ -15,35 +15,62 @@ OpenTenBase 集群管理工具，用于管理 OpenTenBase 集群的安装、删�
 
 ### 依赖项
 
-- C++17 或更高版本
-- CMake 3.10 或更高版本
-- libssh2 开发库
-- CLI11 库（已包含在项目中）
+| 依赖 | 用途 | Debian / Ubuntu | RHEL / CentOS |
+| --- | --- | --- | --- |
+| g++ (C++17) | 编译器 | `g++` | `gcc-c++` |
+| libssh2 | 远程执行、SCP | `libssh2-1-dev` | `libssh2-devel` |
+| OpenSSL | 加密 | `libssl-dev` | `openssl-devel` |
+| libpq（头文件 + 库） | 连接数据库 | `libpq-dev` | `postgresql-devel` |
+| libpqxx 7.x | C++ 的 PostgreSQL 客户端 | `libpqxx-dev` | `libpqxx-devel` |
+| CLI11 1.9+ | 命令行解析（纯头文件） | `libcli11-dev` | 见下方说明 |
+| cmake (>= 3.16) | 仅当需要就地编译 libpqxx 时 | `cmake` | `cmake` |
+
+几点说明：
+
+- **`pg_config` 必须在 `PATH` 中**（OpenTenBase 或 PostgreSQL 的安装自带）。
+  Makefile 用它定位 libpq 的头文件和库，并把库目录同时写进链接参数和 rpath，
+  所以从源码装到自定义前缀时，运行期也不用手动 export `LD_LIBRARY_PATH`。
+- **libpqxx 优先用系统已安装的版本**。系统里没有时，Makefile 会用仓库自带的
+  `lib/libpqxx-7.7.5.tar.gz` **就地编译到 `build/pqxx/`——不需要 root，也不会写 `/usr/local`**。
+  只有走这条路时才需要 `cmake`。libpqxx 7.x 默认产出静态库，会被直接链进二进制，
+  因此运行期不依赖 `libpqxx.so`。
+- **CLI11 是纯头文件库**，放到 `/usr/local/include/CLI/CLI.hpp` 即可。
+  发行版没有对应包时：
+
+```bash
+sudo mkdir -p /usr/local/include/CLI
+sudo curl -sSL https://github.com/CLIUtils/CLI11/releases/download/v1.9.1/CLI11.hpp \
+     -o /usr/local/include/CLI/CLI.hpp
+```
 
 ### 编译步骤
 
-1. 克隆代码仓库：
+`opentenbase_ctl` 是 OpenTenBase 的一个 contrib 模块，通常随主项目一起编译：
+
 ```bash
-git clone <repository_url>
-cd opentenbase_ctl
+./configure --prefix=<安装路径> ...    # 参数见仓库根目录 README
+make && make install
+cd contrib && make && make install
 ```
 
-2. 创建构建目录：
+只编这一个模块也可以：
+
 ```bash
-mkdir build
-cd build
+make -C contrib/opentenbase_ctl
 ```
 
-3. 配置和编译：
-```bash
-cmake ..
-make
-```
+产物是 `contrib/opentenbase_ctl/opentenbase_ctl`，`make install` 后位于 `$prefix/bin`。
+`make clean` 会同时清掉就地编译的 libpqxx，下次构建自动重建。
 
-4. 安装（可选）：
-```bash
-make install
-```
+### 常见编译 / 运行问题
+
+| 现象 | 原因 | 处理 |
+| --- | --- | --- |
+| `fatal error: pqxx/pqxx: No such file or directory` | 系统没有 libpqxx，且仓库自带的源码包被删了 | 安装 `libpqxx-dev` / `libpqxx-devel`，或恢复 `lib/libpqxx-7.7.5.tar.gz` |
+| `fatal error: CLI/CLI.hpp: No such file or directory` | 缺 CLI11 头文件 | 按上面的命令放置 `CLI/CLI.hpp` |
+| `Could NOT find PostgreSQL` | `pg_config` 不在 `PATH`，或没装 libpq 开发包 | 把 `$OPENTENBASE_HOME/bin` 加进 `PATH`，或安装 `libpq-dev` |
+| `error while loading shared libraries: libpqxx.so` | 链接的是系统的动态 libpqxx，运行期找不到 | 现已通过 rpath / 静态链接规避；若仍出现，检查是否装了多套 libpqxx |
+| `no version information available (required by .../libpq.so.5)` | 运行期加载到了另一套 OpenTenBase 的 libpq | 保证 `PATH` 与 `LD_LIBRARY_PATH` 指向同一套安装 |
 
 ## 使用方法
 
