@@ -119,7 +119,14 @@ make -sj
 
 # Install into the path given by --prefix, creating bin/, lib/, share/, etc.
 make install
+
+# Build and install contrib modules (includes pgxc_ctl, used for cluster deployment later)
+chmod +x contrib/pgxc_ctl/make_signature
+cd contrib
+make -sj
+make install
 ```
+
 Parameter reference. Placeholders in `${...}` form must be replaced with actual paths:
 
 | Parameter / placeholder | Meaning | Notes |
