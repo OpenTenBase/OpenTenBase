@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1080 700" xmlns="http://www.w3.org/2000/svg" role="img"
+         aria-labelledby="otb-cluster-title otb-cluster-desc" id="cluster-architecture-root">
+      <title id="otb-cluster-title">OpenTenBase 集群分工：CN、DN、GTM</title>
+      <desc id="otb-cluster-desc">客户端把 SQL 发给协调节点 CN，CN 解析并拆分查询下发到两个数据节点 DN，DN 保存全部用户数据并把结果返回 CN；CN 与 DN 共享同一份 schema，全局事务管理器 GTM 为跨节点事务分配全局事务号。</desc>
+
+      <defs>
+      <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;family=Noto+Serif:ital@0;1&amp;family=Noto+Sans+KR:wght@400;500;600&amp;family=Noto+Serif+KR:wght@400&amp;family=Noto+Sans+TC:wght@400;500;600&amp;family=Noto+Serif+TC:wght@400&amp;display=swap');
+      #cluster-architecture-root { --color-paper:  #f5f5f5;
+      --color-ink:    #2d3142;
+      --color-muted:  #4f5d75;
+      --color-soft:   #5a6580;
+      --color-accent: #bf4520;
+      --font-sans:    'Geist', 'Noto Sans SC', 'Microsoft YaHei', system-ui, sans-serif;
+      --font-serif:   'Instrument Serif', 'Noto Serif SC', Georgia, serif;
+      --font-mono:    'Geist Mono', ui-monospace, monospace; }
+      #cluster-architecture-root { font-family: var(--font-sans); color: var(--color-ink); }
+      #cluster-architecture-root .lede { font-size: 0.9rem;
+      line-height: 1.6;
+      color: var(--color-muted);
+      max-width: 62ch;
+      margin-bottom: 2rem; }
+      #cluster-architecture-root .notes { margin-top: 2.5rem; display: grid; gap: 1.5rem; }
+      #cluster-architecture-root .notes h2 { font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.7rem; }
+      #cluster-architecture-root .notes ol, #cluster-architecture-root .notes ul { padding-left: 1.1rem; }
+      #cluster-architecture-root .notes li { font-size: 0.88rem; line-height: 1.65; margin-bottom: 0.4rem; }
+      #cluster-architecture-root .notes li code, #cluster-architecture-root .notes p code { font-family: var(--font-mono);
+      font-size: 0.82em;
+      background: rgba(45,49,66,0.06);
+      padding: 0.1em 0.35em;
+      border-radius: 3px; }
+      #cluster-architecture-root .analogy { border-left: 2px solid var(--color-accent);
+      padding: 0.2rem 0 0.2rem 1.1rem; }
+      #cluster-architecture-root .analogy p { font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 1.02rem;
+      line-height: 1.65;
+      color: var(--color-ink); }
+      #cluster-architecture-root .analogy .caveat { font-family: var(--font-sans);
+      font-style: normal;
+      font-size: 0.78rem;
+      color: var(--color-muted);
+      margin-top: 0.6rem; }
+      #cluster-architecture-root table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+      #cluster-architecture-root th, #cluster-architecture-root td { text-align: left; padding: 0.45rem 0.6rem; border-bottom: 1px solid rgba(45,49,66,0.12); vertical-align: top; }
+      #cluster-architecture-root th { font-family: var(--font-mono); font-size: 0.68rem; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-muted); }
+      #cluster-architecture-root td:first-child { font-weight: 600; white-space: nowrap; }
+      #cluster-architecture-root a { color: #2e5aa8; text-decoration: none; }
+      #cluster-architecture-root a:hover { text-decoration: underline; }</style>
+        <marker id="cluster-architecture-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+        </marker>
+        <marker id="cluster-architecture-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#bf4520"/>
+        </marker>
+        <marker id="cluster-architecture-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#2e5aa8"/>
+        </marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- Zone: cluster boundary (drawn before arrows and nodes) -->
+      <rect x="304" y="120" width="672" height="464" rx="8"
+            fill="#2d3142" stroke="#2d3142" stroke-width="0.8" fill-opacity="0.02" stroke-opacity="0.10"/>
+      <rect x="316" y="124" width="204" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="418" y="133" fill="#5a6580" font-size="7" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.14em">OPENTENBASE CLUSTER · SHARED SCHEMA</text>
+
+      <!-- Arrows first (behind boxes) -->
+      <!-- Client -> CN -->
+      <line x1="224" y1="300" x2="336" y2="300" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#cluster-architecture-arrow)"/>
+
+      <!-- CN -> DN1 (up elbow) -->
+      <path d="M 568,280 H 632 Q 640,280 640,272 V 224 Q 640,216 648,216 H 744"
+            fill="none" stroke="#bf4520" stroke-width="1.4" marker-end="url(#cluster-architecture-arrow-accent)"/>
+
+      <!-- DN2 -> CN (down elbow, dashed result path) -->
+      <path d="M 744,384 H 656 Q 648,384 648,376 V 328 Q 648,320 640,320 H 568"
+            fill="none" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#cluster-architecture-arrow)"/>
+
+      <!-- CN -> GTM : register global transaction -->
+      <line x1="416" y1="360" x2="416" y2="464" stroke="#4f5d75" stroke-width="1"
+            stroke-dasharray="4,3" marker-end="url(#cluster-architecture-arrow)"/>
+
+      <!-- GTM -> CN : hand out global transaction id -->
+      <line x1="488" y1="464" x2="488" y2="360" stroke="#bf4520" stroke-width="1.4" marker-end="url(#cluster-architecture-arrow-accent)"/>
+
+      <!-- Arrow labels -->
+      <rect x="264" y="282" width="32" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="280" y="291" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.08em">SQL</text>
+
+      <rect x="576" y="262" width="48" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="600" y="271" fill="#bf4520" font-size="8" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.08em">QUERY</text>
+
+      <rect x="680" y="366" width="40" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="700" y="375" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.08em">ROWS</text>
+
+      <rect x="376" y="404" width="32" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="408" y="413" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace"
+            text-anchor="end" letter-spacing="0.08em">BEGIN</text>
+
+      <rect x="496" y="424" width="32" height="12" rx="2" fill="#f5f5f5"/>
+      <text x="504" y="433" fill="#bf4520" font-size="8" font-family="'Geist Mono', monospace"
+            text-anchor="start" letter-spacing="0.08em">GID</text>
+
+      <!-- Node: Client -->
+      <rect x="48" y="252" width="176" height="96" rx="6" fill="#f5f5f5"/>
+      <rect x="48" y="252" width="176" height="96" rx="6" fill="#4f5d75" stroke="#5a6580" stroke-width="1" fill-opacity="0.10"/>
+      <rect x="56" y="260" width="28" height="12" rx="2" fill="none" stroke="#5a6580" stroke-width="0.8" stroke-opacity="0.40"/>
+      <text x="70" y="269" fill="#5a6580" font-size="7" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.08em">APP</text>
+      <text x="136" y="298" fill="#2d3142" font-size="12" font-weight="600"
+            font-family="'Geist', 'Noto Sans SC', 'Microsoft YaHei', sans-serif" text-anchor="middle">客户端 / 应用</text>
+      <text x="136" y="316" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"
+            text-anchor="middle">psql · JDBC</text>
+      <text x="136" y="332" fill="#5a6580" font-size="9" font-family="'Geist', 'Noto Sans SC', sans-serif"
+            text-anchor="middle">只连 CN，不直连 DN</text>
+
+      <!-- Node: CN (focal) -->
+      <rect x="336" y="240" width="232" height="120" rx="6" fill="#f5f5f5"/>
+      <rect x="336" y="240" width="232" height="120" rx="6" fill="#bf4520" stroke="#bf4520" stroke-width="1" fill-opacity="0.08"/>
+      <rect x="344" y="248" width="28" height="12" rx="2" fill="none" stroke="#bf4520" stroke-width="0.8" stroke-opacity="0.50"/>
+      <text x="358" y="257" fill="#bf4520" font-size="7" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.08em">CN</text>
+      <text x="452" y="284" fill="#2d3142" font-size="12" font-weight="600"
+            font-family="'Geist', 'Noto Sans SC', 'Microsoft YaHei', sans-serif" text-anchor="middle">协调节点 CoordinateNode</text>
+      <text x="452" y="302" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"
+            text-anchor="middle">parse · plan · dispatch · :11003</text>
+      <text x="452" y="326" fill="#bf4520" font-size="9.5" font-family="'Geist', 'Noto Sans SC', sans-serif"
+            text-anchor="middle">只保存元数据，不保存用户数据</text>
+
+      <!-- Node: DN1 -->
+      <rect x="744" y="168" width="200" height="96" rx="6" fill="#f5f5f5"/>
+      <rect x="744" y="168" width="200" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="752" y="176" width="28" height="12" rx="2" fill="none" stroke="#2d3142" stroke-width="0.8" stroke-opacity="0.40"/>
+      <text x="766" y="185" fill="#2d3142" font-size="7" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.08em">DN</text>
+      <text x="844" y="214" fill="#2d3142" font-size="12" font-weight="600"
+            font-family="'Geist', 'Noto Sans SC', 'Microsoft YaHei', sans-serif" text-anchor="middle">数据节点 1</text>
+      <text x="844" y="232" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"
+            text-anchor="middle">shard A · stores rows</text>
+
+      <!-- Node: DN2 -->
+      <rect x="744" y="336" width="200" height="96" rx="6" fill="#f5f5f5"/>
+      <rect x="744" y="336" width="200" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <rect x="752" y="344" width="28" height="12" rx="2" fill="none" stroke="#2d3142" stroke-width="0.8" stroke-opacity="0.40"/>
+      <text x="766" y="353" fill="#2d3142" font-size="7" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.08em">DN</text>
+      <text x="844" y="382" fill="#2d3142" font-size="12" font-weight="600"
+            font-family="'Geist', 'Noto Sans SC', 'Microsoft YaHei', sans-serif" text-anchor="middle">数据节点 2</text>
+      <text x="844" y="400" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"
+            text-anchor="middle">shard B · stores rows</text>
+
+      <!-- Caption: DN holds all user data -->
+      <text x="844" y="452" fill="#5a6580" font-size="9.5" font-family="'Geist', 'Noto Sans SC', sans-serif"
+            text-anchor="middle">DN 1 + DN 2 合起来 = 全部用户数据</text>
+
+      <!-- Node: GTM (focal) -->
+      <rect x="336" y="464" width="232" height="88" rx="6" fill="#f5f5f5"/>
+      <rect x="336" y="464" width="232" height="88" rx="6" fill="#bf4520" stroke="#bf4520" stroke-width="1" fill-opacity="0.08"/>
+      <rect x="344" y="472" width="36" height="12" rx="2" fill="none" stroke="#bf4520" stroke-width="0.8" stroke-opacity="0.50"/>
+      <text x="362" y="481" fill="#bf4520" font-size="7" font-family="'Geist Mono', monospace"
+            text-anchor="middle" letter-spacing="0.08em">GTM</text>
+      <text x="452" y="510" fill="#2d3142" font-size="12" font-weight="600"
+            font-family="'Geist', 'Noto Sans SC', 'Microsoft YaHei', sans-serif" text-anchor="middle">全局事务管理器</text>
+      <text x="452" y="528" fill="#4f5d75" font-size="9" font-family="'Geist Mono', monospace"
+            text-anchor="middle">Global Transaction Manager</text>
+
+      <!-- Legend strip -->
+      <line x1="48" y1="612" x2="1032" y2="612" stroke="#2d3142" stroke-width="0.8" stroke-opacity="0.10"/>
+      <text x="48" y="630" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace"
+            letter-spacing="0.18em">LEGEND</text>
+
+      <rect x="128" y="622" width="14" height="10" rx="2" fill="#bf4520" stroke="#bf4520" stroke-width="1" fill-opacity="0.08"/>
+      <text x="148" y="631" fill="#4f5d75" font-size="8.5" font-family="'Geist', 'Noto Sans SC', sans-serif">关键角色</text>
+
+      <rect x="228" y="622" width="14" height="10" rx="2" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+      <text x="248" y="631" fill="#4f5d75" font-size="8.5" font-family="'Geist', 'Noto Sans SC', sans-serif">数据存储</text>
+
+      <rect x="328" y="622" width="14" height="10" rx="2" fill="#4f5d75" stroke="#5a6580" stroke-width="1" fill-opacity="0.10"/>
+      <text x="348" y="631" fill="#4f5d75" font-size="8.5" font-family="'Geist', 'Noto Sans SC', sans-serif">外部 / 用户</text>
+
+      <line x1="448" y1="627" x2="476" y2="627" stroke="#bf4520" stroke-width="1.4" marker-end="url(#cluster-architecture-arrow-accent)"/>
+      <text x="484" y="631" fill="#4f5d75" font-size="8.5" font-family="'Geist', 'Noto Sans SC', sans-serif">查询下发 / 事务号</text>
+
+      <line x1="616" y1="627" x2="644" y2="627" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#cluster-architecture-arrow)"/>
+      <text x="652" y="631" fill="#4f5d75" font-size="8.5" font-family="'Geist', 'Noto Sans SC', sans-serif">结果返回 / 事务注册</text>
+
+      <text x="1032" y="631" fill="#5a6580" font-size="8" font-family="'Geist Mono', monospace"
+            text-anchor="end" letter-spacing="0.1em">OTB · 01</text>
+    </svg>
