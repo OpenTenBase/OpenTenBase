@@ -1,0 +1,277 @@
+SELECT node_name FROM pgxc_node WHERE node_type = 'D';
+ node_name 
+-----------
+ dn001
+ dn002
+(2 rows)
+
+DROP TABLE IF EXISTS test_table;
+DROP TABLE
+CREATE TABLE test_table(id bigint, name text, num int) DISTRIBUTE BY SHARD(id);
+CREATE TABLE
+INSERT INTO test_table VALUES 
+(1, 'A', 100),(2, 'B', 110),(3, 'C', 120),(4, 'D', 130),
+(5, 'E', 140),(6, 'F', 150),(7, 'G', 160),(8, 'H', 170),
+(9, 'I', 180),(10, 'J', 190);
+COPY 10
+SELECT * FROM test_table ORDER BY id;
+ id | name | num 
+----+------+-----
+  1 | A    | 100
+  2 | B    | 110
+  3 | C    | 120
+  4 | D    | 130
+  5 | E    | 140
+  6 | F    | 150
+  7 | G    | 160
+  8 | H    | 170
+  9 | I    | 180
+ 10 | J    | 190
+(10 rows)
+
+EXECUTE DIRECT ON (dn001) 'SELECT * FROM test_table';
+ id | name | num 
+----+------+-----
+  1 | A    | 100
+  2 | B    | 110
+  5 | E    | 140
+  6 | F    | 150
+  8 | H    | 170
+  9 | I    | 180
+(6 rows)
+
+EXECUTE DIRECT ON (dn002) 'SELECT * FROM test_table';
+ id | name | num 
+----+------+-----
+  3 | C    | 120
+  4 | D    | 130
+  7 | G    | 160
+ 10 | J    | 190
+(4 rows)
+
+UPDATE test_table SET num = 129 WHERE num < 130;
+UPDATE 3
+SELECT * FROM test_table ORDER BY id;
+ id | name | num 
+----+------+-----
+  1 | A    | 129
+  2 | B    | 129
+  3 | C    | 129
+  4 | D    | 130
+  5 | E    | 140
+  6 | F    | 150
+  7 | G    | 160
+  8 | H    | 170
+  9 | I    | 180
+ 10 | J    | 190
+(10 rows)
+
+DELETE FROM test_table WHERE num < 130;
+DELETE 3
+SELECT * FROM test_table ORDER BY id;
+ id | name | num 
+----+------+-----
+  4 | D    | 130
+  5 | E    | 140
+  6 | F    | 150
+  7 | G    | 160
+  8 | H    | 170
+  9 | I    | 180
+ 10 | J    | 190
+(7 rows)
+
+BEGIN;
+BEGIN
+INSERT INTO test_table VALUES (12, 'Node1', 1001);
+INSERT 0 1
+INSERT INTO test_table VALUES (14, 'Node2', 1002);
+INSERT 0 1
+UPDATE test_table SET num = num + 10 WHERE id = 12;
+UPDATE 1
+UPDATE test_table SET num = num + 20 WHERE id = 14;
+UPDATE 1
+COMMIT;
+COMMIT
+EXECUTE DIRECT ON (dn001) 'SELECT * FROM test_table WHERE id IN (12,14) ORDER BY id';
+ id | name  | num  
+----+-------+------
+ 12 | Node1 | 1011
+(1 row)
+
+EXECUTE DIRECT ON (dn002) 'SELECT * FROM test_table WHERE id IN (12,14) ORDER BY id';
+ id | name  | num  
+----+-------+------
+ 14 | Node2 | 1022
+(1 row)
+
+SELECT * FROM test_table WHERE id IN (12,14) ORDER BY id;
+ id | name  | num  
+----+-------+------
+ 12 | Node1 | 1011
+ 14 | Node2 | 1022
+(2 rows)
+
+BEGIN;
+BEGIN
+INSERT INTO test_table VALUES (1, 'A', 100);
+INSERT 0 1
+SELECT * FROM test_table ORDER BY id;
+ id | name  | num  
+----+-------+------
+  1 | A     |  100
+  4 | D     |  130
+  5 | E     |  140
+  6 | F     |  150
+  7 | G     |  160
+  8 | H     |  170
+  9 | I     |  180
+ 10 | J     |  190
+ 12 | Node1 | 1011
+ 14 | Node2 | 1022
+(10 rows)
+
+UPDATE test_table SET num = num - 200 WHERE id = 4;
+UPDATE 1
+SELECT num FROM test_table WHERE id = 4 
+SELECT (num < 0) AS is_negative FROM test_table WHERE id = 4
+ROLLBACK;
+ROLLBACK
+BEGIN;
+BEGIN
+SELECT * FROM test_table ORDER BY id;
+ id | name  | num  
+----+-------+------
+  4 | D     |  130
+  5 | E     |  140
+  6 | F     |  150
+  7 | G     |  160
+  8 | H     |  170
+  9 | I     |  180
+ 10 | J     |  190
+ 12 | Node1 | 1011
+ 14 | Node2 | 1022
+(9 rows)
+
+COMMIT;
+COMMIT
+BEGIN;
+BEGIN
+INSERT INTO test_table VALUES (2, 'B', 200);
+INSERT 0 1
+SAVEPOINT my_savepoint;
+SAVEPOINT
+INSERT INTO test_table VALUES (3, 'C', 300);
+INSERT 0 1
+SELECT * FROM test_table ORDER BY id;
+ id | name  | num  
+----+-------+------
+  2 | B     |  200
+  3 | C     |  300
+  4 | D     |  130
+  5 | E     |  140
+  6 | F     |  150
+  7 | G     |  160
+  8 | H     |  170
+  9 | I     |  180
+ 10 | J     |  190
+ 12 | Node1 | 1011
+ 14 | Node2 | 1022
+(11 rows)
+
+ROLLBACK TO SAVEPOINT my_savepoint;
+ROLLBACK
+SELECT * FROM test_table ORDER BY id;
+ id | name  | num  
+----+-------+------
+  2 | B     |  200
+  4 | D     |  130
+  5 | E     |  140
+  6 | F     |  150
+  7 | G     |  160
+  8 | H     |  170
+  9 | I     |  180
+ 10 | J     |  190
+ 12 | Node1 | 1011
+ 14 | Node2 | 1022
+(10 rows)
+
+COMMIT;
+COMMIT
+ALTER TABLE test_table ADD CONSTRAINT unique_id UNIQUE(id);
+ALTER TABLE
+BEGIN;
+BEGIN
+INSERT INTO test_table VALUES (10, 'Duplicate', 999);
+COMMIT;
+ROLLBACK
+SELECT * FROM test_table WHERE name = 'Duplicate';
+ id | name | num 
+----+------+-----
+(0 rows)
+
+-- Test dirty reads (to be executed in two sessions) --
+-- Session 1 --
+BEGIN;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SHOW transaction_isolation;
+UPDATE test_table SET num = 0 WHERE id = 2;
+--Connection 1 updated id=2 num to 0, but did not commit
+-- Session 2 --
+BEGIN;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SHOW transaction_isolation;
+SELECT * FROM test_table WHERE id = 2; -- Unsubmitted changes should not be visible
+-- Session 1 --
+ROLLBACK;
+-- Session 2 --
+SELECT * FROM test_table WHERE id = 2;
+COMMIT;
+-- Test non-repetitive reads (needs to be executed in two sessions) --
+-- Session 1 --
+BEGIN;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SHOW transaction_isolation;
+SELECT * FROM test_table ORDER BY id;
+-- Session 2 --
+--modified data and committed
+BEGIN;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+UPDATE test_table SET num = 0 WHERE id = 2;
+COMMIT;
+-- Session 1 --
+--Query the same data again
+SELECT * FROM test_table ORDER BY id;
+COMMIT;
+-- Test phantom reads (needs to be executed in two sessions) --
+-- Session 1 --
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+SHOW transaction_isolation;
+SELECT * FROM test_table ORDER BY id;
+SELECT * FROM test_table WHERE id > 8 ORDER BY id;
+-- Session 2 --
+--inserted new data and committed
+BEGIN;
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+INSERT INTO test_table VALUES (11, 'K', 200);
+COMMIT;
+-- Session 1 --
+--Query the same data Again
+SELECT * FROM test_table WHERE id > 8 ORDER BY id;
+COMMIT;
+SELECT * FROM test_table ORDER BY id;
+ id | name  | num  
+----+-------+------
+  2 | B     |  200
+  4 | D     |  130
+  5 | E     |  140
+  6 | F     |  150
+  7 | G     |  160
+  8 | H     |  170
+  9 | I     |  180
+ 10 | J     |  190
+ 12 | Node1 | 1011
+ 14 | Node2 | 1022
+(10 rows)
+
+DROP TABLE test_table;
+DROP TABLE
