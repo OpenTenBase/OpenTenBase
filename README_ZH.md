@@ -118,8 +118,10 @@ make install                         # 安装 contrib 扩展
 | `--prefix=.../opentenbase_bin_v5.0` | 最终安装路径，即 `make install` 的目标 | 一般保留；若修改，需与 `${INSTALL_PATH}` 保持一致 |
 | `CFLAGS="-g"` | 编译时带调试符号 | 可不改；仅用于部署可去掉 |
 | `--with-libxml` / `--with-openssl` / `--with-ossp-uuid` | 启用 XML、SSL、uuid 能力，分别依赖依赖清单中的 `libxml2-devel`、`openssl-devel`、`uuid-devel` | 不改，但对应依赖须先安装 |
-| `--enable-user-switch` | 现有文档未说明其具体作用 | 保持原样，本文不作解释 |
+| `--enable-user-switch` | `configure --help` 描述为 `enable switch to mls or audit user without password`（免密码切换到 mls / audit 用户）；README 正文未说明其作用 | 保持原样 |
 | `--disable-license` | 与 `-DNOLIC` 等价，二选一 | 保持原样 |
+
+> `--with-ossp-uuid` 在 `configure` 中被标注为 `--with-uuid=ossp` 的旧写法（obsolete spelling），当前仍可用。
 
 ## 安装
 使用 OPENTENBASE\_CTL 工具来搭建一个集群，例如：搭建一个具有1个全局事务管理节点(GTM)、1个协调器节点(COORDINATOR)以及2个数据节点(DATANODE)的集群。
