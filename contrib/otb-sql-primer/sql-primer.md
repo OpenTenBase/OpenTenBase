@@ -167,5 +167,6 @@ create table otb_health_check(id int, name text)
 
 - 3 条 SQL 的原文与行号，逐行核对自 `contrib/otb-health/otb_health.sh`（核对记录见 `evidence/sql-sources.md`）；
 - CN/DN/GTM 分工表述，逐字引自仓库根目录 `README.md` 第 16 行；
+- `node_type` 取值（第 1 节）来自 `src/include/nodes/parsenodes.h` 第 127–132 行；`pgxc_group` 列结构（第 2 节）来自 `src/include/catalog/pgxc_group.h` 第 28–38 行；
 - 所有结果表均标注**预期结果（未在实例上执行）**；
 - 试读反馈见 `evidence/peer-feedback.md`。
