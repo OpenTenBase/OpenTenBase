@@ -43,22 +43,42 @@ Defaults (override by exporting the variable):
 ## Exit codes
 
 - `0` — all required checks passed. Sections skipped on purpose (`--no-write`,
-  missing `PGXC_CONF`) are marked in the output and are not counted as checks.
+  missing `PGXC_CONF`) are printed as `SKIP` and are not counted as checks.
 - `1` — at least one required check failed: psql unreachable **or** a SQL
-  statement failed. The psql invocations use `-v ON_ERROR_STOP=1`, without
-  which psql exits 0 even when statements fail; the success banner is only
-  printed after every required check has passed.
+  statement failed.
+
+psql always runs with `-X` and `-v ON_ERROR_STOP=1`:
+
+- `-X` ignores `.psqlrc` / `$PSQLRC`, which could otherwise reset the setting
+  and hide errors again;
+- `ON_ERROR_STOP=1` makes an error in the section [4] stdin script fail the
+  exit status. Without it a multi-statement stdin script keeps going after an
+  error and can still exit 0; a single failing `-c` statement returns non-zero
+  either way, which is why sections [2] and [3] check that status explicitly.
+
+The success line states only what was verified: the write-mode run prints
+`PASS: required SQL checks completed; distributed DDL/DML smoke test passed.`,
+while `--no-write` prints `PASS: read-only SQL queries completed; write
+capability was not tested.` Section [1] is diagnostic and not part of the
+exit status.
 
 Note: the smoke test writes a fixed table `otb_health_check` in the target
 database (`DROP TABLE IF EXISTS` first, `DROP TABLE` last), so point
 `DB_NAME` at a dedicated test database, not at one holding production data.
+If a statement fails mid-script, the final `DROP TABLE` may not run and the
+table can be left behind.
 
 ## Tests
 
-`tests/test_otb_health.sh` is a self-contained black-box contract test suite;
-it needs no running cluster. A stub `psql` is installed into a temporary
-`PG_HOME`, and it only simulates a SQL failure when it sees
-`-v ON_ERROR_STOP=1`, so a regression that drops that flag fails the suite.
+`tests/test_otb_health.sh` is a self-contained black-box contract suite; it
+needs no running cluster and does not depend on the host's psql. Each case
+runs with a temporary `HOME`, a controlled `PATH` and a stub `psql` installed
+into `PG_HOME/bin`.
+
+The stub models the real client: a failing single `-c` statement exits 1, a
+failing stdin script exits 3 only with `ON_ERROR_STOP`, and a failure is
+injected only when both the call number and the target statement match -- so
+a missing or reordered statement cannot pass silently.
 
 ```bash
 bash tests/test_otb_health.sh
