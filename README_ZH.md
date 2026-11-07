@@ -471,6 +471,10 @@ postgres=#
 | `psql` 报 `server closed the connection unexpectedly` | `listen_addresses` 未放开 | 在 `postgresql.conf` 中设置 `listen_addresses = '*'` |
 | `psql` 报 `error while loading shared libraries` | `LD_LIBRARY_PATH` 未包含 `$PG_HOME/lib` | 确认 `~/.bash_profile` 中 `LD_LIBRARY_PATH` 已设置并 `source` |
 
+## 原理与源码阅读
+
+- [分布式事务原理](doc/distributed-transactions-zh.md)：CN/DN/GTM 职责、XID 与全局时间戳、两阶段提交及快照可见性，附双 DN 验证脚本和源码入口。
+
 ## 引用
 
 ```
