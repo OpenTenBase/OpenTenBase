@@ -122,7 +122,12 @@ log_error(const char* message, const char* file, int line) {
 
 void 
 log_warn(const char* message, const char* file, int line) {
-    log_message(LOG_LEVEL_ERROR, message, file, line);
+    /*
+     * 原来这里传的是 LOG_LEVEL_ERROR。log_message 只在级别等于 ERROR 时才写
+     * stderr，于是每一条警告都被当成错误打到终端，真正的错误反而不突出；日志
+     * 文件里的级别也全是 ERROR。级别常量里本来就没有 WARN，这里一并补上。
+     */
+    log_message(LOG_LEVEL_WARN, message, file, line);
 }
 
 // Format log function implementation
@@ -166,5 +171,6 @@ log_warn_fmt(const char* format, const char* file, int line, ...) {
     va_start(args, line);
     vsnprintf(buffer, sizeof(buffer), format, args);
     va_end(args);
-    log_message(LOG_LEVEL_ERROR, buffer, file, line);
+    /* 同上：警告不应该以 ERROR 级别记录。 */
+    log_message(LOG_LEVEL_WARN, buffer, file, line);
 }
