@@ -1,0 +1,6 @@
+comment = 'Property-graph search for OpenTenBase'
+default_version = '1.0.0'
+relocatable = false
+schema = 'graph_search'
+sql_mode = 'all'
+

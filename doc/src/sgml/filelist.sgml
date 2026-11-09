@@ -129,6 +129,7 @@
 <!ENTITY isn             SYSTEM "isn.sgml">
 <!ENTITY lo              SYSTEM "lo.sgml">
 <!ENTITY ltree           SYSTEM "ltree.sgml">
+<!ENTITY pg-graph-search SYSTEM "pg_graph_search.sgml">
 <!ENTITY oid2name        SYSTEM "oid2name.sgml">
 <!ENTITY pageinspect     SYSTEM "pageinspect.sgml">
 <!ENTITY passwordcheck   SYSTEM "passwordcheck.sgml">

@@ -1,0 +1,22 @@
+<sect1 id="pg-graph-search">
+ <title>pg_graph_search</title>
+ <para>
+  <application>pg_graph_search</application> provides pure-SQL property graph
+  traversal for an existing OpenTenBase edge table.  The extension installs a
+  metadata schema and generates concrete, schema-qualified functions for an
+  application graph instance.
+ </para>
+ <sect2><title>Functions</title>
+  <para><function>graph_search.advise(jsonb)</function> performs non-mutating
+  index and configuration checks. <function>plan(jsonb)</function> returns the
+  DDL before it is executed. <function>install(jsonb)</function> executes the
+  plan and records the instance; <function>uninstall(text,text)</function>
+  removes it.</para>
+ </sect2>
+ <sect2><title>Limits</title>
+  <para>This release establishes the replicated-edge-table baseline.  For a
+  HASH-distributed edge table, validate result equivalence and performance
+  before production use.  The generated functions enforce the installation
+  time <literal>max_depth_cap</literal>.</para>
+ </sect2>
+</sect1>
