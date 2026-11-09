@@ -457,7 +457,7 @@ static void PgxcGroupAlterToDefault(const char *group_name)
 	default_groupoid = GetDefaultGroup();
 	if (OidIsValid(default_groupoid))
 	{
-		elog(ERROR, "default group already exists, groupoid:%d", default_groupoid);
+		elog(ERROR, "default group already exists, groupoid:%u", default_groupoid);
 	}
 	
 	relation = heap_open(PgxcGroupRelationId, RowExclusiveLock);
@@ -538,7 +538,7 @@ void AddNodeToGroup(Oid nodeoid, Oid groupoid)
 	
 	if(!OidIsValid(nodeoid))
 	{
-		elog(ERROR, "node oid [%d] is invalid", nodeoid);
+		elog(ERROR, "node oid [%u] is invalid", nodeoid);
 	}
 
 	if(!OidIsValid(groupoid))
@@ -547,7 +547,7 @@ void AddNodeToGroup(Oid nodeoid, Oid groupoid)
 
 		if(!OidIsValid(groupoid))
 		{
-			elog(ERROR, "group oid [%d] is not valid", groupoid);
+			elog(ERROR, "group oid [%u] is not valid", groupoid);
 		}
 	}
 
@@ -556,7 +556,7 @@ void AddNodeToGroup(Oid nodeoid, Oid groupoid)
 	tup = SearchSysCache(PGXCGROUPOID, ObjectIdGetDatum(groupoid), 0, 0, 0);
 
 	if (!HeapTupleIsValid(tup)) /* should not happen */
-		elog(ERROR, "PGXC Group %d: group not defined", groupoid);
+		elog(ERROR, "PGXC Group %u: group not defined", groupoid);
 
 	replvalues = (Datum*)palloc0(Natts_pgxc_group * sizeof(Datum));
 	replisnull = (bool *)palloc0(Natts_pgxc_group * sizeof(bool));
@@ -609,7 +609,7 @@ Oid RemoveNodeFromGroup(Oid nodeoid)
 	
 	if(!OidIsValid(nodeoid))
 	{
-		elog(ERROR, "node oid [%d] is invalid", nodeoid);
+		elog(ERROR, "node oid [%u] is invalid", nodeoid);
 	}
 
 	/* Delete the pgxc_group tuple */
@@ -668,7 +668,7 @@ Oid RemoveNodeFromGroup(Oid nodeoid)
 #ifndef _PG_REGRESS_
 	if(!found)
 	{
-		elog(WARNING, "this node[%d] is not exist in any group.", nodeoid);
+		elog(WARNING, "this node[%u] is not exist in any group.", nodeoid);
 	}
 #endif
 	return group;
