@@ -56,6 +56,9 @@ void InitShardMap(int32 nShardGroup, int32 nNodes, Oid *nodes, int16 extend, Oid
 
 	if(is_group_sharding_inited(nodeGroup))
 	{
+		ereport(WARNING,
+				(errmsg("shard map of group %u is already initialized, skipping",
+						nodeGroup)));
 		return;
 	}
 	
