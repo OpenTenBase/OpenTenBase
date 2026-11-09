@@ -179,6 +179,31 @@ std::string build_create_pgxz_node_cmd(NodeInfo *node, OpentenbaseConfig* config
 
         node_type = get_node_type(config->nodes[i].type);
 
+        /*
+         * Only emit FORWARD when a forward port was really allocated.
+         * NodeInfo::forward_port is a plain int that is filled in by
+         * assign_ports_for_nodes() during install, but nothing in this
+         * function guarantees it: nodes built by other code paths (or a
+         * future refactor) may leave it 0, and the parser rejects
+         * FORWARD=0 with "forward port value is out of range", turning node
+         * creation into a hard failure. Omitting the clause in that case
+         * keeps the node creatable exactly as before FORWARD was emitted:
+         * the port stays 0 in pgxc_node and the forward manager skips the
+         * connection (fnconn.c: "if (0 == nodeforwardport) continue"), i.e.
+         * the old behaviour rather than an install abort.
+         */
+        std::string forward_clause = "";
+        if (config->nodes[i].forward_port > 0)
+        {
+            forward_clause = ", FORWARD=" + std::to_string(config->nodes[i].forward_port);
+        }
+        else
+        {
+            LOG_WARN_FMT("Node %s has no forward port allocated; creating it without FORWARD, "
+                         "forward connections will stay disabled for this node",
+                         config->nodes[i].name.c_str());
+        }
+
         if (config->nodes[i].name == node->name 
             && config->nodes[i].ip == node->ip 
             && config->nodes[i].port == node->port
@@ -186,10 +211,10 @@ std::string build_create_pgxz_node_cmd(NodeInfo *node, OpentenbaseConfig* config
         {
             // 本节点默认会生成一个IP为 localhost/端口为5432 的记录，需要修改一下节点路由的IP/Port
             // ALTER NODE cn001 with(HOST='172.16.16.49',PORT=11000);
-            create_sql += "ALTER NODE " + config->nodes[i].name + " WITH (HOST='"+ config->nodes[i].ip +"', PORT=" + std::to_string(config->nodes[i].port) +");";
+            create_sql += "ALTER NODE " + config->nodes[i].name + " WITH (HOST='"+ config->nodes[i].ip +"', PORT=" + std::to_string(config->nodes[i].port) + forward_clause + ");";
         } else {
             // CREATE NODE cn001 WITH (TYPE='coordinator', HOST='172.16.16.49', PORT=11000);
-            create_sql += "CREATE NODE " + config->nodes[i].name + " WITH (TYPE='"+ node_type +"', HOST='"+ config->nodes[i].ip +"', PORT=" + std::to_string(config->nodes[i].port) +");";
+            create_sql += "CREATE NODE " + config->nodes[i].name + " WITH (TYPE='"+ node_type +"', HOST='"+ config->nodes[i].ip +"', PORT=" + std::to_string(config->nodes[i].port) + forward_clause + ");";
         }
     }
 
