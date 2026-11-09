@@ -732,6 +732,10 @@ int GTM_SeqAlter(GTM_SequenceKey seqkey,
 		ereport(LOG,
 				(ERANGE,
 				 errmsg("GTM_SeqAlter GTM_StoreSeqAlter failed to alter sequence")));
+		/* ereport(LOG) returns normally: release the lock and the reference
+		 * before returning, the sequence must not stay write-locked */
+		GTM_RWLockRelease(&seqinfo->gs_lock);
+		seq_release_seqinfo(seqinfo);
 		return ret;
 	}
 
@@ -1316,6 +1320,10 @@ GTM_SeqSetVal(GTM_SequenceKey seqkey, char *coord_name,
 				(EINVAL,
 				 errmsg("GTM_SeqSetVal GTM_StoreSetSeqValue failed")));
 
+		/* ereport(LOG) returns normally: release the lock and the reference
+		 * before returning, the sequence must not stay write-locked */
+		GTM_RWLockRelease(&seqinfo->gs_lock);
+		seq_release_seqinfo(seqinfo);
 		return EINVAL;
 	}
 
