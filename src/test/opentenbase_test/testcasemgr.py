@@ -38,6 +38,7 @@ class TestCase:
 class TestCaseMgr:
     def __init__(self, test_dir, result_dir):
         self.test_case_list = []
+        self._test_paths_by_name = {}
         self.unique_conf = set()
         self._skip_case = 0
         self._test_dir = test_dir
@@ -109,8 +110,14 @@ class TestCaseMgr:
                                     testname + ".result"
                     global_thl_data.logger.warning("use %s as the expected file(result_dir)" %result_filepath)
 
+            # Cluster directories, output files and summaries use the basename.
+            # Reject collisions during discovery, before any clusters are started.
+            if testname in self._test_paths_by_name:
+                raise ValueError("Duplicate test name '%s': '%s' and '%s'" %
+                                 (testname, self._test_paths_by_name[testname], path))
             cluster_conf = self.DetermineTestCaseEnvironment(path)
             self.test_case_list.append(TestCase(testname, path, result_filepath, cluster_conf))
+            self._test_paths_by_name[testname] = path
         else:
             assert os.path.isdir(path)
             for tmpname in os.listdir(path):
