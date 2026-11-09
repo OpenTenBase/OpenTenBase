@@ -71,7 +71,7 @@ usermod -aG sudo opentenbase
 
 # 5. 为 wheel 组启用 sudo 权限（通过 visudo）
 visudo
-# 然后取消注释 "% wheel" 行，保存并退出
+# 然后取消注释 "%wheel" 行（注意：% 与 wheel 之间没有空格），保存并退出
 ```
 
 ### 编译
@@ -207,7 +207,7 @@ opentenbase\_config.opentenbase\_ctl 工具可以生成配置文件的模板。�
 * opentenbase\_config.ini 中各字段说明
 ```
 | 配置类别        | 配置项            | 说明                                                                      |
-|----------------|------------------|---------------------------------------------------------------------------||
+|----------------|------------------|---------------------------------------------------------------------------|
 | instance       | name             | 实例名称，可用字符：字母、数字、下划线，例如：opentenbase_instance01        |
 |                | type             | distributed 表示分布式模式，需要 gtm、coordinator 和 data 节点；centralized 表示集中式模式 |
 |                | package          | 软件包。完整路径（推荐）或相对于 opentenbase_ctl 的相对路径                  |
@@ -422,7 +422,7 @@ PSQL connection: psql -h 172.16.16.49 -p 11000 -U opentenbase postgres
 * 连接到 CN 主节点执行 SQL
 
 ```
-export LD_LIBRARY_PATH=/home/opentenbase/install/opentenbase/5.21.8/lib  && export PATH=/home/opentenbase/install/opentenbase/5.21.8/bin:${PATH}
+export LD_LIBRARY_PATH=/data/opentenbase/install/opentenbase_bin_v5.0/lib && export PATH=/data/opentenbase/install/opentenbase_bin_v5.0/bin:${PATH}
 $ psql -h ${CoordinateNode_IP} -p ${CoordinateNode_PORT} -U opentenbase -d postgres
 
 postgres=#
@@ -503,4 +503,4 @@ OpenTenBase 使用 BSD 3-Clause 许可证，版权和许可信息可以在 [LICE
 |[快速入门](https://www.opentenbase.org/blog/01-quickstart/)|
 
 ## 历史
-[history_events](history_events.md)
+参见 [OpenTenBase 官方网站](https://www.opentenbase.org/) 获取项目历史与最新动态。
