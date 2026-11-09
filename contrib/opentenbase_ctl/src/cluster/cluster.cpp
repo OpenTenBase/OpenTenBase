@@ -1281,9 +1281,9 @@ int start_command(OpentenbaseConfig *config) {
             << ", Failed: " << failedCount << "\n" << std::endl;
 
 
-    LOG_INFO_FMT("[Result] Total: %zu, Success: %zu, Failed: %zu", 
+    LOG_INFO_FMT("[Result] Total: %zu, Success: %zu, Failed: %zu",
              op_node_count, successCount, failedCount);
-    return 0;
+    return failedCount > 0 ? -1 : 0;
 }
 
 // Stop single node
@@ -1348,9 +1348,9 @@ int stop_command(OpentenbaseConfig *config) {
             << ", Failed: " << failedCount << "\n" << std::endl;
 
 
-    LOG_INFO_FMT("[Result] Total: %zu, Success: %zu, Failed: %zu", 
+    LOG_INFO_FMT("[Result] Total: %zu, Success: %zu, Failed: %zu",
              op_nodes.size(), successCount, failedCount);
-    return 0;
+    return failedCount > 0 ? -1 : 0;
 }
 
 // status command
