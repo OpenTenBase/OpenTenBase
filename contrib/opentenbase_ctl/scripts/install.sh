@@ -79,44 +79,70 @@ install_dependencies() {
 # 安装 CLI11
 install_cli11() {
     print_info "Installing CLI11..."
-    
+
     # 创建目标目录
     sudo mkdir -p /usr/local/include/CLI
     sudo mkdir -p /usr/local/include/CLI/impl
 
-    # 下载 CLI11
-    git clone https://github.com/CLIUtils/CLI11.git
-    cd CLI11
+    # Clone into a private temporary directory. The previous version cloned next
+    # to the caller's working directory and switched into it with an unchecked
+    # `cd`; when the clone failed the copies below ran from the wrong directory
+    # under sudo, and the trailing `cd ..; rm -rf CLI11` could remove an
+    # unrelated directory of the same name.
+    local workdir
+    if ! workdir=$(mktemp -d); then
+        print_error "Cannot create a temporary directory"
+        return 1
+    fi
+    trap 'rm -rf "${workdir:-}"' RETURN
+
+    if ! git clone --depth 1 https://github.com/CLIUtils/CLI11.git "$workdir/CLI11"; then
+        print_error "Failed to clone CLI11"
+        return 1
+    fi
 
     # 复制头文件
-    sudo cp include/CLI/*.hpp /usr/local/include/CLI/
-    sudo cp include/CLI/impl/*.hpp /usr/local/include/CLI/impl/
-
-    # 清理
-    cd ..
-    rm -rf CLI11
+    if ! sudo cp "$workdir"/CLI11/include/CLI/*.hpp /usr/local/include/CLI/; then
+        print_error "Failed to install CLI11 headers"
+        return 1
+    fi
+    if ! sudo cp "$workdir"/CLI11/include/CLI/impl/*.hpp /usr/local/include/CLI/impl/; then
+        print_error "Failed to install CLI11 impl headers"
+        return 1
+    fi
 }
 
 
 # 安装 indicators
 install_indicators() {
     print_info "Installing indicators..."
-    
+
     # 创建目标目录
     sudo mkdir -p /usr/local/include/indicators
 
-    # 下载 indicators
-    git clone https://github.com/p-ranav/indicators.git
-    cd indicators
+    # 同 CLI11：在私有临时目录里 clone，失败即中止，不触碰调用者的目录。
+    local workdir
+    if ! workdir=$(mktemp -d); then
+        print_error "Cannot create a temporary directory"
+        return 1
+    fi
+    trap 'rm -rf "${workdir:-}"' RETURN
+
+    if ! git clone --depth 1 https://github.com/p-ranav/indicators.git "$workdir/indicators"; then
+        print_error "Failed to clone indicators"
+        return 1
+    fi
 
     # 复制头文件
-    sudo cp -r include/indicators/* /usr/local/include/indicators/
+    if ! sudo cp -r "$workdir"/indicators/include/indicators/* /usr/local/include/indicators/; then
+        print_error "Failed to install indicators headers"
+        return 1
+    fi
     # 确保 indicators.hpp 在正确的位置
-    sudo cp include/indicators.hpp /usr/local/include/
-
-    # 清理
-    cd ..
-    rm -rf indicators
+    if ! sudo cp "$workdir"/indicators/include/indicators.hpp /usr/local/include/; then
+        print_error "Failed to install indicators.hpp"
+        return 1
+    fi
 }
 
 # 创建必要的目录
@@ -194,16 +220,16 @@ main() {
     install_dependencies
     
     # 安装 CLI11
-    install_cli11
+    install_cli11 || { print_error "CLI11 installation failed"; return 1; }
     
     # 安装 indicators
-    install_indicators
+    install_indicators || { print_error "indicators installation failed"; return 1; }
     
     # 创建目录
-    create_directories
+    create_directories || { print_error "Failed to create directories"; return 1; }
     
     # 编译项目
-    build_project
+    build_project || { print_error "Project build failed"; return 1; }
     
     
     print_info "Installation completed successfully!"
