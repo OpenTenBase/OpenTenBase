@@ -15,7 +15,7 @@
 #   [3] node groups                (pgxc_group)
 #   [4] distributed DDL/DML loop   (create / insert / select / drop)
 #
-# Exit code: 0 = all four sections produced output, 1 = psql unreachable
+# Exit code: 0 = all checks passed, 1 = at least one check failed
 # ============================================================
 
 PG_HOME=${PG_HOME:-/usr/local/opentenbase}
@@ -27,7 +27,7 @@ PGXC_CONF=${PGXC_CONF:-$HOME/pgxc_ctl/pgxc_ctl.conf}
 export PATH="$PG_HOME/bin:$PATH"
 export LD_LIBRARY_PATH="$PG_HOME/lib:$LD_LIBRARY_PATH"
 
-PSQL=(psql -h 127.0.0.1 -p "$CN_PORT" -U "$DB_USER" -d "$DB_NAME")
+PSQL=(psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -p "$CN_PORT" -U "$DB_USER" -d "$DB_NAME")
 
 echo "===== [1] Cluster processes ====="
 if [ -f "$PGXC_CONF" ]; then
@@ -44,14 +44,17 @@ echo "===== [2] Node registration ====="
 
 echo ""
 echo "===== [3] Node groups ====="
-"${PSQL[@]}" -c "select * from pgxc_group" 2>&1
+if ! "${PSQL[@]}" -c "select * from pgxc_group" 2>&1; then
+    echo "FAIL: cannot read node groups"
+    exit 1
+fi
 
 echo ""
 echo "===== [4] Distributed DDL/DML smoke test ====="
 if [ "$1" = "--no-write" ]; then
     echo "(skipped: --no-write)"
 else
-    "${PSQL[@]}" <<'SQL' 2>&1
+    if ! "${PSQL[@]}" <<'SQL' 2>&1
 drop table if exists otb_health_check;
 create table otb_health_check(id int, name text)
     distribute by shard(id) to group default_group;
@@ -59,6 +62,10 @@ insert into otb_health_check values (1,'ok'),(2,'good');
 select * from otb_health_check order by id;
 drop table otb_health_check;
 SQL
+    then
+        echo "FAIL: distributed DDL/DML smoke test"
+        exit 1
+    fi
 fi
 
 echo ""
