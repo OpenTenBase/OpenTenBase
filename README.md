@@ -96,19 +96,51 @@ git clone https://github.com/OpenTenBase/OpenTenBase
 export SOURCECODE_PATH=/data/opentenbase/OpenTenBase
 export INSTALL_PATH=/data/opentenbase/install/
 
+# Enter the source root (SOURCECODE_PATH was exported above)
 cd ${SOURCECODE_PATH}
+
+# Remove the previous install output so make install won't mix old and new files
+# Only the install directory is removed; source files are untouched
 rm -rf ${INSTALL_PATH}/opentenbase_bin_v5.0
+
+# Make configure executable; it is already 755 in the official source archive, so this is idempotent
 chmod +x configure*
+
 # --disable-license is equivalent to -DNOLIC; either one is sufficient
+# Must be run from the source root; see the parameter table below for each switch
 ./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v5.0 --enable-user-switch --with-libxml --disable-license --with-openssl --with-ossp-uuid CFLAGS="-g"
+
+# Remove object files from the previous build so this is a full rebuild
 make clean
+
+# -s prints warnings and errors only; -j means unlimited parallelism (GNU make runs as many jobs as it can)
+# On machines with many cores but little memory, use a fixed value such as make -sj4 to avoid OOM
 make -sj
+
+# Install into the path given by --prefix, creating bin/, lib/, share/, etc.
 make install
+
+# Build and install contrib modules (includes pgxc_ctl, used for cluster deployment later)
 chmod +x contrib/pgxc_ctl/make_signature
 cd contrib
 make -sj
 make install
 ```
+
+Parameter reference. Placeholders in `${...}` form must be replaced with actual paths:
+
+| Parameter / placeholder | Meaning | Notes |
+|---|---|---|
+| `${SOURCECODE_PATH}` | Source root | Exported above; adjust to your path |
+| `${INSTALL_PATH}` | Install root | Exported above; keep the trailing `/` |
+| `opentenbase_bin_v5.0` | Versioned install subdirectory | Can be renamed, but must match `PG_HOME` later in this document |
+| `--with-libxml` | Build with XML support | Requires `libxml2-devel` |
+| `--with-openssl` | Build with OpenSSL support | Requires `openssl-devel` |
+| `--with-ossp-uuid` | Same as `--with-uuid=ossp` | Requires `uuid-devel` |
+| `--disable-license` | Disable license limit; adds `-DNOLIC` | Either this or `-DNOLIC`, not both |
+| `--enable-user-switch` | Adds `-D_USER_SWITCH_` | Only applied when the compiler accepts `-g`; keep it together with `CFLAGS="-g"` |
+| `CFLAGS="-g"` | Build with debug symbols | Recommended to keep |
+
 
 ## Installation
 Use OPENTENBASE\_CTL tool to build a cluster, for example: a cluster with a global transaction management node (GTM), a coordinator(COORDINATOR) and two data nodes (DATANODE).

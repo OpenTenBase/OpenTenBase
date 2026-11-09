@@ -92,19 +92,50 @@ git clone https://github.com/OpenTenBase/OpenTenBase
 export SOURCECODE_PATH=/data/opentenbase/OpenTenBase
 export INSTALL_PATH=/data/opentenbase/install/
 
+# 进入源码根目录（SOURCECODE_PATH 在上一段 export）
 cd ${SOURCECODE_PATH}
+
+# 清掉上一次的安装产物，避免 make install 后新旧版本文件混在同一目录
+# 只删安装目录，不涉及源码
 rm -rf ${INSTALL_PATH}/opentenbase_bin_v5.0
+
+# 确保 configure 可执行；官方源码包中该文件已是 755，此步幂等
 chmod +x configure*
+
 # --disable-license 与 -DNOLIC 等价，二选一即可
+# 必须在源码根目录执行；各开关含义见下方「参数说明」表
 ./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v5.0 --enable-user-switch --with-libxml --disable-license --with-openssl --with-ossp-uuid CFLAGS="-g"
+
+# 清理上次编译的中间文件（.o 等），保证本次是全量重编
 make clean
+
+# -s 只打印警告和错误，-j 表示不限并行度（GNU make 会尽可能并发）
+# 机器核数多、内存小时可改为 make -sj4 之类的固定并发数，避免 OOM
 make -sj
+
+# 按 --prefix 指定的路径安装，生成 bin/、lib/、share/ 等目录
 make install
+
+# 编译并安装 contrib 模块（包含后续搭集群要用的 pgxc_ctl）
 chmod +x contrib/pgxc_ctl/make_signature
 cd contrib
 make -sj
 make install
 ```
+
+各参数说明如下，`${...}` 形式的占位符需替换为实际路径：
+
+| 参数或占位符 | 含义 | 说明 |
+|---|---|---|
+| `${SOURCECODE_PATH}` | 源码根目录 | 上方已 `export`，按实际路径修改 |
+| `${INSTALL_PATH}` | 安装根目录 | 上方已 `export`，值末尾保留 `/` |
+| `opentenbase_bin_v5.0` | 版本化安装子目录 | 可自定义，但需与后文 `PG_HOME` 保持一致 |
+| `--with-libxml` | 编译 XML 支持 | 依赖 `libxml2-devel` |
+| `--with-openssl` | 编译 OpenSSL 支持 | 依赖 `openssl-devel` |
+| `--with-ossp-uuid` | 等价于 `--with-uuid=ossp` | 依赖 `uuid-devel` |
+| `--disable-license` | 关闭 license 限制，编译时加 `-DNOLIC` | 与 `-DNOLIC` 二选一 |
+| `--enable-user-switch` | 编译时加 `-D_USER_SWITCH_` | 仅在编译器接受 `-g` 时生效，建议与 `CFLAGS="-g"` 一同保留 |
+| `CFLAGS="-g"` | 带调试符号编译 | 建议保留 |
 
 ## 安装
 使用 OPENTENBASE\_CTL 工具来搭建一个集群，例如：搭建一个具有1个全局事务管理节点(GTM)、1个协调器节点(COORDINATOR)以及2个数据节点(DATANODE)的集群。
