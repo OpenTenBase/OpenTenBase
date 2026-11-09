@@ -1,0 +1,98 @@
+<svg viewBox="0 0 680 460" width="100%" role="img">
+  <title>Operator Capability Comparison Matrix</title>
+  <desc>Comparison of 4 PG operators across key dimensions: CRD abstraction, Pod management, HA, backup, monitoring, and OpenTenBase compatibility</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5"
+      markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke"
+        stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <style>
+    .t { font-family: Inter, system-ui, sans-serif; font-size: 14px; fill: #2C2C2A; font-weight: 400 }
+    .th { font-family: Inter, system-ui, sans-serif; font-size: 14px; fill: #2C2C2A; font-weight: 500 }
+    .ts { font-family: Inter, system-ui, sans-serif; font-size: 12px; fill: #5F5E5A; font-weight: 400 }
+    .tl { font-family: Inter, system-ui, sans-serif; font-size: 13px; fill: #2C2C2A; font-weight: 500 }
+    .score-high { font-family: Inter, system-ui, sans-serif; font-size: 13px; fill: #1D9E75; font-weight: 500 }
+    .score-mid { font-family: Inter, system-ui, sans-serif; font-size: 13px; fill: #BA7517; font-weight: 500 }
+    .score-low { font-family: Inter, system-ui, sans-serif; font-size: 13px; fill: #E24B4A; font-weight: 500 }
+  </style>
+
+  <text class="tl" x="340" y="20" text-anchor="middle">Operator OpenTenBase compatibility assessment</text>
+
+  <rect x="40" y="40" width="600" height="420" rx="12" fill="#F1EFE8" stroke="#888780" stroke-width="0.5"/>
+
+  <text class="th" x="60" y="72" dominant-baseline="central">Dimension</text>
+  <text class="th" x="260" y="72" dominant-baseline="central">CNPG</text>
+  <text class="th" x="380" y="72" dominant-baseline="central">StackGres</text>
+  <text class="th" x="500" y="72" dominant-baseline="central">Crunchy</text>
+  <text class="th" x="620" y="72" dominant-baseline="central">Zalando</text>
+
+  <line x1="40" y1="80" x2="640" y2="80" stroke="#888780" stroke-width="0.5"/>
+
+  <text class="t" x="60" y="100" dominant-baseline="central">Multi-role Pod mgmt</text>
+  <text class="score-low" x="260" y="100" dominant-baseline="central">Low</text>
+  <text class="score-low" x="380" y="100" dominant-baseline="central">Low</text>
+  <text class="score-low" x="500" y="100" dominant-baseline="central">Low</text>
+  <text class="score-low" x="620" y="100" dominant-baseline="central">Low</text>
+
+  <text class="t" x="60" y="130" dominant-baseline="central">GTM-aware orchestration</text>
+  <text class="score-low" x="260" y="130" dominant-baseline="central">None</text>
+  <text class="score-low" x="380" y="130" dominant-baseline="central">None</text>
+  <text class="score-low" x="500" y="130" dominant-baseline="central">None</text>
+  <text class="score-low" x="620" y="130" dominant-baseline="central">None</text>
+
+  <text class="t" x="60" y="160" dominant-baseline="central">Ordered startup dep</text>
+  <text class="score-mid" x="260" y="160" dominant-baseline="central">Medium</text>
+  <text class="score-mid" x="380" y="160" dominant-baseline="central">Medium</text>
+  <text class="score-mid" x="500" y="160" dominant-baseline="central">Medium</text>
+  <text class="score-mid" x="620" y="160" dominant-baseline="central">Medium</text>
+
+  <text class="t" x="60" y="190" dominant-baseline="central">Node registration (ALTER)</text>
+  <text class="score-low" x="260" y="190" dominant-baseline="central">None</text>
+  <text class="score-low" x="380" y="190" dominant-baseline="central">None</text>
+  <text class="score-low" x="500" y="190" dominant-baseline="central">None</text>
+  <text class="score-low" x="620" y="190" dominant-baseline="central">None</text>
+
+  <text class="t" x="60" y="220" dominant-baseline="central">Shard rebalance (expand)</text>
+  <text class="score-low" x="260" y="220" dominant-baseline="central">None</text>
+  <text class="score-low" x="380" y="220" dominant-baseline="central">None</text>
+  <text class="score-low" x="500" y="220" dominant-baseline="central">None</text>
+  <text class="score-low" x="620" y="220" dominant-baseline="central">None</text>
+
+  <line x1="40" y1="240" x2="640" y2="240" stroke="#888780" stroke-width="0.5"/>
+
+  <text class="th" x="60" y="260" dominant-baseline="central" fill="#1D9E75">Reusable capabilities</text>
+
+  <text class="t" x="60" y="290" dominant-baseline="central">PVC + Storage mgmt</text>
+  <text class="score-high" x="260" y="290" dominant-baseline="central">High</text>
+  <text class="score-high" x="380" y="290" dominant-baseline="central">High</text>
+  <text class="score-high" x="500" y="290" dominant-baseline="central">High</text>
+  <text class="score-high" x="620" y="290" dominant-baseline="central">Medium</text>
+
+  <text class="t" x="60" y="320" dominant-baseline="central">Backup (WAL archiving)</text>
+  <text class="score-high" x="260" y="320" dominant-baseline="central">High</text>
+  <text class="score-high" x="380" y="320" dominant-baseline="central">High</text>
+  <text class="score-high" x="500" y="320" dominant-baseline="central">High</text>
+  <text class="score-mid" x="620" y="320" dominant-baseline="central">Medium</text>
+
+  <text class="t" x="60" y="350" dominant-baseline="central">Prometheus metrics</text>
+  <text class="score-high" x="260" y="350" dominant-baseline="central">High</text>
+  <text class="score-high" x="380" y="350" dominant-baseline="central">High</text>
+  <text class="score-high" x="500" y="350" dominant-baseline="central">High</text>
+  <text class="score-mid" x="620" y="350" dominant-baseline="central">Medium</text>
+
+  <text class="t" x="60" y="380" dominant-baseline="central">Service exposure</text>
+  <text class="score-high" x="260" y="380" dominant-baseline="central">High</text>
+  <text class="score-high" x="380" y="380" dominant-baseline="central">High</text>
+  <text class="score-high" x="500" y="380" dominant-baseline="central">High</text>
+  <text class="score-high" x="620" y="380" dominant-baseline="central">High</text>
+
+  <text class="t" x="60" y="410" dominant-baseline="central">Rolling minor upgrade</text>
+  <text class="score-high" x="260" y="410" dominant-baseline="central">High</text>
+  <text class="score-high" x="380" y="410" dominant-baseline="central">High</text>
+  <text class="score-high" x="500" y="410" dominant-baseline="central">High</text>
+  <text class="score-mid" x="620" y="410" dominant-baseline="central">Medium</text>
+
+  <text class="ts" x="340" y="448" text-anchor="middle">CNPG selected as baseline framework — highest reusable capability coverage</text>
+</svg>

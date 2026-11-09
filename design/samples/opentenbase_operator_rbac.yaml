@@ -1,0 +1,75 @@
+# OpenTenBase Operator RBAC 配置
+# K8s 1.28+ 要求 ServiceAccount + ClusterRole + ClusterRoleBinding
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opentenbase-operator
+  namespace: opentenbase-system
+  labels:
+    app.kubernetes.io/name: opentenbase-operator
+    app.kubernetes.io/managed-by: opentenbase
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: opentenbase-operator
+  labels:
+    app.kubernetes.io/name: opentenbase-operator
+rules:
+  # CRD 管理: 读写 OpenTenBaseCluster 自定义资源
+  - apiGroups: ["opentenbase.io"]
+    resources: ["opentenbaseclusters"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Status 子资源更新 (K8s 1.28+ subresource)
+  - apiGroups: ["opentenbase.io"]
+    resources: ["opentenbaseclusters/status"]
+    verbs: ["get", "update", "patch"]
+  # Finalizer 管理
+  - apiGroups: ["opentenbase.io"]
+    resources: ["opentenbaseclusters/finalizers"]
+    verbs: ["update"]
+  # Pod/StatefulSet 管理: Operator 创建和监控集群 Pod
+  - apiGroups: ["apps"]
+    resources: ["statefulsets", "deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "configmaps", "secrets", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Service 管理: 为 CN/DN/GTM 创建 ClusterIP/Headless Service
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Endpoint 管理: 监控 Service Endpoints 就绪状态
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch"]
+  # Event 记录: Operator 状态变更事件
+  - apiGroups: ["events.k8s.io"]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  # PDB 管理: 保护关键 Pod 不被驱逐
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opentenbase-operator
+  labels:
+    app.kubernetes.io/name: opentenbase-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: opentenbase-operator
+subjects:
+  - kind: ServiceAccount
+    name: opentenbase-operator
+    namespace: opentenbase-system

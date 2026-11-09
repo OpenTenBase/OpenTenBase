@@ -1,0 +1,255 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: opentenbaseclusters.opentenbase.io
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+spec:
+  group: opentenbase.io
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      # K8s 1.28+ requires subresources for status tracking
+      subresources:
+        status: {}
+      # Additional printer columns for kubectl get otbc
+      additionalPrinterColumns:
+        - name: Type
+          type: string
+          jsonPath: .spec.distributedType
+          description: "Cluster deployment mode"
+        - name: GTM
+          type: string
+          jsonPath: .status.gtmPhase
+          description: "GTM deployment phase"
+        - name: CN
+          type: integer
+          jsonPath: .spec.coordinators.replicas
+          description: "Coordinator replicas"
+        - name: DN
+          type: integer
+          jsonPath: .spec.datanodes.replicas
+          description: "DataNode replicas"
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+          description: "Cluster phase"
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required: ["distributedType"]
+              properties:
+                distributedType:
+                  type: string
+                  enum: ["distributed", "centralized"]
+                  description: "Cluster deployment mode"
+                image:
+                  type: string
+                  description: "OpenTenBase container image reference"
+                gtm:
+                  type: object
+                  required: ["master"]
+                  properties:
+                    master:
+                      type: object
+                      required: ["replicas"]
+                      properties:
+                        replicas:
+                          type: integer
+                          minimum: 1
+                          maximum: 1
+                        resources:
+                          type: object
+                          properties:
+                            requests:
+                              type: object
+                              properties:
+                                cpu: { type: string }
+                                memory: { type: string }
+                            limits:
+                              type: object
+                              properties:
+                                cpu: { type: string }
+                                memory: { type: string }
+                        storage:
+                          type: object
+                          properties:
+                            size: { type: string }
+                            storageClass: { type: string }
+                    standby:
+                      type: object
+                      properties:
+                        replicas:
+                          type: integer
+                          minimum: 0
+                          maximum: 1
+                        resources:
+                          type: object
+                          properties:
+                            requests:
+                              type: object
+                              properties:
+                                cpu: { type: string }
+                                memory: { type: string }
+                            limits:
+                              type: object
+                              properties:
+                                cpu: { type: string }
+                                memory: { type: string }
+                        storage:
+                          type: object
+                          properties:
+                            size: { type: string }
+                            storageClass: { type: string }
+                coordinators:
+                  type: object
+                  required: ["replicas"]
+                  properties:
+                    replicas:
+                      type: integer
+                      minimum: 1
+                      maximum: 10
+                    resources:
+                      type: object
+                      properties:
+                        requests:
+                          type: object
+                          properties:
+                            cpu: { type: string }
+                            memory: { type: string }
+                        limits:
+                          type: object
+                          properties:
+                            cpu: { type: string }
+                            memory: { type: string }
+                    storage:
+                      type: object
+                      properties:
+                        size: { type: string }
+                        storageClass: { type: string }
+                    pgbouncer:
+                      type: object
+                      properties:
+                        enabled: { type: boolean }
+                        replicas: { type: integer }
+                        poolMode:
+                          type: string
+                          enum: ["session", "transaction", "statement"]
+                datanodes:
+                  type: object
+                  required: ["replicas"]
+                  properties:
+                    replicas:
+                      type: integer
+                      minimum: 2
+                      maximum: 64
+                    resources:
+                      type: object
+                      properties:
+                        requests:
+                          type: object
+                          properties:
+                            cpu: { type: string }
+                            memory: { type: string }
+                        limits:
+                          type: object
+                          properties:
+                            cpu: { type: string }
+                            memory: { type: string }
+                    storage:
+                      type: object
+                      properties:
+                        size: { type: string }
+                        storageClass: { type: string }
+                    defaultDistribution:
+                      type: string
+                      enum: ["hash", "modulo", "shard", "replication"]
+                      description: "Default distribution type for new tables"
+                monitoring:
+                  type: object
+                  properties:
+                    enabled: { type: boolean }
+                    prometheus:
+                      type: object
+                      properties:
+                        exporterImage: { type: string }
+                backup:
+                  type: object
+                  properties:
+                    enabled: { type: boolean }
+                    walArchiving:
+                      type: object
+                      properties:
+                        enabled: { type: boolean }
+                        storage:
+                          type: object
+                          properties:
+                            type:
+                              type: string
+                              enum: ["s3", "minio", "local"]
+                            bucket: { type: string }
+                            endpoint: { type: string }
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Initializing", "GTMReady", "DNReady", "Running", "Failed", "Expanding"]
+                gtmPhase:
+                  type: string
+                  description: "Current GTM deployment phase"
+                cnPhase:
+                  type: string
+                  description: "Current Coordinator deployment phase"
+                dnPhase:
+                  type: string
+                  description: "Current DataNode deployment phase"
+                nodeStatus:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name: { type: string }
+                      role:
+                        type: string
+                        enum: ["gtm-master", "gtm-standby", "coordinator", "datanode"]
+                      podName: { type: string }
+                      status: { type: string }
+                      port: { type: integer }
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type: { type: string }
+                      status: { type: string }
+                      lastTransitionTime: { type: string }
+                      message: { type: string }
+                connectionInfo:
+                  type: object
+                  properties:
+                    host: { type: string }
+                    port: { type: integer }
+                    database: { type: string }
+                    user: { type: string }
+  scope: Namespaced
+  names:
+    plural: opentenbaseclusters
+    singular: opentenbasecluster
+    kind: OpenTenBaseCluster
+    shortNames:
+      - otbc
+    categories:
+      - database
+      - opentenbase
+  # K8s 1.28+ required for: status subresource, additionalPrinterColumns,
+  # CEL validation (future), and Gateway API integration (future)
+  conversion:
+    strategy: None
