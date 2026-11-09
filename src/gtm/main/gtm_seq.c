@@ -1696,6 +1696,10 @@ GTM_SeqReset(GTM_SequenceKey seqkey)
 		ereport(LOG,
 				(ERANGE,
 				 errmsg("GTM_SeqReset GTM_StoreResetSeq failed to alter sequence")));
+		/* release the just-acquired gs_lock and drop the reference before
+		 * returning, otherwise the sequence stays write-locked forever */
+		GTM_RWLockRelease(&seqinfo->gs_lock);
+		seq_release_seqinfo(seqinfo);
 		return ret;
 	}
 
@@ -1713,7 +1717,7 @@ GTM_SeqReset(GTM_SequenceKey seqkey)
 	}
 #endif
 
-	GTM_RWLockRelease(&gtm_bkup_lock);
+	GTM_RWLockRelease(&seqinfo->gs_lock);
 #ifdef __OPENTENBASE__
 	GTM_SetNeedBackup();
 #endif
