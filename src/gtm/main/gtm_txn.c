@@ -3229,6 +3229,17 @@ ProcessStartPreparedTransactionCommand(Port *myport, StringInfo message, bool is
 
 	/* get node string list */
 	nodelen = pq_getmsgint(message, sizeof (GTM_StrLen));
+	/*
+	 * nodelen 直接来自对端消息，而 nodestring 是栈上的固定大小数组。
+	 * 不做上下界检查时，超长的 nodelen 会让 memcpy 越过栈帧；nodelen 等于
+	 * 数组大小时，下面那行收尾时补 terminator 也多写一个字节；负数会让 memcpy 的长度
+	 * 变成巨大的 size_t。超限一律报错。
+	 */
+	if (nodelen < 0 || nodelen >= (int) sizeof(nodestring))
+		ereport(ERROR,
+				(EPROTO,
+				 errmsg("invalid node string length %d in transaction message", nodelen)));
+
 	memcpy(nodestring, (char *)pq_getmsgbytes(message, nodelen), nodelen);
 	nodestring[nodelen] = '\0';
 
@@ -3337,6 +3348,17 @@ ProcessLogTransactionCommand(Port *myport, StringInfo message, bool is_global, b
 
 	/* get node string list */
 	nodelen = pq_getmsgint(message, sizeof (GTM_StrLen));
+	/*
+	 * nodelen 直接来自对端消息，而 nodestring 是栈上的固定大小数组。
+	 * 不做上下界检查时，超长的 nodelen 会让 memcpy 越过栈帧；nodelen 等于
+	 * 数组大小时，下面那行收尾时补 terminator 也多写一个字节；负数会让 memcpy 的长度
+	 * 变成巨大的 size_t。超限一律报错。
+	 */
+	if (nodelen < 0 || nodelen >= (int) sizeof(nodestring))
+		ereport(ERROR,
+				(EPROTO,
+				 errmsg("invalid node string length %d in transaction message", nodelen)));
+
 	if(nodelen)
 		memcpy(nodestring, (char *)pq_getmsgbytes(message, nodelen), nodelen);
 	nodestring[nodelen] = '\0';
@@ -3440,6 +3462,17 @@ ProcessLogScanCommand(Port *myport, StringInfo message, bool is_backup)
 
 	/* get node string */
 	nodelen = pq_getmsgint(message, sizeof (GTM_StrLen));
+	/*
+	 * nodelen 直接来自对端消息，而 nodestring 是栈上的固定大小数组。
+	 * 不做上下界检查时，超长的 nodelen 会让 memcpy 越过栈帧；nodelen 等于
+	 * 数组大小时，下面那行收尾时补 terminator 也多写一个字节；负数会让 memcpy 的长度
+	 * 变成巨大的 size_t。超限一律报错。
+	 */
+	if (nodelen < 0 || nodelen >= (int) sizeof(nodestring))
+		ereport(ERROR,
+				(EPROTO,
+				 errmsg("invalid node string length %d in transaction message", nodelen)));
+
 	memcpy(nodestring, (char *)pq_getmsgbytes(message, nodelen), nodelen);
 	nodestring[nodelen] = '\0';
 	
