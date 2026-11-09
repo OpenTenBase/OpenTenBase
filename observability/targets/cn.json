@@ -1,0 +1,6 @@
+[
+  {
+    "targets": ["CN_HOST:CN_PORT"],
+    "labels": { "instance_role": "primary_coordinator", "datacenter": "zone-a" }
+  }
+]
