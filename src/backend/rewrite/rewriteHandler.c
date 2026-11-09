@@ -3224,6 +3224,13 @@ rewriteTargetSubquery(Query *parsetree, Query *subquery, Relation view)
 	Assert(parsetree->resultRelation == new_rt_index);
 
 	/*
+	 * The outer query was rewritten above, which can rebuild the range table,
+	 * so new_rte can be stale.  Re-fetch it: it is the target relation used to
+	 * check the updated columns below.
+	 */
+	new_rte = rt_fetch(new_rt_index, parsetree->rtable);
+
+	/*
 	 * For INSERT/UPDATE/MERGE we must also update resnos in the targetlist to refer
 	 * to columns of the base relation, since those indicate the target
 	 * columns to be affected.
@@ -3251,7 +3258,8 @@ rewriteTargetSubquery(Query *parsetree, Query *subquery, Relation view)
 			/* check if update cols are legal*/
 			if (IS_PGXC_COORDINATOR && parsetree->commandType == CMD_UPDATE)
 			{
-				checkUpdateColValid(tle, tle->resno, base_rel, parsetree->rtable);
+				checkUpdateColValid(tle, tle->resno, base_rel, parsetree->rtable,
+									new_rte);
 			}
 		}
 	}
@@ -3284,7 +3292,8 @@ rewriteTargetSubquery(Query *parsetree, Query *subquery, Relation view)
 					if (IS_PGXC_COORDINATOR && action->commandType == CMD_UPDATE &&
 					    base_rte->rtekind == RTE_RELATION)
 					{
-						checkUpdateColValid(tle, tle->resno, base_rel, parsetree->rtable);
+						checkUpdateColValid(tle, tle->resno, base_rel, parsetree->rtable,
+											new_rte);
 					}
 				}
 			}
@@ -3385,7 +3394,8 @@ rewriteTargetSubquery(Query *parsetree, Query *subquery, Relation view)
 			foreach (lc, parsetree->onConflict->onConflictSet)
 			{
 				TargetEntry *tle = (TargetEntry *) lfirst(lc);
-				checkUpdateColValid(tle, tle->resno, base_rel, parsetree->rtable);
+				checkUpdateColValid(tle, tle->resno, base_rel, parsetree->rtable,
+									new_rte);
 			}
 		}
 	}

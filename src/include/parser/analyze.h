@@ -69,7 +69,7 @@ extern void fixResTargetNameWithTableNameRef(Relation rd, RangeVar* rel, ResTarg
 extern void fixResTargetListWithTableNameRef(Relation rd, RangeVar* rel, List* clause_list);
 
 extern void checkUpdateColValid(TargetEntry *tle, AttrNumber updateAttrno, Relation targetRel,
-								List *rtables);
+								List *rtables, RangeTblEntry *targetRte);
 #endif
 
 #endif							/* ANALYZE_H */

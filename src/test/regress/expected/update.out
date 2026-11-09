@@ -1571,6 +1571,102 @@ INSERT INTO t1(c0, c1) VALUES(TRUE, FALSE);
 UPDATE t1 SET c1=(t1.c0);
 ERROR:  Distributed column "c1" can't be updated in current version
 drop table t1;
+--
+-- Associated UPDATE tests.
+--
+-- An "associated update" takes its new values from another relation, either
+-- through a FROM clause or through a correlated subquery.  Updating a
+-- distribution column is not supported, because the modified row would have
+-- to move to another data node; checkUpdateColValid() compares the referenced
+-- RangeTblEntry with the target one, so a second reference to the very same
+-- relation (for example the target table joined again under a different
+-- alias) can not be used to bypass the check.
+--
+CREATE TABLE assoc_upd_dst (id int, val int, txt text) DISTRIBUTE BY REPLICATION;
+CREATE TABLE assoc_upd_src (id int, val int, txt text) DISTRIBUTE BY REPLICATION;
+INSERT INTO assoc_upd_dst VALUES (1, 10, 'one'), (2, 20, 'two'), (3, 30, 'three');
+INSERT INTO assoc_upd_src VALUES (1, 100, 'ONE'), (3, 300, 'THREE');
+-- every matching row gets the values of the source relation
+UPDATE assoc_upd_dst d SET val = s.val, txt = s.txt FROM assoc_upd_src s
+    WHERE d.id = s.id;
+copy (select id, val, txt from assoc_upd_dst order by id) to stdout;
+1	100	ONE
+2	20	two
+3	300	THREE
+-- repeating the same associated update is a no-op
+UPDATE assoc_upd_dst d SET val = s.val, txt = s.txt FROM assoc_upd_src s
+    WHERE d.id = s.id;
+copy (select id, val, txt from assoc_upd_dst order by id) to stdout;
+1	100	ONE
+2	20	two
+3	300	THREE
+-- multi-column SET from a VALUES relation; only the matching row is touched
+UPDATE assoc_upd_dst d SET (val, txt) = (v.val, v.txt)
+    FROM (VALUES (2, 200, 'TWO')) AS v(id, val, txt)
+    WHERE d.id = v.id;
+copy (select id, val, txt from assoc_upd_dst order by id) to stdout;
+1	100	ONE
+2	200	TWO
+3	300	THREE
+-- correlated subquery source; rows without a match keep their old values
+UPDATE assoc_upd_dst d SET txt = (SELECT s.txt FROM assoc_upd_src s
+    WHERE s.id = d.id)
+    WHERE EXISTS (SELECT 1 FROM assoc_upd_src s WHERE s.id = d.id);
+copy (select id, val, txt from assoc_upd_dst order by id) to stdout;
+1	100	ONE
+2	200	TWO
+3	300	THREE
+-- the source may be another row of the target relation itself, as long as the
+-- distribution column is not modified
+UPDATE assoc_upd_dst d SET txt = o.txt FROM assoc_upd_dst o
+    WHERE d.id = o.id + 1;
+copy (select id, val, txt from assoc_upd_dst order by id) to stdout;
+1	100	ONE
+2	200	ONE
+3	300	TWO
+-- an associated update of a sharded table is supported when the join is on
+-- the distribution column and the distribution column itself is not modified
+CREATE TABLE assoc_upd_dist (id int, val int) DISTRIBUTE BY SHARD(id);
+CREATE TABLE assoc_upd_seed (id int, val int) DISTRIBUTE BY SHARD(id);
+INSERT INTO assoc_upd_dist VALUES (1, 10), (2, 20), (3, 30);
+INSERT INTO assoc_upd_seed VALUES (1, 110), (2, 220), (3, 330);
+UPDATE assoc_upd_dist d SET val = s.val FROM assoc_upd_seed s WHERE d.id = s.id;
+copy (select id, val from assoc_upd_dist order by id) to stdout;
+1	110
+2	220
+3	330
+-- the distribution column can not be updated:
+-- from another relation
+UPDATE assoc_upd_dist d SET id = s.id FROM assoc_upd_seed s WHERE d.id = s.id;
+ERROR:  Distributed column "id" can't be updated in current version
+-- from a correlated subquery
+UPDATE assoc_upd_dist d SET id = (SELECT s.id FROM assoc_upd_seed s WHERE s.id = d.id);
+ERROR:  Distributed column "id" can't be updated in current version
+-- computed from the value of the row itself
+UPDATE assoc_upd_dist d SET id = id + 1;
+ERROR:  Distributed column "id" can't be updated in current version
+-- from a multi-column associated update
+UPDATE assoc_upd_dist d SET (id, val) = (o.id, o.val) FROM assoc_upd_dist o
+    WHERE d.id = o.id + 1;
+ERROR:  Distributed column "id" can't be updated in current version
+-- from another alias of the very same relation
+UPDATE assoc_upd_dist d SET id = o.id FROM assoc_upd_dist o WHERE d.id = o.id + 1;
+ERROR:  Distributed column "id" can't be updated in current version
+UPDATE assoc_upd_dist SET id = o.id FROM assoc_upd_dist o
+    WHERE assoc_upd_dist.id = o.id + 1;
+ERROR:  Distributed column "id" can't be updated in current version
+-- reading the distribution column is fine as long as it is not the target
+UPDATE assoc_upd_dist d SET val = d.id * 100 WHERE d.id = 2;
+-- a self assignment of the distribution column is a no-op and stays allowed
+UPDATE assoc_upd_dist d SET id = d.id, val = d.val WHERE d.id = 1;
+copy (select id, val from assoc_upd_dist order by id) to stdout;
+1	110
+2	200
+3	330
+DROP TABLE assoc_upd_dst;
+DROP TABLE assoc_upd_src;
+DROP TABLE assoc_upd_dist;
+DROP TABLE assoc_upd_seed;
 CREATE TABLE numeric_t1 (
     c0 int,
     c1 int,
