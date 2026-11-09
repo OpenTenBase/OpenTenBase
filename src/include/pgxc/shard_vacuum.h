@@ -15,7 +15,7 @@ extern int64 vacuum_shard_internal(Relation rel, Bitmapset *to_vacuum, Snapshot 
 
 extern int64 vacuum_shard(Relation rel, Bitmapset *to_vacuum, Snapshot vacuum_snapshot, bool to_delete);
 
-#define VACUUM_SHARD_SLEEP_INTERVAL_DEFALUT 20  /*10ms sleep after delete 300 tuples*/
+#define VACUUM_SHARD_SLEEP_INTERVAL_DEFALUT 20  /* sleep sleep_interval ms after every 2000 deleted tuples, default 20ms */
 
 extern Datum vacuum_hidden_shards(PG_FUNCTION_ARGS);
 
