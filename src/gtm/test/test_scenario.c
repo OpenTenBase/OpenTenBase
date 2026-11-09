@@ -42,7 +42,8 @@ test01()
 
 	setUp();
 
-	node_get_local_addr(conn, host, sizeof(host));
+	node_get_local_addr(conn, host, sizeof(host), &rc);
+	_ASSERT(rc == 0);
 
 	/*
 	 * starting

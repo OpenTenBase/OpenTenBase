@@ -39,12 +39,13 @@ test01()
 
 	SETUP();
 
-	node_get_local_addr(conn, host, sizeof(host));
+	node_get_local_addr(conn, host, sizeof(host), &rc);
+	_ASSERT(rc == 0);
 
 	rc = node_register_internal(conn, GTM_NODE_GTM, host, 6667, "One zero One", "/tmp/pgxc/data/gtm_standby", NODE_DISCONNECTED);
 	_ASSERT(rc == 0);
 
-	rc = node_unregister(conn, GTM_NODE_GTM, "One zero one");
+	rc = node_unregister(conn, GTM_NODE_GTM, "One zero One");
 	_ASSERT(rc == 0);
 
 	TEARDOWN();
@@ -58,7 +59,8 @@ test02()
 
 	SETUP();
 
-	node_get_local_addr(conn, host, sizeof(host));
+	node_get_local_addr(conn, host, sizeof(host), &rc);
+	_ASSERT(rc == 0);
 
 	/*
 	 * If a node already registered as a "DISCONNECTED" node,
@@ -82,7 +84,7 @@ test03()
 
 	SETUP();
 
-	rc = node_unregister(conn, GTM_NODE_GTM, "One zero one");
+	rc = node_unregister(conn, GTM_NODE_GTM, "One zero One");
 	_ASSERT( rc==0 );
 
 	TEARDOWN();
@@ -95,7 +97,7 @@ test04()
 
 	SETUP();
 
-	rc = node_unregister(conn, GTM_NODE_GTM, "One zero one");
+	rc = node_unregister(conn, GTM_NODE_GTM, "One zero One");
 	_ASSERT( rc!=0 );
 
 	TEARDOWN();
