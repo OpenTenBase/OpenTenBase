@@ -1,0 +1,15 @@
+# pg_graph_search — 属性图搜索扩展（元函数驱动）
+#
+# OpenTenBase 适配说明：
+#   * sql_mode = 'all'：OpenTenBase 的 check_extension_in_right_mode() 要求
+#     control 里的 sql_mode 为 'all'，或与当前 SQL 模式匹配。缺省值是
+#     'postgresql'（见 src/backend/commands/extension.c 的 DEFAULT_EXT_SQL_MODE），
+#     那样在 opentenbase_ora 兼容模式下无法 CREATE EXTENSION。
+#   * schema = 'graph_search'：扩展自带 schema，元函数与注册表都在这里。
+#   * relocatable = false：生成对象统一用 schema 限定名，不依赖 search_path
+#     （CN 与 DN 的 search_path 可能不同，这一点在分布式下很重要）。
+comment = 'Property-graph search for OpenTenBase: a meta-function that generates concrete, parameterized graph search functions for any edge table'
+default_version = '1.0.0'
+relocatable = false
+schema = 'graph_search'
+sql_mode = 'all'

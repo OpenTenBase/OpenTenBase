@@ -1,0 +1,9 @@
+# 可移植版构建产物（本地/CI 用原生 PostgreSQL 验证时生成，不入库）
+pg_graph_search--*-portable.sql
+pg_graph_search-portable.control
+
+# pg_regress 输出
+test/results/
+test/regression.diffs
+test/regression.out
+test/log/
