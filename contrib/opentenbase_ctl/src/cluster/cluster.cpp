@@ -612,21 +612,21 @@ int install_node(NodeInfo* node, OpentenbaseConfig* install) {
 int init_and_start_slave_gtm(NodeInfo* node, OpentenbaseConfig* install) {
 
     //  Step 1: initDB
-    LOG_INFO_FMT("Step %d/%d: InitDB for node %s", 1, 6, node->name.c_str());
+    LOG_INFO_FMT("Step %d/%d: InitDB for node %s", 1, 3, node->name.c_str());
     if (init_master_node(node, install) != 0) {
         LOG_ERROR_FMT("Failed to init slave node %s in %s", node->name.c_str(), node->ip.c_str());
         return -1;
     }
     
     // Step 2: Configure PostgreSQL
-    LOG_INFO_FMT("Step %d/%d: Configuring PostgreSQL for node %s", 2, 6, node->name.c_str());
+    LOG_INFO_FMT("Step %d/%d: Configuring PostgreSQL for node %s", 2, 3, node->name.c_str());
     if (configure_postgresql_for_mpp(node, install) != 0) {
         LOG_ERROR_FMT("Failed to configure PostgreSQL");
         return -1;
     }
 
     // Step 3: Start node
-    LOG_INFO_FMT("Step %d/%d: Starting node %s", 3, 6, node->name.c_str());
+    LOG_INFO_FMT("Step %d/%d: Starting node %s", 3, 3, node->name.c_str());
     if (start_node(node, install) != 0) {
         LOG_ERROR_FMT("Failed to start node");
         return -1;
@@ -699,21 +699,21 @@ int init_and_start_master_node(NodeInfo* node, OpentenbaseConfig* install) {
 int redo_and_start_slave_node(NodeInfo* node, OpentenbaseConfig* config) {
 
     //  Step 1: initDB
-    LOG_INFO_FMT("Step %d/%d: InitDB for slave  node %s", 1, 6, node->name.c_str());
+    LOG_INFO_FMT("Step %d/%d: InitDB for slave  node %s", 1, 3, node->name.c_str());
     if (redo_slave_node(node, config) != 0) {
         LOG_ERROR_FMT("Failed to init slave node %s in %s", node->name.c_str(), node->ip.c_str());
         return -1;
     }
     
     // Step 2: Configure PostgreSQL
-    LOG_INFO_FMT("Step %d/%d: Configuring PostgreSQL for slave node %s", 2, 6, node->name.c_str());
+    LOG_INFO_FMT("Step %d/%d: Configuring PostgreSQL for slave node %s", 2, 3, node->name.c_str());
     if (configure_postgresql_for_mpp(node, config) != 0) {
         LOG_ERROR_FMT("Failed to configure PostgreSQL");
         return -1;
     }
 
     // Step 3: Start node
-    LOG_INFO_FMT("Step %d/%d: Starting node %s", 3, 6, node->name.c_str());
+    LOG_INFO_FMT("Step %d/%d: Starting node %s", 3, 3, node->name.c_str());
     if (start_node(node, config) != 0) {
         LOG_ERROR_FMT("Failed to start node");
         return -1;
