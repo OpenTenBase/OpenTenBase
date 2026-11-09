@@ -22,6 +22,8 @@ OpenTenBase具有许多类似于PostgreSQL的语言接口，其中的一些可�
 
 	https://www.opentenbase.org/
 
+图解卡片：[分布式 JOIN 中的数据重分布](doc/concepts/join-redistribution.zh-CN.md)。
+
 ## 构建
 ### 系统要求
 
