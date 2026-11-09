@@ -515,33 +515,42 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
 	}
 
 #ifdef PGXC
-	if (!(slot->tts_datarow && slot->tts_tupleDescriptor->cn_penetrate_tuple))
-	{
-		/* Set or update my derived attribute info, if needed */
-		if (myState->attrinfo != typeinfo || myState->nattrs != natts)
-			printtup_prepare_info(myState, typeinfo, natts);
+	/*
+	 * 在判断是否可以直接转发 DataRow 之前，
+	 * 必须先初始化各列的格式信息，以确保能够正确识别
+	 * 客户端请求的文本格式或二进制格式。
+	 */
+	/* Set or update my derived attribute info, if needed */
+	if (myState->attrinfo != typeinfo || myState->nattrs != natts)
+		printtup_prepare_info(myState, typeinfo, natts);
 
-		/*
-		 * The datanodes would have sent all attributes in TEXT form. But
-		 * if the client has asked for any attribute to be sent in a binary format,
-		 * then we must decode the datarow and send every attribute in the format
-		 * that the client has asked for. Otherwise its ok to just forward the
-		 * datarow as it is
-		 */
-		for (i = 0; i < natts; ++i)
-		{
-			PrinttupAttrInfo *thisState = myState->myinfo + i;
-			if (thisState->format != 0)
-				binary = true;
-		}
+	/*
+	 * The datanodes would have sent all attributes in TEXT form. But
+	 * if the client has asked for any attribute to be sent in a binary format,
+	 * then we must decode the datarow and send every attribute in the format
+	 * that the client has asked for. Otherwise its ok to just forward the
+	 * datarow as it is.
+	 */
+	for (i = 0; i < natts; ++i)
+	{
+		PrinttupAttrInfo *thisState = myState->myinfo + i;
+		if (thisState->format != 0)
+			binary = true;
 	}
 
 	/*
+	 * 只有当客户端请求的所有结果列均为文本格式时，
+	 * 才允许直接转发原始 DataRow。
+	 *
+	 * 如果客户端请求二进制格式，则必须经过解码和重新编码，
+	 * 避免将 DN 返回的文本数据直接发送给期望二进制数据的客户端。
+	 */
+	/*
 	 * If we are having DataRow-based tuple we do not have to encode attribute
 	 * values, just send over the DataRow message as we received it from the
-	 * Datanode
+	 * Datanode.  This is only safe when the frontend asked for text output.
 	 */
-	if (slot->tts_datarow && (!binary || slot->tts_tupleDescriptor->cn_penetrate_tuple) && slot->tts_tupleDescriptor->natts > 0)
+	if (slot->tts_datarow && !binary && slot->tts_tupleDescriptor->natts > 0)
 	{
 		pq_putmessage(message_type, slot->tts_datarow->msg, slot->tts_datarow->msglen);
 #ifdef __OPENTENBASE_C__
