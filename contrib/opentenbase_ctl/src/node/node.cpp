@@ -1858,4 +1858,27 @@ void updateConfigItems(
         }
         // 如果 guc_cfg 中不存在该键，则保持原值不变
     }
+
+    /*
+     * 上面这一轮只覆盖了预设列表里已有的键，guc_cfg 中新增的 GUC 从来没有被写
+     * 出去。配置文件的 cn/dn 段是通用的 key=value，用户可以写任意 GUC，所以
+     * max_connections、shared_buffers 这类不在预设列表里的项会被静默丢掉。
+     * 这里把没有出现过的键追加进去。
+     */
+    for (const auto& kv : guc_cfg) {
+        bool present = false;
+        for (const auto& item : config_items) {
+            if (item.first == kv.first) {
+                present = true;
+                break;
+            }
+        }
+        if (!present) {
+            std::string new_value = kv.second;
+            if (new_value.find('\"') != std::string::npos) {
+                new_value = escapeQuotes(new_value);
+            }
+            config_items.emplace_back(kv.first, new_value);
+        }
+    }
 }
