@@ -294,6 +294,14 @@ PgxcGroupCreate(CreateGroupStmt *stmt)
 			                errmsg("A group \"%s\" already exists, Multi-group is not supported "
 			                       "when experiment_feature is not enabled",
 			                       NameStr(group->group_name))));
+		/* hoisted out of the member loops: an empty existing group
+		 * (e.g. the default group after its last node was dropped) would
+		 * otherwise never set the flag and a second default group slips in */
+		if (group->default_group)
+		{
+			have_default = true;
+		}
+
 		for (i = 0; i < group->group_members.dim1; i++)
 		{
 			for (j = 0; j < member_count; j++)
@@ -305,11 +313,6 @@ PgxcGroupCreate(CreateGroupStmt *stmt)
 							 errmsg("PGXC node:%u already in group:%s",
 									inTypes[j], NameStr(group->group_name))));
 				}
-
-                if (group->default_group)
-                {
-                    have_default = true;
-                }
 			}			
 		}
 	}
