@@ -570,17 +570,20 @@ do_start(void)
 		exit(1);
 	}
 
-	if (old_pid != 0)
+	/*
+	 * 启动之后总是确认一次结果。原来整段被 old_pid != 0 挡住，于是全新启动
+	 * （old_pid 为 0）和重启（RESTART 时 old_pid 不读取，一直是 0）都不做
+	 * 校验，起不来也照样报成功。pid 仍为 0 表示没有 pid 文件，即没起来；
+	 * pid 与 old_pid 相同表示还是原来那个进程。
+	 */
+	sleep(1);
+	pid = get_pgpid();
+	if (pid == 0 || pid == old_pid)
 	{
-		sleep(1);
-		pid = get_pgpid();
-		if (pid == old_pid)
-		{
-			write_stderr(_("%s: could not start server\n"
-						   "Examine the log output.\n"),
-						 progname);
-			exit(1);
-		}
+		write_stderr(_("%s: could not start server\n"
+					   "Examine the log output.\n"),
+					 progname);
+		exit(1);
 	}
 
 	if (do_wait)
