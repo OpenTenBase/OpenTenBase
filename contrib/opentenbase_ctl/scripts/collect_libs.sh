@@ -27,7 +27,12 @@ mkdir -p $LIB_DIR
 
 # 获取所有依赖的库
 echo -e "${YELLOW}Collecting library dependencies...${NC}"
-LIBS=$(ldd $BINARY_PATH | grep -v "linux-vdso.so.1" | awk '{print $3}' | grep -v "not found")
+if ldd "$BINARY_PATH" | grep -q "=> not found"; then
+    echo -e "${RED}Error: $BINARY_PATH has unresolved shared libraries:${NC}"
+    ldd "$BINARY_PATH" | grep "=> not found"
+    exit 1
+fi
+LIBS=$(ldd "$BINARY_PATH" | grep -v "linux-vdso.so.1" | awk '{print $3}')
 
 # 复制库文件
 for lib in $LIBS; do
@@ -47,7 +52,7 @@ echo "$(pwd)/$LIB_DIR" > $LIB_DIR/ld.so.conf
 echo -e "${YELLOW}Creating package script...${NC}"
 cat > $LIB_DIR/package.sh << 'EOF'
 #!/bin/bash
-tar -czf libs.tar.gz *
+tar -czf libs.tar.gz * || exit $?
 echo "Libraries have been packaged into libs.tar.gz"
 EOF
 
