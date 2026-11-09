@@ -257,8 +257,18 @@ std::string build_sql_cmd_for_psql(const std::string& binDir,
     const std::string& psql_option, 
     const std::string& sql) {
 
+    /*
+     * 用调用方传进来的 username。原来是写死 Constants::DEFAULT_USER_OF_INITDB，
+     * 两个调用点传的都是 configInfo->sql.user_name，也就是说配置里的用户名
+     * 从没生效过，psql 永远以 opentenbase 身份连接。username 为空时仍退回默认
+     * 用户，保持原来的行为。
+     */
+    const std::string conn_user = username.empty()
+        ? std::string(Constants::DEFAULT_USER_OF_INITDB)
+        : username;
+
     // psql connection
-    std::string conn_str = "psql -h " + ip + " -p " + std::to_string(port) + " -d " + database + " -U " + std::string(Constants::DEFAULT_USER_OF_INITDB) + psql_option;
+    std::string conn_str = "psql -h " + ip + " -p " + std::to_string(port) + " -d " + database + " -U " + conn_user + psql_option;
 
     // sql command
     std::string psql_cmd;
