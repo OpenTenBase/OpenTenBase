@@ -1,0 +1,95 @@
+# OpenHarmony 端接入 OpenTenBase 示例
+
+本文档为社区贡献示例，基于 OpenTenBase 兼容 PostgreSQL 通信协议的特性，提供 OpenHarmony 标准系统（API 9+）下的接入参考。
+官方暂未提供 OpenHarmony 原生 SDK，示例以 **HTTP 代理接入** 为推荐方案，同时给出 TCP 直连的封装思路。
+
+## 适用场景
+- OpenHarmony 标准系统设备（平板、智慧屏、工业终端等）
+- 物联网设备数据上报、边缘侧数据查询场景
+
+## 前置条件
+1. 已部署 OpenTenBase 集群，CN 节点与端侧网络互通
+2. 已搭建业务服务端（Java / Python / Go 均可），封装数据库操作接口
+3. OpenHarmony 开发环境 DevEco Studio，API 版本 9 及以上
+
+## 推荐方案：HTTP 代理方式接入
+端侧不直接连接数据库，通过 HTTP 请求调用业务服务端接口，由服务端统一执行 SQL 并返回结果，安全性与兼容性最佳。
+
+### 端侧 ArkTS 示例代码
+```typescript
+// 导入系统原生网络模块
+import http from '@ohos.net.http';
+import promptAction from '@ohos.promptAction';
+
+// ========== 需要替换为你的实际配置 ==========
+const SERVER_BASE_URL = 'http://你的服务端IP:端口';
+const QUERY_DATA_API = `${SERVER_BASE_URL}/api/device/data`;
+const REPORT_DATA_API = `${SERVER_BASE_URL}/api/device/report`;
+// ===========================================
+
+/**
+ * 示例：从 OpenTenBase 查询设备历史数据
+ * @param deviceId 设备唯一标识
+ */
+export async function queryDeviceData(deviceId: string) {
+  try {
+    const httpRequest = http.createHttp();
+    const response = await httpRequest.request(
+      `${QUERY_DATA_API}?deviceId=${deviceId}`,
+      {
+        method: http.RequestMethod.GET,
+        header: {
+          'Content-Type': 'application/json'
+        },
+        connectTimeout: 10000,
+        readTimeout: 10000
+      }
+    );
+
+    if (response.responseCode === 200) {
+      const result = JSON.parse(response.result as string);
+      console.info('数据查询成功:', JSON.stringify(result.data));
+      return result.data;
+    } else {
+      console.error('请求失败，状态码:', response.responseCode);
+      promptAction.showToast({ message: '数据查询失败' });
+      return null;
+    }
+  } catch (err) {
+    console.error('请求异常:', JSON.stringify(err));
+    promptAction.showToast({ message: '网络异常，请检查网络连接' });
+    return null;
+  }
+}
+
+/**
+ * 示例：上报设备状态数据到 OpenTenBase
+ * @param data 设备上报的状态数据
+ */
+export async function reportDeviceData(data: {
+  deviceId: string;
+  temperature: number;
+  status: string;
+  timestamp: number;
+}) {
+  try {
+    const httpRequest = http.createHttp();
+    const response = await httpRequest.request(
+      REPORT_DATA_API,
+      {
+        method: http.RequestMethod.POST,
+        header: {
+          'Content-Type': 'application/json'
+        },
+        extraData: JSON.stringify(data),
+        connectTimeout: 10000,
+        readTimeout: 10000
+      }
+    );
+
+    return response.responseCode === 200;
+  } catch (err) {
+    console.error('数据上报异常:', JSON.stringify(err));
+    return false;
+  }
+}
