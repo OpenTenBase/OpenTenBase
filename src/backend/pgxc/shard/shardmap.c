@@ -1138,6 +1138,17 @@ static Size ShardMapShmemSize_Node_DN(void)
 	/* non extension router info */
 	size = add_size(size, mul_size(MAXALIGN64(sizeof(ShardMapItemDef)), SHARD_MAP_SHARD_NUM));
 
+/* Fold a uint32 hash into a non-negative int without abs(): abs(INT_MIN)
+ * is undefined behavior and a signed % of a negative value yields a negative
+ * shard index (an out-of-bounds shmemshardmap read). Mirrors abs() for every
+ * other input value. */
+static inline int
+GTM_FOLD_HASH(uint32 hashvalue)
+{
+	return (hashvalue <= 0x7fffffff) ? (int) hashvalue :
+		   (int) (0xffffffff - hashvalue + 1);
+}
+
 	/* shardmap bitmap info. Only used in datanode */
 	size = add_size(size, MAXALIGN64(SHARD_TABLE_BITMAP_SIZE));	
 
@@ -1154,7 +1165,7 @@ int32 GetNodeIndexByHashValue(Oid group, uint32 hashvalue)
 	if (likely(IS_PGXC_DATANODE && !g_GroupShardingMgr_DN->needLock &&
 			   g_GroupShardingMgr_DN->members->group == group))
 	{
-		shardIdx     = abs((int)hashvalue) % (g_GroupShardingMgr_DN->members->shmemNumShards);
+		shardIdx     = GTM_FOLD_HASH(hashvalue) % (g_GroupShardingMgr_DN->members->shmemNumShards);
 		shardgroup   = &g_GroupShardingMgr_DN->members->shmemshardmap[shardIdx];
 		nodeIdx      = shardgroup->nodeindex;
 	}
@@ -1179,7 +1190,7 @@ int32 GetNodeIndexByHashValue(Oid group, uint32 hashvalue)
 
 		slot = ent->shardIndex;
 
-		shardIdx     = abs((int)hashvalue) % (g_GroupShardingMgr->members[slot]->shmemNumShards);
+		shardIdx     = GTM_FOLD_HASH(hashvalue) % (g_GroupShardingMgr->members[slot]->shmemNumShards);
 		shardgroup   = &g_GroupShardingMgr->members[slot]->shmemshardmap[shardIdx];
 		nodeIdx      = shardgroup->nodeindex;
 
@@ -1259,7 +1270,7 @@ int16 GetNodeShardClusterByHashValue(uint32 hashvalue)
 		LWLockAcquire(ShardMapLock, LW_SHARED);
 	}
 
-	shardIdx        = abs((int)hashvalue) % (g_GroupShardingMgr_DN->members->shmemNumShards);
+	shardIdx        = GTM_FOLD_HASH(hashvalue) % (g_GroupShardingMgr_DN->members->shmemNumShards);
 	shardgroup      = &g_GroupShardingMgr_DN->members->shmemshardmap[shardIdx];
 	shardClusterIdx = shardgroup->shardclusterid;
 
