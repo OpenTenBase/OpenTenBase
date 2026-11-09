@@ -1811,9 +1811,17 @@ ProcessSequenceInitCommand(Port *myport, StringInfo message, bool is_backup)
 							  cycle, gxid, nocache, is_order);
 	if (errcode)
 	{
-		ereport(ERROR,
-				(errcode,
-				 errmsg("Failed to create new sequence:%s for:%s", seqkey.gsk_key,strerror(errcode))));
+		/* EEXIST deserves its own message: "File exists" is a strerror
+		 * artifact that hides the actual conflict */
+		if (errcode == EEXIST)
+			ereport(ERROR,
+					(errcode,
+					 errmsg("sequence \"%s\" already exists", seqkey.gsk_key)));
+		else
+			ereport(ERROR,
+					(errcode,
+					 errmsg("failed to create sequence \"%s\": %s",
+							seqkey.gsk_key, strerror(errcode))));
 	}
 
 	MemoryContextSwitchTo(oldContext);
