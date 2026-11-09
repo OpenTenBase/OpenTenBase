@@ -271,31 +271,34 @@ items(PG_FUNCTION_ARGS, int log_level, bool with_data, bool only_id)
 			values[12] = UInt8GetDatum(tuphdr->t_hoff);
 #endif
 
-			if (with_data)
-			{
-				/* Copy raw tuple data into bytea attribute */
-				tuple_data_len = lp_len - tuphdr->t_hoff;
-				tuple_data_bytea = (bytea *)palloc(tuple_data_len + VARHDRSZ);
-				SET_VARSIZE(tuple_data_bytea, tuple_data_len + VARHDRSZ);
-				memcpy(VARDATA(tuple_data_bytea), (char *)tuphdr + tuphdr->t_hoff,
-					   tuple_data_len);
-				values[16] = PointerGetDatum(tuple_data_bytea);
-			}
-			else
-			{
-				nulls[16] = true;
-			}
-
 			/*
 			 * We already checked that the item is completely within the raw
 			 * page passed to us, with the length given in the line pointer.
-			 * Let's check that t_hoff doesn't point over lp_len, before using
-			 * it to access t_bits and oid.
+			 * Now check t_hoff before using it, and in particular before the
+			 * tuple data copy below: lp_len - t_hoff is computed in unsigned
+			 * arithmetic, so t_hoff > lp_len wraps to a huge value, becomes a
+			 * negative int, and palloc then reports a nonsensical allocation
+			 * request instead of rejecting the corrupt tuple.
 			 */
 			if (tuphdr->t_hoff >= SizeofHeapTupleHeader &&
 				tuphdr->t_hoff <= lp_len &&
 				tuphdr->t_hoff == MAXALIGN(tuphdr->t_hoff))
 			{
+				if (with_data)
+				{
+					/* Copy raw tuple data into bytea attribute */
+					tuple_data_len = lp_len - tuphdr->t_hoff;
+					tuple_data_bytea = (bytea *)palloc(tuple_data_len + VARHDRSZ);
+					SET_VARSIZE(tuple_data_bytea, tuple_data_len + VARHDRSZ);
+					memcpy(VARDATA(tuple_data_bytea), (char *)tuphdr + tuphdr->t_hoff,
+						   tuple_data_len);
+					values[16] = PointerGetDatum(tuple_data_bytea);
+				}
+				else
+				{
+					nulls[16] = true;
+				}
+
 				if (tuphdr->t_infomask & HEAP_HASNULL)
 				{
 					int bits_len;
@@ -323,6 +326,7 @@ items(PG_FUNCTION_ARGS, int log_level, bool with_data, bool only_id)
 			{
 				nulls[14] = true;
 				nulls[15] = true;
+				nulls[16] = true;
 			}
 		}
 		else
