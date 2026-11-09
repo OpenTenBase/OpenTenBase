@@ -1676,7 +1676,7 @@ BEGIN
     END IF;
 
     --check policyname and policyid
-    sql_cmd := 'select polid from pg_cls_policy where polname = '''||policy_name||''' or polid = '||policyid||';';
+    sql_cmd := 'select polid from pg_cls_policy where polname = '||quote_literal(policy_name)||' or polid = '||policyid||';';
     EXECUTE sql_cmd INTO polid;
     IF polid IS NOT NULL THEN 
         RAISE EXCEPTION 'INVALID INPUT:policy_name:%, policyid:% already exists', policy_name, policyid;
@@ -1685,7 +1685,7 @@ BEGIN
     
     --ready, just do it
     sql_mod := 'insert into pg_cls_policy(polid, enable, polname) values (' 
-                ||policyid||', true, '''''||policy_name||''''');';
+                ||policyid||', true, '''||quote_literal(policy_name)||''');';
     --RAISE NOTICE '%', sql_cmd;
     
     sql_cmd := 'select pg_execute_query_on_all_nodes('''||sql_mod||''');';
@@ -1728,7 +1728,7 @@ BEGIN
     END IF;
     
     --check policyname
-    sql_cmd := 'select polid from pg_cls_policy where polname = '''||policy_name||''';';
+    sql_cmd := 'select polid from pg_cls_policy where polname = '||quote_literal(policy_name)||';';
     EXECUTE sql_cmd INTO polid;
     IF polid IS NULL THEN 
         RAISE EXCEPTION 'INVALID INPUT:policy_name:% not exists', policy_name;
@@ -1783,8 +1783,7 @@ BEGIN
         RAISE EXCEPTION 'INVALID INPUT:long_name is NULL ';
     END IF;
     
-    sql_cmd := 'select p.polid from pg_cls_policy p, pg_cls_level l where p.polname = '''
-                ||policy_name||''' AND l.levelid = '||level_id||' AND p.polid = l.polid;';
+    sql_cmd := 'select p.polid from pg_cls_policy p, pg_cls_level l where p.polname = '||quote_literal(policy_name)||' AND l.levelid = '||level_id||' AND p.polid = l.polid;';
     EXECUTE sql_cmd INTO polid;
     IF polid IS NULL THEN 
         RAISE EXCEPTION 'INVALID INPUT:policy_name:% and levelid:% not exists', policy_name, level_id;
@@ -1826,8 +1825,7 @@ BEGIN
         RAISE EXCEPTION 'INVALID INPUT:level_id:% IS OUT OF RANGE', level_id;
     END IF;
     
-    sql_cmd := 'select p.polid from pg_cls_policy p, pg_cls_level l where p.polname = '''
-                ||policy_name||''' AND l.levelid = '||level_id||' AND p.polid = l.polid;';
+    sql_cmd := 'select p.polid from pg_cls_policy p, pg_cls_level l where p.polname = '||quote_literal(policy_name)||' AND l.levelid = '||level_id||' AND p.polid = l.polid;';
     EXECUTE sql_cmd INTO polid;
     IF polid IS NULL THEN 
         RAISE EXCEPTION 'INVALID INPUT:policy_name:% and levelid:% not exists', policy_name, level_id;
@@ -1878,7 +1876,7 @@ BEGIN
     END IF;
     
     --check policyname
-    sql_cmd := 'select polid from pg_cls_policy where polname = '''||policy_name||''';';
+    sql_cmd := 'select polid from pg_cls_policy where polname = '||quote_literal(policy_name)||';';
     EXECUTE sql_cmd INTO polid;
     IF polid IS NULL THEN 
         RAISE EXCEPTION 'INVALID INPUT:policy_name:% not exists', policy_name;
@@ -1938,7 +1936,7 @@ BEGIN
     END IF;
             
     --check policyname
-    sql_cmd := 'select polid from pg_cls_policy where polname = '''||policy_name||''';';
+    sql_cmd := 'select polid from pg_cls_policy where polname = '||quote_literal(policy_name)||';';
     EXECUTE sql_cmd INTO polid;
     IF polid IS NULL THEN 
         RAISE EXCEPTION 'INVALID INPUT:policy_name:% not exists', policy_name;
@@ -2016,7 +2014,7 @@ BEGIN
     END IF;
         
     --check policyname
-    sql_cmd := 'select polid from pg_cls_policy where polname = '''||policy_name||''';';
+    sql_cmd := 'select polid from pg_cls_policy where polname = '||quote_literal(policy_name)||';';
     EXECUTE sql_cmd INTO polid;
     IF polid IS NULL THEN 
         RAISE EXCEPTION 'INVALID INPUT:policy_name:% not exists', policy_name;
@@ -2219,7 +2217,7 @@ BEGIN
     --RAISE NOTICE 'label_len:%', label_len;
     
     --get polid
-    sql_cmd := 'select polid from pg_cls_policy where polname = '''||policy_name||''' ;';
+    sql_cmd := 'select polid from pg_cls_policy where polname = '||quote_literal(policy_name)||' ;';
     EXECUTE sql_cmd INTO polid;
     IF polid IS NULL THEN 
         RAISE EXCEPTION 'INVALID INPUT:policy_name:% dose not exists', policy_name;
@@ -2227,8 +2225,7 @@ BEGIN
     --RAISE NOTICE 'polid:%', polid;
     
     --get label_id
-    sql_cmd := 'select l.labelid from pg_cls_policy p, pg_cls_label l where p.polname = '''
-                ||policy_name||''' AND l.labelid = '||label_id||' AND p.polid = l.polid;';
+    sql_cmd := 'select l.labelid from pg_cls_policy p, pg_cls_label l where p.polname = '||quote_literal(policy_name)||' AND l.labelid = '||label_id||' AND p.polid = l.polid;';
     EXECUTE sql_cmd INTO labelid;
     IF labelid IS NOT NULL THEN 
         RAISE EXCEPTION 'INVALID INPUT:policy_name:% and labelid:% already exists', policy_name, label_id;
@@ -2291,7 +2288,7 @@ BEGIN
     END IF;
         
     --get polid
-    sql_cmd := 'select polid from pg_cls_policy where polname = '''||policy_name||''' ;';
+    sql_cmd := 'select polid from pg_cls_policy where polname = '||quote_literal(policy_name)||' ;';
     EXECUTE sql_cmd INTO polid;
     IF polid IS NULL THEN 
         RAISE EXCEPTION 'INVALID INPUT:policy_name:% dose not exists', policy_name;
@@ -2409,7 +2406,7 @@ BEGIN
     END IF;
             
     --get polid
-    sql_cmd := 'select polid from pg_cls_policy where polname = '''||policy_name||''' ;';
+    sql_cmd := 'select polid from pg_cls_policy where polname = '||quote_literal(policy_name)||' ;';
     EXECUTE sql_cmd INTO polid;
     IF polid IS NULL THEN 
         RAISE EXCEPTION 'INVALID INPUT:policy_name:% dose not exists', policy_name;
@@ -2472,7 +2469,7 @@ BEGIN
     END IF;
             
     --get polid
-    sql_cmd := 'select polid from pg_cls_policy where polname = '''||policy_name||''' ;';
+    sql_cmd := 'select polid from pg_cls_policy where polname = '||quote_literal(policy_name)||' ;';
     EXECUTE sql_cmd INTO polid;
     IF polid IS NULL THEN 
         RAISE EXCEPTION 'INVALID INPUT:policy_name:% dose not exists', policy_name;
@@ -2482,7 +2479,7 @@ BEGIN
     --check cls table exists
     sql_cmd := 'select c.oid from pg_cls_table t, pg_cls_policy p, pg_namespace n, pg_class c, pg_cls_label l '
              ||'where c.oid = t.relid and c.relnamespace = n.oid and t.polid = p.polid and l.polid = p.polid '
-             ||'and p.polname = '''||policy_name||''' '
+             ||'and p.polname = '||quote_literal(policy_name)||' '
              ||'and c.relname = '''||table_name||''' and n.nspname = '''||schema_name||''';';
     EXECUTE sql_cmd INTO relid;
     IF relid IS NULL THEN 
