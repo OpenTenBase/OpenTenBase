@@ -327,6 +327,11 @@ MainThreadInit()
 	 * use malloc
 	 */
 	thrinfo = (GTM_ThreadInfo *)pg_malloc(sizeof (GTM_ThreadInfo));
+	if (thrinfo == NULL)
+	{
+		fprintf(stderr, "out of memory for thread info\n");
+		exit(1);
+	}
 
 	memset(thrinfo, 0, sizeof(GTM_ThreadInfo));
 
@@ -349,8 +354,18 @@ MainThreadInit()
 	thrinfo->max_lock_number     = g_max_lock_number;
 	thrinfo->backup_timer_handle = INVALID_TIMER_HANDLE;
 	thrinfo->locks_hold = (GTM_RWLock**)pg_malloc(sizeof(void*) * g_max_lock_number);
+	if (thrinfo->locks_hold == NULL)
+	{
+		fprintf(stderr, "out of memory for locks_hold array\n");
+		exit(1);
+	}
 #ifdef __XLOG__
 	thrinfo->write_locks_hold = (GTM_RWLock**)pg_malloc(sizeof(void*) * g_max_lock_number);
+	if (thrinfo->write_locks_hold == NULL)
+	{
+		fprintf(stderr, "out of memory for write_locks_hold array\n");
+		exit(1);
+	}
 	thrinfo->current_write_number = 0;
 	thrinfo->xlog_inserting = false;
     thrinfo->xlog_waiter.pos      = InvalidXLogRecPtr;
@@ -415,12 +430,22 @@ BaseInit(char *data_dir)
     if (Log_directory == NULL)
     {
         Log_directory = (char *) pg_malloc(GTM_MAX_PATH);
+        if (Log_directory == NULL)
+        {
+            fprintf(stderr, "out of memory for log directory\n");
+            exit(1);
+        }
         sprintf(Log_directory, "%s/%s", GTMDataDir, GTM_LOG_FILE_DIR);
     }
 
     if (GTMLogFile == NULL)
     {
         GTMLogFile = (char *) pg_malloc(GTM_MAX_PATH);
+        if (GTMLogFile == NULL)
+        {
+            fprintf(stderr, "out of memory for GTM log file\n");
+            exit(1);
+        }
         sprintf(GTMLogFile, "%s/%s", Log_directory, GTM_LOG_FILE);
     }
 
