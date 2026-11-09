@@ -1,0 +1,59 @@
+# Copyright (c) 2026 OpenTenBase Contributors
+# Licensed under the BSD 3-Clause License. See LICENSE.txt.
+
+apiVersion: database.opentenbase.org/v1alpha1
+kind: OpenTenBaseCluster
+metadata:
+  name: demo
+  namespace: database
+spec:
+  mode: Distributed
+  # A real deployment should pin an immutable digest.
+  image: ghcr.io/opentenbase/opentenbase:5.0.0
+  imagePullPolicy: IfNotPresent
+  gtm:
+    replicas: 2
+    storage:
+      size: 10Gi
+      storageClassName: fast-rwo
+      retainOnDelete: true
+    resources:
+      requests:
+        cpu: "500m"
+        memory: 1Gi
+      limits:
+        memory: 2Gi
+  coordinator:
+    groups: 2
+    replicasPerGroup: 2
+    storage:
+      size: 20Gi
+      storageClassName: fast-rwo
+      retainOnDelete: true
+    resources:
+      requests:
+        cpu: "1"
+        memory: 2Gi
+      limits:
+        memory: 4Gi
+  datanode:
+    groups: 2
+    replicasPerGroup: 2
+    storage:
+      size: 100Gi
+      storageClassName: fast-rwo
+      retainOnDelete: true
+    resources:
+      requests:
+        cpu: "2"
+        memory: 4Gi
+      limits:
+        memory: 8Gi
+  service:
+    type: ClusterIP
+  observability:
+    podMonitor: true
+    scrapeInterval: 30s
+  safety:
+    topologyChangePolicy: Manual
+    pause: false
