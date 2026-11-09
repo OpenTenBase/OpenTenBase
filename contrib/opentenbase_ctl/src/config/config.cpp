@@ -77,6 +77,48 @@ std::string infer_slave_node_type(const std::string& node_name) {
 }
 
 // 读取并解析配置文件
+//
+// 解析要严格：配置文件里的键拼错、分节标题少写一个 ']'、或者键写在任何分节
+// 之前，原来的实现都会静默跳过。少写 ']' 的那一行会被当成普通文本丢掉，它下面
+// 的键就落进了上一个分节——部署时 ssh-port 之类被套用到错误的节点上，没有任何
+// 提示。现在遇到这类问题直接报错并给出行号，调用方拿到 -1 就停下。
+namespace {
+
+void report_config_error(const std::string &filename, int linenum,
+                         const std::string &message) {
+    LOG_ERROR_FMT("Config file %s line %d: %s", filename.c_str(), linenum,
+                  message.c_str());
+}
+
+bool known_section(const std::string &section) {
+    return section == "instance" || section == "gtm" ||
+           section == "coordinators" || section == "datanodes" ||
+           section == "server" || section == "log";
+}
+
+bool known_key(const std::string &section, const std::string &key) {
+    if (section == "instance") {
+        return key == "name" || key == "package" || key == "type";
+    }
+    if (section == "gtm") {
+        return key == "master" || key == "slave";
+    }
+    if (section == "coordinators" || section == "datanodes") {
+        return key == "master" || key == "slave" ||
+               key == "nodes-per-server" || key == "conf";
+    }
+    if (section == "server") {
+        return key == "ssh-user" || key == "ssh-password" ||
+               key == "ssh-port";
+    }
+    if (section == "log") {
+        return key == "level";
+    }
+    return false;
+}
+
+} // namespace
+
 int
 parse_config_file(const std::string& filename, ConfigFile& cfg_file) {
     LOG_INFO_FMT("Opening config file: %s", filename.c_str());
@@ -88,27 +130,66 @@ parse_config_file(const std::string& filename, ConfigFile& cfg_file) {
 
     std::string line;
     std::string section;
+    int linenum = 0;
 
     // 遍历读取每行
     while (std::getline(file, line)) {
+        linenum++;
         trim_whitespace(line);
         if (line.empty() || line[0] == ';' || line[0] == '#') {
             continue;
         }
 
-        if (line[0] == '[' && line[line.size()-1] == ']') {
+        // 以 '[' 开头的行必须是完整的分节标题。少了 ']' 就报错，不要退化成一条
+        // 被跳过的普通行，否则后面的键会静默落进上一个分节。
+        if (line[0] == '[') {
+            if (line.size() < 2 || line[line.size() - 1] != ']') {
+                report_config_error(filename, linenum,
+                                    "malformed section header, expected \"[name]\"");
+                return -1;
+            }
             section = line.substr(1, line.size() - 2);
+            trim_whitespace(section);
+            if (!known_section(section)) {
+                report_config_error(filename, linenum,
+                                    "unknown section [" + section + "]");
+                return -1;
+            }
             LOG_DEBUG_FMT("Parsing section: [%s]", section.c_str());
             continue;
         }
 
         size_t equal_pos = line.find('=');
-        if (equal_pos == std::string::npos) continue;
+        if (equal_pos == std::string::npos) {
+            report_config_error(filename, linenum,
+                                "expected \"key = value\" or a [section] header");
+            return -1;
+        }
 
         std::string key = line.substr(0, equal_pos);
         std::string value = line.substr(equal_pos + 1);
         trim_whitespace(key);
         trim_whitespace(value);
+
+        if (key.empty()) {
+            report_config_error(filename, linenum, "empty key");
+            return -1;
+        }
+
+        // 键必须属于已经打开的分节：写在第一个 [section] 之前的键没有归属，
+        // 原来会被直接丢掉。
+        if (section.empty()) {
+            report_config_error(filename, linenum,
+                                "key \"" + key + "\" appears before any [section]");
+            return -1;
+        }
+
+        if (!known_key(section, key)) {
+            report_config_error(filename, linenum,
+                                "unknown key \"" + key + "\" in section [" +
+                                    section + "]");
+            return -1;
+        }
 
         LOG_DEBUG_FMT("Parsing config item: %s = %s", key.c_str(), value.c_str());
 
