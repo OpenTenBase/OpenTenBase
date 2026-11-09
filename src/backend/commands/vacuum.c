@@ -1996,6 +1996,11 @@ vacuum_rel_coordinator(Relation onerel, bool is_outer, VacuumParams *params)
 	rel_nodes = get_remote_relstat(nspname, relname, replicated,
 								   &num_pages, &num_allvisible_pages,
 								   &num_tuples, &min_frozenxid);
+	if (nspname)
+	{
+		pfree(nspname);
+		nspname = NULL;
+	}
 	if (rel_nodes > 0)
 	{
 		int			nindexes;
@@ -2024,6 +2029,11 @@ vacuum_rel_coordinator(Relation onerel, bool is_outer, VacuumParams *params)
 				idx_nodes = get_remote_relstat(nspname, relname, replicated,
 										&idx_pages, &idx_allvisible_pages,
 										&idx_tuples, &idx_frozenxid);
+				if (nspname)
+				{
+					pfree(nspname);
+					nspname = NULL;
+				}
 				if (idx_nodes > 0)
 				{
 					/*
