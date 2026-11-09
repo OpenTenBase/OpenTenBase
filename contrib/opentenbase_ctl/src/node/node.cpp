@@ -1287,17 +1287,20 @@ int excute_cmd_concurrency(OpentenbaseConfig *configInfo, const std::vector<std:
     // 每个 server 对应一个结果
     std::vector<std::thread> threads;
     std::vector<int> results(server_list.size(), 0);
-    int failedCount = 0;
+    std::atomic<int> failedCount(0);
 
     // 手动维护索引
     size_t i = 0; 
-    std::string result;
     std::string cmd = configInfo->shell.shell_cmd;
     for (const std::string& server : server_list) {
         LOG_INFO_FMT("Start to excute cmd(%s) on %s", cmd, server);
 
         // 捕获当前 server、i、以及其它所需变量
         threads.emplace_back([&, server, i]() {
+            // 每个线程自己的输出缓冲。原来在 lambda 外面共用一份，
+            // execute_command 往里写、这里再读，多线程同时改同一个
+            // std::string 是未定义行为。
+            std::string result;
             int ret = execute_command( 
                 server,
                 configInfo->server.ssh_port,
@@ -1329,16 +1332,16 @@ int excute_cmd_concurrency(OpentenbaseConfig *configInfo, const std::vector<std:
         thread.join();
     }
 
-    // 检查所有结果
-    for (int result : results) {
-        if (result != 0) {
+    // 检查所有结果（循环变量改名为 ret_code，避免遮蔽上面的 result）
+    for (int ret_code : results) {
+        if (ret_code != 0) {
             LOG_ERROR_FMT("Failed to  excute cmd on one or more servers");
             return -1;
         }
     }
 
-    int total_num = server_list.size();
-    int success_num = server_list.size() - failedCount;
+    int total_num = (int) server_list.size();
+    int success_num = total_num - failedCount.load();
 
     std::cout << "Total: " << std::to_string(total_num) << ",Success: " 
               << std::to_string(success_num)  << std::endl;
