@@ -51,6 +51,101 @@ Defaults (override by exporting the variable):
 If [2] is empty or shows `localhost:5432`, the cluster was initialized with a
 broken client library; see the note below.
 
+## Exit codes
+
+`otb_health.sh` is safe to use from cron, CI, or a Kubernetes probe:
+
+| Code | Meaning |
+| ---- | ------- |
+| `0`  | Every check that has failure detection ran and succeeded. |
+| `1`  | A psql connection error, a SQL execution error, or one of the checked failures was detected. |
+
+The summary line printed at the end depends on the mode, and is emitted only on
+the `0` path:
+
+| Mode | Final line |
+| ---- | ---------- |
+| write | `PASS: read-only catalog checks (pgxc_node, pgxc_group) and the DDL/DML smoke test succeeded.` |
+| `--no-write` | `PASS: read-only catalog checks (pgxc_node, pgxc_group) succeeded; write capability NOT verified (--no-write).` |
+
+Every failure prints `FAIL: stage=<name> psql_exit=<status>` on stderr and exits
+`1`; `<status>` is the status of that `psql` invocation, so the failure can be
+classified without re-running the check — `2` bad connection, `3` SQL error
+under `ON_ERROR_STOP`, `127` `psql` not found. The stage names are
+`node-registration`, `node-groups`, and `ddl-dml`.
+
+SQL statements are run with `ON_ERROR_STOP=1` (and `-X`, so a `psqlrc` cannot
+turn it back off), so a failing statement inside the DDL/DML block is reported
+through the exit code instead of being swallowed.
+
+### What the exit code does *not* cover yet
+
+- Section [1] only **displays** `pgxc_ctl monitor all`; a node that reports
+  `not running` / `Stopped` does not fail the run on its own.
+- Section [3] fails when the `pgxc_group` query errors, but an **empty** result
+  (zero rows) is still reported as green.
+- Node counts, group counts, and replica/HA state are not validated.
+
+Treat a `0` as "these four checks passed", not as "every possible cluster
+fault is ruled out".
+
+## Data safety: the fixed test table
+
+The write test is **not read-only**. It uses a fixed table name in whatever
+database `DB_NAME` selects:
+
+```sql
+drop table if exists otb_health_check;
+create table otb_health_check (…) distribute by shard(id) to group default_group;
+insert into otb_health_check values (1,'ok'),(2,'good');
+select * from otb_health_check order by id;
+drop table otb_health_check;
+```
+
+Plan for these consequences before running it:
+
+- **The leading `DROP TABLE IF EXISTS` is destructive.** If the database already
+  contains a user table named `otb_health_check`, it is dropped before the
+  smoke test starts — silently and without a backup.
+- **Point `DB_NAME` at a dedicated test database.** Do not run the write test
+  against a database that holds production or business data.
+- **On production, use `--no-write`.** That path skips the whole
+  create/insert/select/drop sequence and only runs the two read-only catalog
+  queries.
+- **A failed run can leave the table behind.** If a statement fails, the
+  connection drops, or the process is killed between `CREATE` and `DROP`, the
+  table stays in the database. Check for it and remove it manually with
+  `drop table if exists otb_health_check;` (it may be a distributed table).
+
+## Tests
+
+`t/test_exit_codes.sh` is a behavioural suite: it runs the health check against
+mock `psql` / `pgxc_ctl` commands injected through `PATH`, so no cluster,
+container, or network is needed.
+
+```bash
+bash t/test_exit_codes.sh
+
+# reverse check: run the same suite against an older/other revision
+TARGET=/path/to/other/otb_health.sh bash t/test_exit_codes.sh
+```
+
+What it pins down:
+
+- exit code and `PASS:` summary for every path (exactly one summary on success,
+  none on any failure), including that the `--no-write` summary says the write
+  capability was **not** verified;
+- the reported `psql_exit=<status>` per stage, so a swallowed failure is caught;
+- **psql call counts**, so a broken fail-fast — executing later SQL after an
+  earlier check already failed — is detected;
+- **`-X`**: a `psqlrc` containing `\set ON_ERROR_STOP off` must not be able to
+  silence SQL errors again;
+- missing `psql`, missing `PGXC_CONF`, and the `--no-write` skip path.
+
+The mock's psql semantics (a script error returns `0` without `ON_ERROR_STOP`)
+are asserted directly, so dropping the flag or `-X` fails the suite. This is
+still **not** a substitute for a real database integration test.
+
 ## Deployment notes that cost real debugging time
 
 These are the failures hit while deploying v5.0 from source on Ubuntu 24.04.
