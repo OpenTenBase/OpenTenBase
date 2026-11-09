@@ -644,15 +644,16 @@ do_stop(void)
 	{
 		print_msg(_("waiting for server to shut down..."));
 
-		for (cnt = 0; cnt < wait_seconds; cnt++)
+		/*
+		 * 先取样再判断，而不是先循环再判断。循环体可能一次都不执行（wait_seconds
+		 * 为 0 时），那时 pid 还是刚被 kill 的那个值，服务明明停了也会报 failed。
+		 */
+		pid = get_pgpid();
+		for (cnt = 0; pid != 0 && cnt < wait_seconds; cnt++)
 		{
-			if ((pid = get_pgpid()) != 0)
-			{
-				print_msg(".");
-				sleep(1);		/* 1 sec */
-			}
-			else
-				break;
+			print_msg(".");
+			sleep(1);		/* 1 sec */
+			pid = get_pgpid();
 		}
 
 		if (pid != 0)			/* pid file still exists */
@@ -1484,7 +1485,22 @@ main(int argc, char **argv)
 					canonicalize_path(gtm_path);
 					break;
 				case 't':
-					wait_seconds = atoi(optarg);
+					{
+						/*
+						 * atoi 对 "abc" 返回 0，对 "0" 和负数也原样返回。0 或负值
+						 * 会让所有等待循环一次都不执行：do_stop 于是拿刚杀掉的
+						 * pid 去判断，服务明明停了也报 failed。这里直接拒绝。
+						 */
+						char	   *endptr = NULL;
+						long		parsed = strtol(optarg, &endptr, 10);
+
+						if (endptr == optarg || *endptr != '\0' || parsed < 1 || parsed > 86400)
+						{
+							write_stderr(_("%s: invalid wait time \"%s\"\n"), progname, optarg);
+							exit(1);
+						}
+						wait_seconds = (int) parsed;
+					}
 					break;
 				case 'w':
 					do_wait = true;
