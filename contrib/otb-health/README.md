@@ -40,6 +40,60 @@ Defaults (override by exporting the variable):
 | `DB_NAME`     | `postgres`                       |
 | `PGXC_CONF`   | `$HOME/pgxc_ctl/pgxc_ctl.conf`   |
 
+## Exit codes
+
+- `0` — all required checks passed. Sections skipped on purpose (`--no-write`,
+  missing `PGXC_CONF`) are printed as `SKIP` and are not counted as checks.
+- `1` — at least one required check failed: psql unreachable **or** a SQL
+  statement failed.
+
+psql always runs with `-X` and `-v ON_ERROR_STOP=1`:
+
+- `-X` ignores `.psqlrc` / `$PSQLRC`, which could otherwise reset the setting
+  and hide errors again;
+- `ON_ERROR_STOP=1` makes an error in the section [4] stdin script fail the
+  exit status. Without it a multi-statement stdin script keeps going after an
+  error and can still exit 0; a single failing `-c` statement returns non-zero
+  either way, which is why sections [2] and [3] check that status explicitly.
+
+The success line states only what was verified: the write-mode run prints
+`PASS: required SQL checks completed; distributed DDL/DML smoke test passed.`,
+while `--no-write` prints `PASS: read-only SQL queries completed; write
+capability was not tested.` Section [1] is diagnostic and not part of the
+exit status.
+
+The smoke test creates, writes, reads and drops `otb_health_check` in one
+explicit transaction. On success it commits after dropping the table; on
+a SQL error, `ON_ERROR_STOP` terminates psql and disconnecting rolls back
+the transaction, including creation of the test table.
+
+There is no initial `DROP TABLE IF EXISTS`. If the name is already in use
+in the target schema, `CREATE TABLE` fails and the check exits 1 without
+modifying or deleting the existing relation. This also means an old leftover
+table requires inspection rather than being silently removed on the next run.
+
+Use a dedicated test database: the write-mode check still performs real DDL
+and DML and consumes locks and database resources. Rollback depends on server
+connection-loss detection and transaction recovery; it is not a promise of
+instant cleanup during a server or network failure. `--no-write` skips this
+transaction entirely.
+
+## Tests
+
+`tests/test_otb_health.sh` is a self-contained black-box contract suite; it
+needs no running cluster and does not depend on the host's psql. Each case
+runs with a temporary `HOME`, a controlled `PATH` and a stub `psql` installed
+into `PG_HOME/bin`.
+
+The stub models the real client: a failing single `-c` statement exits 1, a
+failing stdin script exits 3 only with `ON_ERROR_STOP`, and a failure is
+injected only when both the call number and the target statement match -- so
+a missing or reordered statement cannot pass silently.
+
+```bash
+bash tests/test_otb_health.sh
+```
+
 ## What "healthy" looks like
 
 - Section [1]: every node reports `Running`.
