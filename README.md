@@ -93,22 +93,55 @@ git clone https://github.com/OpenTenBase/OpenTenBase
 # Alternative 2: use the Gitee mirror
 # git clone https://gitee.com/opentenbase/OpenTenBase.git
 
+# Replace both paths if your source tree and install root are not under /data/opentenbase
 export SOURCECODE_PATH=/data/opentenbase/OpenTenBase
 export INSTALL_PATH=/data/opentenbase/install/
 
 cd ${SOURCECODE_PATH}
+
+# Remove the previous install tree for this version, so `make install` does not mix old and new files
 rm -rf ${INSTALL_PATH}/opentenbase_bin_v5.0
+
+# Make sure the generated configure script can be executed after checkout
 chmod +x configure*
+
+# Configure the build; see "What each option does" below for every flag used here
 # --disable-license is equivalent to -DNOLIC; either one is sufficient
 ./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v5.0 --enable-user-switch --with-libxml --disable-license --with-openssl --with-ossp-uuid CFLAGS="-g"
+
+# Drop objects left by an earlier build, then compile with one job per CPU core
 make clean
 make -sj
+
+# Install server binaries and libraries into --prefix
 make install
+
+# contrib/pgxc_ctl runs ./make_signature while generating pgxc_ctl_bash.c (contrib/pgxc_ctl/Makefile);
+# the checkout already carries the executable bit, keep this line for copies that lost it
 chmod +x contrib/pgxc_ctl/make_signature
+
+# Build and install the contrib modules (opentenbase_ctl, pgxc_ctl, ...) into the same --prefix
 cd contrib
 make -sj
 make install
 ```
+
+**What each option does**
+
+| Option or variable | Purpose | Replace? | Where it is defined |
+| --- | --- | --- | --- |
+| `SOURCECODE_PATH` | Directory that holds the cloned source tree. | Yes, unless your tree is `/data/opentenbase/OpenTenBase` | This block |
+| `INSTALL_PATH` | Parent directory of the install root; the version directory is created inside it. | Yes, unless you install under `/data/opentenbase/install` | This block |
+| `--prefix=...` | Install root for binaries and libraries. It must match `PG_HOME` in [Installation](#installation), otherwise `psql` is not found. | Follows `INSTALL_PATH` | `./configure --help` |
+| `--enable-user-switch` | Allow switching to an MLS/audit user without re-entering a password (adds `-D_USER_SWITCH_`). | No | `./configure --help`, `configure:7752` |
+| `--with-libxml` | Build with XML support; needs `libxml2-devel` / `libxml2-dev` from the dependency list above. | No | `./configure --help` |
+| `--disable-license` | Disable the license limit (adds `-DNOLIC`). License is enabled by default. | No | `configure:3451`, `configure:7460` |
+| `--with-openssl` | Build with OpenSSL support; needs `openssl-devel` / `libssl-dev`. | No | `./configure --help` |
+| `--with-ossp-uuid` | Obsolete spelling of `--with-uuid=ossp`. | No | `configure.in:1047` |
+| `CFLAGS="-g"` | Keep debug symbols in the built binaries. | Optional | autoconf convention |
+| `make -sj` | Compile in parallel; a bare `j` means one job per CPU core. | Optional | `make` documentation |
+
+> **Note for maintainers**: `--enable-user-switch`, `--disable-license` and `--enable-alltype-distri` exist in the checked-in `configure` script but not in `configure.in` on this branch. Do not regenerate `configure` from `configure.in` without adding them there first, or they disappear from `./configure --help`.
 
 ## Installation
 Use OPENTENBASE\_CTL tool to build a cluster, for example: a cluster with a global transaction management node (GTM), a coordinator(COORDINATOR) and two data nodes (DATANODE).
@@ -510,5 +543,3 @@ Thanks for all contributors here: [CONTRIBUTORS](CONTRIBUTORS.md)
 |------------------|
 |[Quick Start](https://www.opentenbase.org/en/blog/01-quickstart/)|
 
-## History
-[history_events](history_events.md)

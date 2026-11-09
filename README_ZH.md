@@ -89,22 +89,55 @@ git clone https://github.com/OpenTenBase/OpenTenBase
 # 备选 2：使用 Gitee 镜像
 # git clone https://gitee.com/opentenbase/OpenTenBase.git
 
+# 如果源码目录和安装根目录不在 /data/opentenbase 下，请替换这两个路径
 export SOURCECODE_PATH=/data/opentenbase/OpenTenBase
 export INSTALL_PATH=/data/opentenbase/install/
 
 cd ${SOURCECODE_PATH}
+
+# 先删掉本版本上一次的安装目录，避免 make install 把新旧文件混在一起
 rm -rf ${INSTALL_PATH}/opentenbase_bin_v5.0
+
+# 确保代码检出后 configure 脚本仍有执行权限
 chmod +x configure*
+
+# 配置编译选项；每个参数的含义见下方“各参数说明”
 # --disable-license 与 -DNOLIC 等价，二选一即可
 ./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v5.0 --enable-user-switch --with-libxml --disable-license --with-openssl --with-ossp-uuid CFLAGS="-g"
+
+# 清掉上一次编译的产物，再按 CPU 核数并行编译
 make clean
 make -sj
+
+# 把服务端二进制和库安装到 --prefix 指定的目录
 make install
+
+# contrib/pgxc_ctl 在生成 pgxc_ctl_bash.c 时会直接执行 ./make_signature（见 contrib/pgxc_ctl/Makefile），
+# 本仓库已带可执行位，保留这一行用于权限丢失的副本
 chmod +x contrib/pgxc_ctl/make_signature
+
+# 编译并安装 contrib 模块（opentenbase_ctl、pgxc_ctl 等），安装到同一个 --prefix
 cd contrib
 make -sj
 make install
 ```
+
+**各参数说明**
+
+| 参数或变量 | 作用 | 是否需要替换 | 依据 |
+| --- | --- | --- | --- |
+| `SOURCECODE_PATH` | 存放克隆下来的源码目录。 | 是，除非源码就在 `/data/opentenbase/OpenTenBase` | 本段代码 |
+| `INSTALL_PATH` | 安装根的上级目录，版本目录会在其下创建。 | 是，除非安装到 `/data/opentenbase/install` | 本段代码 |
+| `--prefix=...` | 二进制与库的安装根目录，必须与 [安装](#安装) 一节中的 `PG_HOME` 一致，否则找不到 `psql`。 | 随 `INSTALL_PATH` 变化 | `./configure --help` |
+| `--enable-user-switch` | 允许免密切换到 MLS/audit 用户（会追加 `-D_USER_SWITCH_`）。 | 否 | `./configure --help`、`configure:7752` |
+| `--with-libxml` | 编译 XML 支持，需要上方依赖列表中的 `libxml2-devel` / `libxml2-dev`。 | 否 | `./configure --help` |
+| `--disable-license` | 关闭 license 限制（会追加 `-DNOLIC`）；默认是启用 license。 | 否 | `configure:3451`、`configure:7460` |
+| `--with-openssl` | 编译 OpenSSL 支持，需要 `openssl-devel` / `libssl-dev`。 | 否 | `./configure --help` |
+| `--with-ossp-uuid` | `--with-uuid=ossp` 的旧写法。 | 否 | `configure.in:1047` |
+| `CFLAGS="-g"` | 在二进制中保留调试符号。 | 可选 | autoconf 通用约定 |
+| `make -sj` | 并行编译；`j` 后不写数字表示按 CPU 核数并行。 | 可选 | `make` 文档 |
+
+> **维护者提示**：`--enable-user-switch`、`--disable-license`、`--enable-alltype-distri` 只存在于仓库内的 `configure` 脚本中，当前分支的 `configure.in` 里并没有这三个选项。在补进 `configure.in` 之前，不要用它重新生成 `configure`，否则这些选项会从 `./configure --help` 中消失。
 
 ## 安装
 使用 OPENTENBASE\_CTL 工具来搭建一个集群，例如：搭建一个具有1个全局事务管理节点(GTM)、1个协调器节点(COORDINATOR)以及2个数据节点(DATANODE)的集群。
@@ -502,5 +535,3 @@ OpenTenBase 使用 BSD 3-Clause 许可证，版权和许可信息可以在 [LICE
 |------------------|
 |[快速入门](https://www.opentenbase.org/blog/01-quickstart/)|
 
-## 历史
-[history_events](history_events.md)
