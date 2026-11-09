@@ -919,6 +919,32 @@ SendFnPage(FnPage page, uint16 nodeid, FnBufferDesc *buf, pg_atomic_uint32 *num_
 		}
 
 		conn = &fn_dn_conns[nodeid];
+
+		/*
+		 * Mirror the CN-side handling: when the forward socket to a DN was
+		 * marked failed (receiver restarted, transient network error, ...),
+		 * try to re-establish it before giving up. Without this the stale
+		 * socket makes every subsequent flush fail, and each failure
+		 * terminates all backends holding a local_fid, so one transient TCP
+		 * error kills the whole distributed workload until restart.
+		 */
+		if (conn->fail)
+		{
+			int	fn_send_bulk_bytes = 1024 * FnSendBulkSize;
+
+			if (fnconn_connect_remote(conn, false) == STATUS_OK)
+			{
+				conn->fail = false;
+				add_connection_to_checker(conn);
+				conn->buffer = MemoryContextAlloc(TopMemoryContext, fn_send_bulk_bytes);
+			}
+			else
+			{
+				elog(WARNING, "[SendFnPage] failed to reconnect to forward receiver, name=%s",
+					 NameStr(conn->node.nodename));
+				return false;
+			}
+		}
 	}
 
 	if (send_to_cn && conn->fail)
