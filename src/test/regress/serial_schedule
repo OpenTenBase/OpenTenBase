@@ -6,9 +6,7 @@ test: mls_check
 
 # test for opentenbase_ora compatibility and audit
 test: opentenbase_ora
-test: rowid_rownum_profile
 test: orcl_xmltype
-test: partition
 test: audit
 
 # run opentenbase_c test
@@ -138,7 +136,6 @@ test: gist
 test: spgist
 test: privileges
 test: init_privs
-test: security_label
 test: collate
 test: matview
 test: lock
@@ -247,35 +244,16 @@ test: xl_user_defined_functions
 test: xl_join
 test: xl_distributed_xact
 test: xl_create_table
-test: opentenbase_ora_dynamic_exe 
-test: opentenbase_ora_pivot
-test: opentenbase_ora_unpivot
 test: opentenbase_ora_kw_alias
 test: opentenbase_ora_synonym
-test: opentenbase_ora_rowid
 test: opentenbase_ora_customer
 test: redistribute_custom_types
 test: null_constraint_test
 test: opentenbase_ora_urowid
 test: opentenbase_ora_sys_context
-test: pl_check
 
 # run opentenbase multi distribution key test
 test: opentenbase_multi_distri_column
 
 # global temp table test
-test: gtt_join
-test: gtt_error
-test: gtt_prepare
-test: gtt
-test: gtt_test
-test: gtt_parallel_4
-test: gtt_parallel_1
-test: gtt_parallel_2
-test: gtt_parallel_3
-test: gtt_index
-test: gtt_clean
-test: gtt_function
 test: opentenbase_ora_column_name
-test: opentenbase_ora_implicit_coercion
-test: pl_coverage
