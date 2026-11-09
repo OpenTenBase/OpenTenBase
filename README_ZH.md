@@ -87,7 +87,7 @@ git clone https://github.com/OpenTenBase/OpenTenBase
 # git clone https://ghfast.top/https://github.com/OpenTenBase/OpenTenBase.git
 
 # 备选 2：使用 Gitee 镜像
-# git clone https://gitee.com/opentenbase/OpenTenBase.git
+# git clone https://gitee.com/mirrors/OpenTenBase.git
 
 export SOURCECODE_PATH=/data/opentenbase/OpenTenBase
 export INSTALL_PATH=/data/opentenbase/install/

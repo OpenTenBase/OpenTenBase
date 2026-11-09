@@ -91,7 +91,7 @@ git clone https://github.com/OpenTenBase/OpenTenBase
 # git clone https://ghfast.top/https://github.com/OpenTenBase/OpenTenBase.git
 
 # Alternative 2: use the Gitee mirror
-# git clone https://gitee.com/opentenbase/OpenTenBase.git
+# git clone https://gitee.com/mirrors/OpenTenBase.git
 
 export SOURCECODE_PATH=/data/opentenbase/OpenTenBase
 export INSTALL_PATH=/data/opentenbase/install/
