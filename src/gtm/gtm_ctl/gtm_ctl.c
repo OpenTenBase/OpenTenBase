@@ -277,6 +277,18 @@ start_gtm(void)
 	len = 0;
 	if (gtm_path != NULL)
 	{
+		/*
+		 * strncpy stops at MAXPGPATH - 1 characters without saying so, so a
+		 * path that does not fit was silently shortened and gtm_ctl then tried
+		 * to run the truncated path. Reject it the same way gtm_app is rejected
+		 * just below.
+		 */
+		if (strlen(gtm_path) >= (size_t) (MAXPGPATH - len - 1))
+		{
+			write_stderr("gtm path exceeds max size");
+			exit(1);
+		}
+
 		strncpy(gtm_app_path, gtm_path, MAXPGPATH - len - 1);
 
 		len = strlen(gtm_app_path);
