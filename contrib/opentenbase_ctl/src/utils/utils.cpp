@@ -241,8 +241,16 @@ bool is_Centralized_instance(std::string instance_type) {
 std::string escape_sql(const std::string& sql) {
     std::string escaped;
     for (char c : sql) {
-        if (c == '"') escaped += "\\\"";    // 转义双引号
+        /*
+         * 这段 SQL 最终被包在双引号里交给 shell，所以双引号里会做展开的字符都得转义。
+         * 原来只处理了 " 和 \，$ 和反引号原样通过：SQL 里最常见的美元引用
+         * （$$ ... $$，函数体、DO 块都用）会被 shell 当变量展开，$$ 变成 PID，
+         * 语句被静默改写。反引号会直接执行命令。
+         */
+        if (c == '"') escaped += "\\\"";       // 转义双引号
         else if (c == '\\') escaped += "\\\\"; // 转义反斜杠
+        else if (c == '$') escaped += "\\$";   // 转义美元符，保住 $$ 引用
+        else if (c == '`') escaped += "\\`";   // 转义反引号，避免命令替换
         else escaped += c;
     }
     return escaped;
