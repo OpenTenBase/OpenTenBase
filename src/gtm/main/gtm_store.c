@@ -2898,6 +2898,12 @@ int32 GTM_StoreLogTransaction(GlobalTransactionId gxid,
 		gti->node_list_tail->next = NULL;
 		if(node_string)
 		{
+			if (strlen(node_string) >= sizeof(gti->node_list_tail->node_name))
+			{
+				elog(LOG, "node_string too long for node_name");
+				GTM_RWLockRelease(&g_GTM_Debug_Lock);
+				return GTM_STORE_ERROR;
+			}
 			strcpy(gti->node_list_tail->node_name, node_string);
 		}
 		else
@@ -2945,9 +2951,21 @@ int32 GTM_StoreLogTransaction(GlobalTransactionId gxid,
 
 		gti->entryType = GTMTypeTransaction;
 		gti->entry_create_timestamp = GTM_TimestampGetCurrent();
+		if (strlen(gid) >= sizeof(gti->gid))
+		{
+			elog(LOG, "gid too long for gti->gid");
+			GTM_RWLockRelease(&g_GTM_Debug_Lock);
+			return GTM_STORE_ERROR;
+		}
 		strcpy(gti->gid, gid);
 		if(node_string)
 		{
+			if (strlen(node_string) >= sizeof(gti->nodestring))
+			{
+				elog(LOG, "node_string too long for gti->nodestring");
+				GTM_RWLockRelease(&g_GTM_Debug_Lock);
+				return GTM_STORE_ERROR;
+			}
 			strcpy(gti->nodestring, node_string);
 		}
 		else
