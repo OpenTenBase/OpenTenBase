@@ -183,10 +183,14 @@ get_home_dir(const std::string& ip, int port, const std::string& username,
 int 
 local_exec(const std::string& command, std::string& result) {
     LOG_INFO_FMT("Executing local command: %s", command.c_str());
-    
+
+    // popen() 只连住了 stdout，命令的错误信息走 stderr 会直接落到本进程的 stderr，
+    // result 里于是什么都留不下 —— 调用方打印 "Failed ...: %s" 时冒号后面是空的。
+    // remote_ssh_exec 一直是带 2>&1 的，这里保持一致。
+    std::string cmd_with_stderr = command + " 2>&1";
     std::array<char, 4096> buffer;
     std::stringstream ss;
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd_with_stderr.c_str(), "r"), pclose);
     
     if (!pipe) {
         LOG_ERROR_FMT("Failed to execute local command");
@@ -201,7 +205,19 @@ local_exec(const std::string& command, std::string& result) {
     if (!result.empty()) {
         LOG_INFO_FMT("Command output: %s", result.c_str());
     }
-    return 0;
+
+    // 同时把命令自己的退出状态交回调用方：原来无条件返回 0，本地安装失败也当成功。
+    int status = pclose(pipe.release());
+    if (status == -1) {
+        return -1;
+    }
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+    }
+    if (WIFSIGNALED(status)) {
+        return 128 + WTERMSIG(status);
+    }
+    return status;
 } 
 
 // 将字符串IP转换为in_addr结构
@@ -335,7 +351,8 @@ int local_exec_as_user(const std::string& user, const std::string& command, std:
     LOG_INFO_FMT("Executing local command as user '%s': %s", user.c_str(), command.c_str());
     
     // 使用sudo -u以指定用户身份执行命令
-    std::string full_command = "sudo -u " + user + " bash -c \"" + command + "\"";
+    // 同 local_exec：不接 stderr 的话，用户看不到命令失败的原因。
+    std::string full_command = "sudo -u " + user + " bash -c \"" + command + "\" 2>&1";
     
     std::array<char, 4096> buffer;
     std::stringstream ss;
