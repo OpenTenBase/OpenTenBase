@@ -77,8 +77,9 @@ visudo
 ### 编译
 
 ```bash
-su - opentenbase
-cd /data/opentenbase/
+# 前置条件：先完成上一节「创建用户 'opentenbase'」，以下命令均以 opentenbase 用户执行
+su - opentenbase                     # 切换到部署用户，避免编译产物归 root 所有
+cd /data/opentenbase/                # 进入该用户主目录（与 useradd -d 的路径一致）
 
 # GitHub 直连（网络畅通时推荐）
 git clone https://github.com/OpenTenBase/OpenTenBase
@@ -89,22 +90,38 @@ git clone https://github.com/OpenTenBase/OpenTenBase
 # 备选 2：使用 Gitee 镜像
 # git clone https://gitee.com/opentenbase/OpenTenBase.git
 
-export SOURCECODE_PATH=/data/opentenbase/OpenTenBase
-export INSTALL_PATH=/data/opentenbase/install/
+export SOURCECODE_PATH=/data/opentenbase/OpenTenBase     # 源码目录，按实际 clone 位置修改
+export INSTALL_PATH=/data/opentenbase/install/           # 安装根目录，按实际位置修改
 
-cd ${SOURCECODE_PATH}
-rm -rf ${INSTALL_PATH}/opentenbase_bin_v5.0
-chmod +x configure*
+cd ${SOURCECODE_PATH}                # 切换到源码目录，后续命令都在这里执行
+rm -rf ${INSTALL_PATH}/opentenbase_bin_v5.0    # 清除上次安装产物，避免新旧文件混装
+chmod +x configure*                  # 确保 configure 脚本可执行
 # --disable-license 与 -DNOLIC 等价，二选一即可
+# 生成 Makefile。--with-libxml / --with-openssl / --with-ossp-uuid 分别依赖
+# 依赖清单中的 libxml2-devel、openssl-devel、uuid-devel，需先安装对应依赖。
 ./configure --prefix=${INSTALL_PATH}/opentenbase_bin_v5.0 --enable-user-switch --with-libxml --disable-license --with-openssl --with-ossp-uuid CFLAGS="-g"
-make clean
-make -sj
-make install
-chmod +x contrib/pgxc_ctl/make_signature
-cd contrib
-make -sj
-make install
+make clean                           # 清理上次构建残留；首次编译可跳过
+make -sj                             # 编译：-s 减少输出，-j 并行编译
+make install                         # 安装到上方 --prefix 指定的目录
+chmod +x contrib/pgxc_ctl/make_signature    # 赋可执行权限，否则下一步编译 contrib 会报 Permission denied
+cd contrib                           # 进入扩展模块目录
+make -sj                             # 编译 contrib 扩展
+make install                         # 安装 contrib 扩展
 ```
+
+**编译参数与需替换的变量**
+
+| 参数 / 变量 | 含义 | 是否需替换 |
+|---|---|---|
+| `${SOURCECODE_PATH}` | 源码所在目录 | 需要，改成 clone 后的实际路径 |
+| `${INSTALL_PATH}` | 安装根目录 | 需要，改成计划安装的位置 |
+| `--prefix=.../opentenbase_bin_v5.0` | 最终安装路径，即 `make install` 的目标 | 一般保留；若修改，需与 `${INSTALL_PATH}` 保持一致 |
+| `CFLAGS="-g"` | 编译时带调试符号 | 可不改；仅用于部署可去掉 |
+| `--with-libxml` / `--with-openssl` / `--with-ossp-uuid` | 启用 XML、SSL、uuid 能力，分别依赖依赖清单中的 `libxml2-devel`、`openssl-devel`、`uuid-devel` | 不改，但对应依赖须先安装 |
+| `--enable-user-switch` | `configure --help` 描述为 `enable switch to mls or audit user without password`（免密码切换到 mls / audit 用户）；README 正文未说明其作用 | 保持原样 |
+| `--disable-license` | 与 `-DNOLIC` 等价，二选一 | 保持原样 |
+
+> `--with-ossp-uuid` 在 `configure` 中被标注为 `--with-uuid=ossp` 的旧写法（obsolete spelling），当前仍可用。
 
 ## 安装
 使用 OPENTENBASE\_CTL 工具来搭建一个集群，例如：搭建一个具有1个全局事务管理节点(GTM)、1个协调器节点(COORDINATOR)以及2个数据节点(DATANODE)的集群。
