@@ -511,4 +511,4 @@ Thanks for all contributors here: [CONTRIBUTORS](CONTRIBUTORS.md)
 |[Quick Start](https://www.opentenbase.org/en/blog/01-quickstart/)|
 
 ## History
-[history_events](history_events.md)
+[history_events](HISTORY)

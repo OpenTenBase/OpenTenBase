@@ -503,4 +503,4 @@ OpenTenBase 使用 BSD 3-Clause 许可证，版权和许可信息可以在 [LICE
 |[快速入门](https://www.opentenbase.org/blog/01-quickstart/)|
 
 ## 历史
-[history_events](history_events.md)
+[history_events](HISTORY)
