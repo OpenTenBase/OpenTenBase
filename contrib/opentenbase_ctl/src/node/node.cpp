@@ -150,8 +150,8 @@ configure_postgresql_for_cdw(NodeInfo *node, OpentenbaseConfig *install) {
     LOG_INFO_FMT("Successfully executed pg_controldata on node %s (%s)", 
             node->name.c_str(), node->ip.c_str());
 
-    include_if_exists = "\\'"+node->data_path+"/postgresql.conf.user\\'";
-    etcd_conn = "\\'"+install->meta.etcd_server+"\\'";
+    include_if_exists = "'"+node->data_path+"/postgresql.conf.user'";
+    etcd_conn = "'"+install->meta.etcd_server+"'";
     // Configure postgresql.conf
     std::vector<std::pair<std::string, std::string>> config_items = {
         {"pgxc_node_name", node->name},
@@ -262,15 +262,15 @@ int configure_cn_node(NodeInfo *node, OpentenbaseConfig *install) {
     base_command = buid_ld_library_path_str(node->install_path);
     
 
-    include_if_exists = "\\'"+node->data_path+"/postgresql.conf.user\\'";
+    include_if_exists = "'"+node->data_path+"/postgresql.conf.user'";
 
     // Configure postgresql.conf
     std::vector<std::pair<std::string, std::string>> config_items = {
-        {"listen_addresses", "\\'*\\'"},
+        {"listen_addresses", "'*'"},
         {"port", std::to_string(node->port)},
         {"pooler_port", std::to_string(node->pooler_port)},
         {"forward_port", std::to_string(node->forward_port)},
-        {"shared_preload_libraries", "\\'pageinspect\\'"},
+        {"shared_preload_libraries", "'pageinspect'"},
         {"log_min_duration_statement", "10000"},
         {"include_if_exists", include_if_exists}
     };
@@ -487,7 +487,7 @@ int configure_cn_slave_node(NodeInfo *node, OpentenbaseConfig *install) {
     // Configure postgresql.conf
     base_command = buid_ld_library_path_str(node->install_path);
     std::vector<std::pair<std::string, std::string>> config_items = {
-        {"listen_addresses", "\\'*\\'"},
+        {"listen_addresses", "'*'"},
         {"port", std::to_string(node->port)},
         {"pooler_port", std::to_string(node->pooler_port)},
         {"forward_port", std::to_string(node->forward_port)}
@@ -576,15 +576,15 @@ int configure_dn_node(NodeInfo *node, OpentenbaseConfig *install) {
 
     // Build base command string
     base_command = buid_ld_library_path_str(node->install_path);
-    include_if_exists = "\\'"+node->data_path+"/postgresql.conf.user\\'";
+    include_if_exists = "'"+node->data_path+"/postgresql.conf.user'";
 
     // Configure postgresql.conf
     std::vector<std::pair<std::string, std::string>> config_items = {
-        {"listen_addresses", "\\'*\\'"},
+        {"listen_addresses", "'*'"},
         {"port", std::to_string(node->port)},
         {"pooler_port", std::to_string(node->pooler_port)},
         {"forward_port", std::to_string(node->forward_port)},
-        {"shared_preload_libraries", "\\'pageinspect\\'"},
+        {"shared_preload_libraries", "'pageinspect'"},
         {"log_min_duration_statement", "10000"},
         {"include_if_exists", include_if_exists}
     };
@@ -808,7 +808,7 @@ int configure_dn_slave_node(NodeInfo *node, OpentenbaseConfig *install) {
     // Configure postgresql.conf
     base_command = buid_ld_library_path_str(node->install_path);
     std::vector<std::pair<std::string, std::string>> config_items = {
-        {"listen_addresses", "\\'*\\'"},
+        {"listen_addresses", "'*'"},
         {"port", std::to_string(node->port)},
         {"pooler_port", std::to_string(node->pooler_port)},
         {"forward_port", std::to_string(node->forward_port)}
@@ -963,18 +963,18 @@ int configure_gtm_slave_node(NodeInfo *node, OpentenbaseConfig *install) {
     // Build base command string
     base_command = buid_ld_library_path_str(node->install_path);
 
-    //etcd_conn = "\\'"+install->meta.etcd_server+"\\'";
+    //etcd_conn = "'"+install->meta.etcd_server+"'";
     // Configure gtm.conf
     std::vector<std::pair<std::string, std::string>> config_items = {
-        {"listen_addresses", "\\'*\\'"},
+        {"listen_addresses", "'*'"},
         {"port", std::to_string(node->port)},
-        {"nodename", "\\'" + node->name + "\\'"},
+        {"nodename", "'" + node->name + "'"},
         {"max_wal_sender", "5"},
         {"checkpoint_interval", "5"},
-        {"startup", "\\'STANDBY\\'"},
-        {"active_host", "\\'" + master_node.ip + "\\'"},
+        {"startup", "'STANDBY'"},
+        {"active_host", "'" + master_node.ip + "'"},
         {"active_port", std::to_string(master_node.port)},
-        {"application_name", "\\'" + master_node.ip + ":" + std::to_string(master_node.port) + "\\'"}
+        {"application_name", "'" + master_node.ip + ":" + std::to_string(master_node.port) + "'"}
     };
 
     for (const auto& item : config_items) {
