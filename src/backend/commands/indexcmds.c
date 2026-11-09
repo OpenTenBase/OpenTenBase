@@ -2674,6 +2674,50 @@ IndexSetParentIndex(Relation partitionIdx, Oid parentOid)
 	systable_endscan(scan);
 	relation_close(pg_inherits, RowExclusiveLock);
 
+	/*
+	 * Update the relispartition flag in pg_class to match the new state, so
+	 * that partition tree introspection (pg_partition_tree,
+	 * pg_partition_ancestors, pg_partition_root) treats the index as a
+	 * partition of its parent index.  Only do this when the inheritance
+	 * state actually changed above.
+	 */
+	if (fix_dependencies)
+	{
+		Relation	pg_class_rel;
+		HeapTuple	classtuple;
+		Form_pg_class clasform;
+
+		pg_class_rel = heap_open(RelationRelationId, RowExclusiveLock);
+		classtuple = SearchSysCacheCopy1(RELOID,
+										 ObjectIdGetDatum(partRelid));
+		if (!HeapTupleIsValid(classtuple))
+			elog(ERROR, "cache lookup failed for relation %u", partRelid);
+		clasform = (Form_pg_class) GETSTRUCT(classtuple);
+		clasform->relispartition = OidIsValid(parentOid);
+		CatalogTupleUpdate(pg_class_rel, &classtuple->t_self, classtuple);
+		heap_freetuple(classtuple);
+
+		/*
+		 * Setting a parent also means the parent index now has a subclass;
+		 * keep the relhassubclass hint in sync so that
+		 * find_inheritance_children() can discover index partitions.
+		 */
+		if (OidIsValid(parentOid))
+		{
+			HeapTuple	parenttuple;
+
+			parenttuple = SearchSysCacheCopy1(RELOID,
+											  ObjectIdGetDatum(parentOid));
+			if (!HeapTupleIsValid(parenttuple))
+				elog(ERROR, "cache lookup failed for relation %u", parentOid);
+			clasform = (Form_pg_class) GETSTRUCT(parenttuple);
+			clasform->relhassubclass = true;
+			CatalogTupleUpdate(pg_class_rel, &parenttuple->t_self, parenttuple);
+			heap_freetuple(parenttuple);
+		}
+		heap_close(pg_class_rel, RowExclusiveLock);
+	}
+
 	if (fix_dependencies)
 	{
 		ObjectAddress partIdx;
