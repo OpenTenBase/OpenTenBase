@@ -1252,9 +1252,10 @@ Datum http_request(PG_FUNCTION_ARGS)
 			elog(ERROR, "illegal HTTP method");
 		}
 	}
-	else if ( method == HTTP_DELETE )
+	else if ( method == HTTP_DELETE || method == HTTP_PATCH )
 	{
-		CURL_SETOPT(g_http_handle, CURLOPT_CUSTOMREQUEST, "DELETE");
+		/* A bodyless PATCH must not fall back to libcurl's default GET. */
+		CURL_SETOPT(g_http_handle, CURLOPT_CUSTOMREQUEST, method_str);
 	}
 	else if ( method == HTTP_HEAD )
 	{
