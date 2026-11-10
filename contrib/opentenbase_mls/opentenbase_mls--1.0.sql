@@ -104,8 +104,7 @@ BEGIN
     END IF;
   
     --check if orignal partition table
-    sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
-            ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
+    sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = '||quote_literal(table_name)||' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
     EXECUTE sql_cmd INTO relkind, relid;
   
      --if its children has bound policy, report error
@@ -250,8 +249,7 @@ BEGIN
     END IF;
     
     --check if orignal partition table
-    sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
-            ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
+    sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = '||quote_literal(table_name)||' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
     EXECUTE sql_cmd INTO relkind, relid;
   
     --if its children has bound policy, report error
@@ -394,8 +392,7 @@ BEGIN
     END IF;
     
     --check if orignal partition table
-    sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
-            ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
+    sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = '||quote_literal(table_name)||' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
     EXECUTE sql_cmd INTO relkind, relid;
   
     --if its children has bound policy, report error
@@ -495,8 +492,7 @@ BEGIN
     EXECUTE sql_cmd;
     
     --check if orignal partition table
-    sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
-            ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
+    sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = '||quote_literal(table_name)||' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
     EXECUTE sql_cmd INTO relkind, relid;
     
     --loop to bind children
@@ -563,8 +559,7 @@ BEGIN
     EXECUTE sql_cmd;
     
     --check if orignal partition table
-    sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
-            ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
+    sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = '||quote_literal(table_name)||' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
     EXECUTE sql_cmd INTO relkind, relid;
     
     --loop to bind children
@@ -642,8 +637,7 @@ BEGIN
     IF need_cascade = TRUE THEN
     
         --check if orignal partition table
-        sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
-                ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
+        sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = '||quote_literal(table_name)||' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
         EXECUTE sql_cmd INTO relkind, relid;
         
         --loop to bind children
@@ -712,8 +706,7 @@ BEGIN
     --check need cascade drop
     IF need_cascade = TRUE THEN
         --check if orignal partition table
-        sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
-                ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
+        sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = '||quote_literal(table_name)||' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
         EXECUTE sql_cmd INTO relkind, relid;
         
         --loop to bind children
@@ -887,8 +880,7 @@ BEGIN
     EXECUTE sql_cmd;
     
     --check if orignal partition table
-    sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
-            ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
+    sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = '||quote_literal(table_name)||' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
     EXECUTE sql_cmd INTO relkind, relid;
     
     IF need_cascade = true THEN 
@@ -967,8 +959,7 @@ BEGIN
     EXECUTE sql_cmd;
     
     --check if orignal partition table
-    sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
-            ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
+    sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = '||quote_literal(table_name)||' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
     EXECUTE sql_cmd INTO relkind, relid;
     
     IF need_cascade = true THEN
@@ -1034,8 +1025,7 @@ BEGIN
     
     --make sure attribute exists and having datamask policy bound, in case to create new datamask policy
     sql_cmd := 'select a.attnum , a.attrelid, d.option from pg_attribute a , pg_data_mask_map d where a.attname = '''||attr_name||''' and a.attrelid = '
-                ||'(select c.oid from pg_class c, pg_namespace n where c.relname = '''
-                    ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid )  '
+                ||'(select c.oid from pg_class c, pg_namespace n where c.relname = '||quote_literal(table_name)||' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid )  '
                 ||'and d.relid = a.attrelid and d.attnum = a.attnum;';
     EXECUTE sql_cmd INTO attnum, relid, doption;
     IF attnum IS NULL OR relid IS NULL THEN 
@@ -1139,8 +1129,7 @@ BEGIN
     
     --make sure attribute exists and having datamask policy bound, in case to create new datamask policy
     sql_cmd := 'select a.attnum , a.attrelid from pg_attribute a , pg_data_mask_map d where a.attname = '''||attr_name||''' and a.attrelid = '
-                ||'(select c.oid from pg_class c, pg_namespace n where c.relname = '''
-                    ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid )  '
+                ||'(select c.oid from pg_class c, pg_namespace n where c.relname = '||quote_literal(table_name)||' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid )  '
                 ||'and d.relid = a.attrelid and d.attnum = a.attnum;';
     EXECUTE sql_cmd INTO attnum, relid;
     IF attnum IS NULL OR relid IS NULL THEN 
@@ -1281,9 +1270,7 @@ BEGIN
     END IF;
     --RAISE NOTICE 'userid:%', userid;
     
-    sql_cmd := 'select attnum , attrelid from pg_attribute a where a.attname = '''
-            ||attr_name||''' and a.attrelid = (select c.oid from pg_class c, pg_namespace n where c.relname = '''
-            ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ) ;';
+    sql_cmd := 'select attnum , attrelid from pg_attribute a where a.attname = '||quote_literal(attr_name)||' and a.attrelid = (select c.oid from pg_class c, pg_namespace n where c.relname = '||quote_literal(table_name)||' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ) ;';
     EXECUTE sql_cmd INTO attnum, relid;
     IF attnum IS NULL OR relid IS NULL THEN 
         RAISE EXCEPTION 'INVALID INPUT:table_name:% or schema_name:% or attr_name:% not exists', table_name, schema_name, attr_name;
@@ -2417,8 +2404,7 @@ BEGIN
     --RAISE NOTICE 'polid:%', polid;
     
     --get relid
-    sql_cmd := 'select c.oid from pg_class c, pg_namespace n where c.relnamespace = n.oid and c.relname= '''
-                ||table_name||''' and n.nspname = '''||schema_name||''';';
+    sql_cmd := 'select c.oid from pg_class c, pg_namespace n where c.relnamespace = n.oid and c.relname= '||quote_literal(table_name)||' and n.nspname = '''||schema_name||''';';
     EXECUTE sql_cmd INTO relid;
     IF relid IS NULL THEN 
         RAISE EXCEPTION 'INVALID INPUT:table %.% dose not exists', schema_name,table_name;
