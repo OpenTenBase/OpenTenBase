@@ -259,12 +259,8 @@ CREATE OR REPLACE FUNCTION ai.update_model(model_name text, config text, value t
 RETURNS boolean AS $$
 DECLARE
     rows_affected integer;
-    sql_command text;
-    column_type text;
 BEGIN
-    EXECUTE format('SELECT pg_typeof(ai_model_list.%I)::text FROM public.ai_model_list LIMIT 1', config) INTO column_type;
-
-	EXECUTE format('UPDATE public.ai_model_list SET %I = %L::%s WHERE model_name = %L', config, value, column_type, model_name);
+	EXECUTE format('UPDATE public.ai_model_list SET %I = %L WHERE model_name = %L', config, value, model_name);
 	
     GET DIAGNOSTICS rows_affected = ROW_COUNT;
     RETURN rows_affected > 0;
