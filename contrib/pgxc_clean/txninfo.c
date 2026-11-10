@@ -362,6 +362,14 @@ TXN_STATUS check_txn_global_status(txn_info *txn)
 	if (txn == NULL)
 		return TXN_STATUS_INITIAL;
 
+	/* Explicit PREPARE TRANSACTION GIDs do not carry participant metadata.
+	 * Their outcome must remain under the control of the issuing client.
+	 */
+	if (txn->xid == NULL)
+		return TXN_STATUS_FAILED;
+	if (!check_xid_is_implicit(txn->xid))
+		return TXN_STATUS_PREPARED;
+
 	find_txn_participant_nodes(txn);
 
 	for (ii = 0; ii < txn->num_dnparts; ii++)
