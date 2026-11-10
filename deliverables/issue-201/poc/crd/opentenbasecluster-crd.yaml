@@ -1,0 +1,489 @@
+# Design-only, structural-schema-oriented CRD draft with explicitly typed fields.
+# API-server acceptance and structural-schema enforcement remain unverified.
+# This static PoC API shape does not implement a controller.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: opentenbaseclusters.database.opentenbase.org
+spec:
+  group: database.opentenbase.org
+  scope: Namespaced
+  names:
+    plural: opentenbaseclusters
+    singular: opentenbasecluster
+    kind: OpenTenBaseCluster
+    shortNames:
+      - otb
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Ready
+          type: string
+          jsonPath: .status.conditions[?(@.type=="Ready")].status
+        - name: Topology
+          type: integer
+          jsonPath: .status.observedTopologyGeneration
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: >-
+            Bounded, structural-schema-oriented design-PoC API for one distributed
+            OpenTenBase deployment. It is intended to satisfy Kubernetes structural-
+            schema requirements, but API-server acceptance remains unverified. No
+            runtime controller or deployment behavior is supplied by this CRD.
+          required:
+            - spec
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - gtm
+                - coordinators
+                - dataNodes
+                - services
+                - bootstrap
+              properties:
+                image:
+                  type: string
+                  minLength: 1
+                  description: >-
+                    Optional, unverified design input. The PoC supplies no default
+                    or selected runnable OpenTenBase image.
+                gtm:
+                  type: object
+                  required:
+                    - primaryCount
+                    - standbyCount
+                    - storage
+                  properties:
+                    primaryCount:
+                      type: integer
+                      enum: [1]
+                      description: Fixed at one for the bounded PoC.
+                    standbyCount:
+                      type: integer
+                      minimum: 0
+                      maximum: 1
+                    storage:
+                      type: object
+                      required: [required]
+                      properties:
+                        required:
+                          type: boolean
+                        requestedCapacity:
+                          type: string
+                          pattern: "^[1-9][0-9]*(Mi|Gi|Ti)$"
+                          description: Design intent only; no PVC layout or mount path is selected.
+                      additionalProperties: false
+                coordinators:
+                  type: object
+                  required:
+                    - primaryCount
+                    - standbyCountPerPrimary
+                    - storage
+                  properties:
+                    primaryCount:
+                      type: integer
+                      minimum: 1
+                      description: >-
+                        Number of Coordinator primaries in the bounded PoC representation.
+                    standbyCountPerPrimary:
+                      type: integer
+                      minimum: 0
+                      description: >-
+                        Standby count for each Coordinator primary. This is a provisional
+                        PoC representation of the reviewed same-name master/standby pairing,
+                        not a proven production cardinality API.
+                    storage:
+                      type: object
+                      required: [required]
+                      properties:
+                        required:
+                          type: boolean
+                        requestedCapacity:
+                          type: string
+                          pattern: "^[1-9][0-9]*(Mi|Gi|Ti)$"
+                          description: Design intent only; no PVC layout or mount path is selected.
+                      additionalProperties: false
+                dataNodes:
+                  type: object
+                  required:
+                    - shards
+                  properties:
+                    shards:
+                      type: array
+                      minItems: 1
+                      x-kubernetes-list-type: map
+                      x-kubernetes-list-map-keys:
+                        - id
+                      items:
+                        type: object
+                        required:
+                          - id
+                          - standbyCount
+                          - storage
+                        properties:
+                          id:
+                            type: string
+                            minLength: 1
+                            maxLength: 40
+                            pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+                          standbyCount:
+                            type: integer
+                            minimum: 0
+                          storage:
+                            type: object
+                            required: [required]
+                            properties:
+                              required:
+                                type: boolean
+                              requestedCapacity:
+                                type: string
+                                pattern: "^[1-9][0-9]*(Mi|Gi|Ti)$"
+                                description: Design intent only; no PVC layout or mount path is selected.
+                            additionalProperties: false
+                services:
+                  type: object
+                  required:
+                    - coordinatorClient
+                    - gtmDiscovery
+                    - internalDiscovery
+                  properties:
+                    coordinatorClient:
+                      type: object
+                      required: [enabled]
+                      properties:
+                        enabled:
+                          type: boolean
+                      additionalProperties: false
+                    gtmDiscovery:
+                      type: object
+                      required: [enabled]
+                      properties:
+                        enabled:
+                          type: boolean
+                      additionalProperties: false
+                    internalDiscovery:
+                      type: object
+                      required:
+                        - enabled
+                        - mode
+                      properties:
+                        enabled:
+                          type: boolean
+                        mode:
+                          type: string
+                          enum:
+                            - HeadlessPerRoleAndShard
+                bootstrap:
+                  type: object
+                  required:
+                    - ordering
+                    - topologyRegistration
+                    - groupCreation
+                    - retryPolicy
+                  properties:
+                    ordering:
+                      type: string
+                      enum:
+                        - GTMFirst
+                    topologyRegistration:
+                      type: string
+                      enum:
+                        - PerMasterTracked
+                    groupCreation:
+                      type: string
+                      enum:
+                        - ExplicitPhase
+                    retryPolicy:
+                      type: string
+                      enum:
+                        - ObserveBeforeRetry
+              additionalProperties: false
+            status:
+              type: object
+              description: >-
+                Conceptual observed state. Controllers would normally write this
+                subresource; this CRD alone does not populate it.
+              properties:
+                observedGeneration:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                  description: >-
+                    Last accepted metadata.generation observed by a future controller;
+                    distinct from database-topology generations.
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - Validating
+                    - ProvisioningGTM
+                    - WaitingForGTM
+                    - ProvisioningMasters
+                    - RegisteringTopology
+                    - RestartingMasters
+                    - ProvisioningStandbys
+                    - CreatingGroups
+                    - Ready
+                    - Degraded
+                    - Failed
+                conditions:
+                  type: array
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys:
+                    - type
+                  items:
+                    type: object
+                    required:
+                      - type
+                      - status
+                      - reason
+                      - message
+                      - lastTransitionTime
+                    properties:
+                      type:
+                        type: string
+                        minLength: 1
+                      status:
+                        type: string
+                        enum: ["True", "False", Unknown]
+                      observedGeneration:
+                        type: integer
+                        format: int64
+                        minimum: 0
+                      reason:
+                        type: string
+                        minLength: 1
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                roleReadiness:
+                  type: array
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys:
+                    - role
+                  items:
+                    type: object
+                    required: [role, desired, ready, failed]
+                    properties:
+                      role:
+                        type: string
+                        enum: [GTM, Coordinator, DataNode]
+                      desired:
+                        type: integer
+                        minimum: 0
+                      ready:
+                        type: integer
+                        minimum: 0
+                      failed:
+                        type: integer
+                        minimum: 0
+                nodes:
+                  type: array
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys:
+                    - name
+                  items:
+                    type: object
+                    required:
+                      - name
+                      - role
+                      - desiredRole
+                      - initializationState
+                      - ready
+                    properties:
+                      name:
+                        type: string
+                      role:
+                        type: string
+                        enum: [GTM, Coordinator, DataNode]
+                      shardID:
+                        type: string
+                      desiredRole:
+                        type: string
+                        enum: [Primary, Standby]
+                      observedRole:
+                        type: string
+                        enum: [Primary, Standby, Unknown]
+                      initializationState:
+                        type: string
+                        enum: [Pending, Provisioning, Initialized, Ready, Failed]
+                      ready:
+                        type: boolean
+                      message:
+                        type: string
+                desiredTopologyGeneration:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                  description: >-
+                    Custom desired database-topology generation. Kubernetes does
+                    not calculate or manage this field automatically.
+                observedTopologyGeneration:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                  description: >-
+                    Custom fully applied database-topology generation. Kubernetes
+                    does not calculate or manage this field automatically.
+                topologyApplications:
+                  type: array
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys:
+                    - nodeName
+                  items:
+                    type: object
+                    required:
+                      - nodeName
+                      - requiredGeneration
+                      - appliedGeneration
+                      - topologyState
+                      - poolReloadState
+                    properties:
+                      nodeName:
+                        type: string
+                      requiredGeneration:
+                        type: integer
+                        format: int64
+                        minimum: 0
+                      appliedGeneration:
+                        type: integer
+                        format: int64
+                        minimum: 0
+                      topologyState:
+                        type: string
+                        enum: [Pending, Applying, Applied, Failed]
+                      poolReloadState:
+                        type: string
+                        enum: [NotRequested, Pending, Completed, Failed]
+                      retryCount:
+                        type: integer
+                        minimum: 0
+                      message:
+                        type: string
+                groups:
+                  type: object
+                  properties:
+                    defaultGroup:
+                      type: object
+                      required: [desiredGeneration, appliedGeneration, state]
+                      properties:
+                        desiredGeneration:
+                          type: integer
+                          format: int64
+                          minimum: 0
+                        appliedGeneration:
+                          type: integer
+                          format: int64
+                          minimum: 0
+                        state:
+                          type: string
+                          enum: [Pending, Applying, Applied, Failed]
+                        executorNode:
+                          type: string
+                        message:
+                          type: string
+                      additionalProperties: false
+                    shardingGroup:
+                      type: object
+                      required: [desiredGeneration, appliedGeneration, state]
+                      properties:
+                        desiredGeneration:
+                          type: integer
+                          format: int64
+                          minimum: 0
+                        appliedGeneration:
+                          type: integer
+                          format: int64
+                          minimum: 0
+                        state:
+                          type: string
+                          enum: [Pending, Applying, Applied, Failed]
+                        executorNode:
+                          type: string
+                        message:
+                          type: string
+                      additionalProperties: false
+                endpoints:
+                  type: array
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys:
+                    - name
+                  items:
+                    type: object
+                    required: [name, purpose, state]
+                    properties:
+                      name:
+                        type: string
+                      purpose:
+                        type: string
+                        enum: [CoordinatorClient, GTMDiscovery, RoleDiscovery, ShardDiscovery]
+                      state:
+                        type: string
+                        enum: [Pending, Ready, Failed, Unknown]
+                      address:
+                        type: string
+                unsupportedOperations:
+                  type: array
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys:
+                    - operation
+                  items:
+                    type: object
+                    required: [operation, state, reason]
+                    properties:
+                      operation:
+                        type: string
+                        enum:
+                          - AutomaticFailover
+                          - DistributedBackup
+                          - ProductionRestore
+                          - Resharding
+                          - MajorVersionUpgrade
+                          - ProductionSecurityAutomation
+                          - ProductionWorkloadReplacement
+                      state:
+                        type: string
+                        enum: [Rejected, NotImplemented, NotRequested]
+                      reason:
+                        type: string
+                lastError:
+                  type: object
+                  required: [reason, message, retryable, time]
+                  properties:
+                    phase:
+                      type: string
+                    nodeName:
+                      type: string
+                    reason:
+                      type: string
+                    message:
+                      type: string
+                    retryable:
+                      type: boolean
+                    retryCount:
+                      type: integer
+                      minimum: 0
+                    time:
+                      type: string
+                      format: date-time
+              additionalProperties: false

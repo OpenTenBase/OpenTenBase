@@ -1,0 +1,179 @@
+# 这些材料不会部署 OpenTenBase，也没有实现 Operator。
+# Documentation pseudostructure only: GeneratedResourcePlan is not a Kubernetes API
+# supplied by the OpenTenBaseCluster CRD and must not be applied to a cluster.
+apiVersion: design.opentenbase.org/v1alpha1
+kind: GeneratedResourcePlan
+metadata:
+  name: demo
+spec:
+  workloadPrimitive: Unselected
+  conceptualLabels:
+    cluster: demo
+    managedByConcept: future-opentenbase-controller
+  objects:
+    - logicalKind: RoleWorkload
+      role: GTM
+      identity: demo-gtm-0
+      desiredRole: Primary
+      workloadPrimitive: Unselected
+      conceptualLabels:
+        role: gtm
+        instance: "0"
+      dependencies: []
+      discoveryServices:
+        - demo-gtm
+      storageIntentRef: demo-gtm-0-storage
+      bootstrapPhase: ProvisioningGTM
+    - logicalKind: RoleWorkload
+      role: GTM
+      identity: demo-gtm-1
+      desiredRole: Standby
+      workloadPrimitive: Unselected
+      conceptualLabels:
+        role: gtm
+        instance: "1"
+      dependencies:
+        - demo-gtm-0
+        - phase: RestartingMasters
+      discoveryServices:
+        - demo-gtm
+      storageIntentRef: demo-gtm-1-storage
+      bootstrapPhase: ProvisioningStandbys
+    - logicalKind: RoleWorkloadSet
+      role: Coordinator
+      identities:
+        - demo-cn-0
+        - demo-cn-1
+      desiredRole: Primary
+      primaryCount: 2
+      standbyCountPerPrimary: 1
+      cardinalityMeaning: ProvisionalSameNamePrimaryStandbyPairing
+      workloadPrimitive: Unselected
+      conceptualLabels:
+        role: coordinator
+      dependencies:
+        - demo-gtm-0
+        - phase: WaitingForGTM
+      discoveryServices:
+        - demo-cn
+      clientService: demo-cn-client
+      storageIntentRef: demo-cn-storage
+      bootstrapPhase: ProvisioningMasters
+    - logicalKind: RoleWorkloadSet
+      role: DataNode
+      shardID: "0"
+      identities:
+        - demo-dn-s0-0
+      desiredRole: Primary
+      standbyCount: 1
+      workloadPrimitive: Unselected
+      conceptualLabels:
+        role: datanode
+        shard: "0"
+      dependencies:
+        - demo-gtm-0
+        - phase: WaitingForGTM
+      discoveryServices:
+        - demo-dn-s0
+      storageIntentRef: demo-dn-s0-storage
+      bootstrapPhase: ProvisioningMasters
+    - logicalKind: RoleWorkloadSet
+      role: DataNode
+      shardID: "1"
+      identities:
+        - demo-dn-s1-0
+      desiredRole: Primary
+      standbyCount: 1
+      workloadPrimitive: Unselected
+      conceptualLabels:
+        role: datanode
+        shard: "1"
+      dependencies:
+        - demo-gtm-0
+        - phase: WaitingForGTM
+      discoveryServices:
+        - demo-dn-s1
+      storageIntentRef: demo-dn-s1-storage
+      bootstrapPhase: ProvisioningMasters
+    - logicalKind: ServiceIntent
+      identity: demo-cn-client
+      purpose: CoordinatorClient
+      exposure: Conceptual
+      runtimePorts: Unspecified
+    - logicalKind: ServiceIntent
+      identity: demo-gtm
+      purpose: GTMDiscovery
+      discoveryMode: Headless
+      runtimePorts: Unspecified
+    - logicalKind: ServiceIntent
+      identity: demo-cn
+      purpose: CoordinatorRoleDiscovery
+      discoveryMode: Headless
+      runtimePorts: Unspecified
+    - logicalKind: ServiceIntent
+      identity: demo-dn-s0
+      purpose: DataNodeShardDiscovery
+      shardID: "0"
+      discoveryMode: Headless
+      runtimePorts: Unspecified
+    - logicalKind: ServiceIntent
+      identity: demo-dn-s1
+      purpose: DataNodeShardDiscovery
+      shardID: "1"
+      discoveryMode: Headless
+      runtimePorts: Unspecified
+    - logicalKind: StorageIntentSet
+      identities:
+        - demo-gtm-0-storage
+        - demo-gtm-1-storage
+        - demo-cn-storage
+        - demo-dn-s0-storage
+        - demo-dn-s1-storage
+      required: true
+      volumeLayout: Unselected
+      ownershipSemantics: Unconfirmed
+    - logicalKind: TopologyRegistrationPlan
+      desiredTopologyGeneration: FutureControllerManaged
+      targets:
+        - demo-cn-0
+        - demo-cn-1
+        - demo-dn-s0-0
+        - demo-dn-s1-0
+      requiredPerTargetState:
+        - TopologyApplied
+        - PoolReloadCompleted
+      dependencies:
+        - phase: ProvisioningMasters
+      bootstrapPhase: RegisteringTopology
+    - logicalKind: GroupReconciliationPlan
+      defaultGroupTargets:
+        - demo-dn-s0-0
+        - demo-dn-s1-0
+      shardingGroupState: ExplicitlyTracked
+      executor: demo-cn-0
+      executorSelection: Provisional
+      dependencies:
+        - phase: ProvisioningStandbys
+      bootstrapPhase: CreatingGroups
+  phaseDependencies:
+    - phase: ProvisioningGTM
+      dependsOn: Validating
+    - phase: WaitingForGTM
+      dependsOn: ProvisioningGTM
+    - phase: ProvisioningMasters
+      dependsOn: WaitingForGTM
+    - phase: RegisteringTopology
+      dependsOn: ProvisioningMasters
+    - phase: RestartingMasters
+      dependsOn: RegisteringTopology
+    - phase: ProvisioningStandbys
+      dependsOn: RestartingMasters
+    - phase: CreatingGroups
+      dependsOn: ProvisioningStandbys
+    - phase: Ready
+      dependsOn: CreatingGroups
+  limitations:
+    workloadPrimitive: Unselected
+    hostnameCompatibility: Unconfirmed
+    runtimeSelectors: Unspecified
+    runtimeSuccess: NotClaimed

@@ -1,0 +1,154 @@
+# STATUS-SHAPE DOCUMENTATION EXAMPLE ONLY; do not apply this file with kubectl.
+# Controllers normally write status. This is not a runtime result.
+apiVersion: database.opentenbase.org/v1alpha1
+kind: OpenTenBaseCluster
+metadata:
+  name: demo
+  generation: 2
+spec:
+  image: "<OPEN_TENBASE_IMAGE_NOT_SELECTED>"
+  gtm:
+    primaryCount: 1
+    standbyCount: 1
+    storage:
+      required: true
+  coordinators:
+    # Provisional PoC representation: 2 primaries, each with 1 standby (4 total).
+    primaryCount: 2
+    standbyCountPerPrimary: 1
+    storage:
+      required: true
+  dataNodes:
+    shards:
+      - id: "0"
+        standbyCount: 1
+        storage:
+          required: true
+      - id: "1"
+        standbyCount: 1
+        storage:
+          required: true
+  services:
+    coordinatorClient:
+      enabled: true
+    gtmDiscovery:
+      enabled: true
+    internalDiscovery:
+      enabled: true
+      mode: HeadlessPerRoleAndShard
+  bootstrap:
+    ordering: GTMFirst
+    topologyRegistration: PerMasterTracked
+    groupCreation: ExplicitPhase
+    retryPolicy: ObserveBeforeRetry
+status:
+  observedGeneration: 2
+  phase: RegisteringTopology
+  conditions:
+    - type: Ready
+      status: "False"
+      observedGeneration: 2
+      reason: TopologyRegistrationIncomplete
+      message: Waiting for all masters to apply topology generation 3.
+      lastTransitionTime: "2026-07-12T08:00:00Z"
+    - type: Degraded
+      status: "True"
+      observedGeneration: 2
+      reason: RetryableTopologyApplicationError
+      message: One topology target remains pending after a retryable error.
+      lastTransitionTime: "2026-07-12T08:01:00Z"
+    - type: GTMReady
+      status: "True"
+      observedGeneration: 2
+      reason: DesignExampleReady
+      message: GTM primary is represented as ready for this status-shape example.
+      lastTransitionTime: "2026-07-12T07:55:00Z"
+  roleReadiness:
+    - role: GTM
+      desired: 2
+      ready: 1
+      failed: 0
+    - role: Coordinator
+      desired: 4
+      ready: 2
+      failed: 0
+    - role: DataNode
+      desired: 4
+      ready: 2
+      failed: 0
+  nodes:
+    - name: demo-gtm-0
+      role: GTM
+      desiredRole: Primary
+      observedRole: Primary
+      initializationState: Ready
+      ready: true
+    - name: demo-cn-0
+      role: Coordinator
+      desiredRole: Primary
+      observedRole: Primary
+      initializationState: Ready
+      ready: true
+    - name: demo-cn-1
+      role: Coordinator
+      desiredRole: Primary
+      observedRole: Primary
+      initializationState: Ready
+      ready: true
+    - name: demo-dn-s0-0
+      role: DataNode
+      shardID: "0"
+      desiredRole: Primary
+      observedRole: Primary
+      initializationState: Ready
+      ready: true
+    - name: demo-dn-s1-0
+      role: DataNode
+      shardID: "1"
+      desiredRole: Primary
+      observedRole: Primary
+      initializationState: Ready
+      ready: true
+  desiredTopologyGeneration: 3
+  observedTopologyGeneration: 2
+  topologyApplications:
+    - nodeName: demo-cn-0
+      requiredGeneration: 3
+      appliedGeneration: 3
+      topologyState: Applied
+      poolReloadState: Completed
+      retryCount: 0
+    - nodeName: demo-cn-1
+      requiredGeneration: 3
+      appliedGeneration: 2
+      topologyState: Pending
+      poolReloadState: Pending
+      retryCount: 1
+      message: Retryable topology application remains pending.
+  groups:
+    defaultGroup:
+      desiredGeneration: 3
+      appliedGeneration: 2
+      state: Pending
+      executorNode: demo-cn-0
+    shardingGroup:
+      desiredGeneration: 3
+      appliedGeneration: 2
+      state: Pending
+      executorNode: demo-cn-0
+  endpoints:
+    - name: demo-cn-client
+      purpose: CoordinatorClient
+      state: Pending
+    - name: demo-gtm
+      purpose: GTMDiscovery
+      state: Ready
+  unsupportedOperations: []
+  lastError:
+    phase: RegisteringTopology
+    nodeName: demo-cn-1
+    reason: TopologyApplicationRetryable
+    message: Topology application has not yet converged on this target.
+    retryable: true
+    retryCount: 1
+    time: "2026-07-12T08:01:00Z"

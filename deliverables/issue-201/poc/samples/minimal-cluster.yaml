@@ -1,0 +1,46 @@
+# Design-only sample. It is intentionally non-runnable.
+# The image placeholder means no OpenTenBase runtime image has been selected.
+apiVersion: database.opentenbase.org/v1alpha1
+kind: OpenTenBaseCluster
+metadata:
+  name: demo
+spec:
+  image: "<OPEN_TENBASE_IMAGE_NOT_SELECTED>"
+  gtm:
+    primaryCount: 1
+    standbyCount: 1
+    storage:
+      required: true
+      requestedCapacity: 1Gi
+  coordinators:
+    # Provisional PoC representation: 2 primaries, each with 1 standby (4 total).
+    primaryCount: 2
+    standbyCountPerPrimary: 1
+    storage:
+      required: true
+      requestedCapacity: 1Gi
+  dataNodes:
+    shards:
+      - id: "0"
+        standbyCount: 1
+        storage:
+          required: true
+          requestedCapacity: 10Gi
+      - id: "1"
+        standbyCount: 1
+        storage:
+          required: true
+          requestedCapacity: 10Gi
+  services:
+    coordinatorClient:
+      enabled: true
+    gtmDiscovery:
+      enabled: true
+    internalDiscovery:
+      enabled: true
+      mode: HeadlessPerRoleAndShard
+  bootstrap:
+    ordering: GTMFirst
+    topologyRegistration: PerMasterTracked
+    groupCreation: ExplicitPhase
+    retryPolicy: ObserveBeforeRetry
