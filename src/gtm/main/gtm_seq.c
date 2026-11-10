@@ -1753,7 +1753,6 @@ ProcessSequenceInitCommand(Port *myport, StringInfo message, bool is_backup)
 	GlobalTransactionId gxid;
 	bool	nocache;
 	bool	is_order;
-	char postfix[100];
 
 	if (Recovery_IsStandby())
 	{
@@ -1770,11 +1769,17 @@ ProcessSequenceInitCommand(Port *myport, StringInfo message, bool is_backup)
 	seqkey.gsk_key = (char *)pq_getmsgbytes(message, seqkey.gsk_keylen);
 
 	/* Check whether the seqkey contains GTM_SEQ_POSTFIX */
-	if (seqkey.gsk_keylen > 37)
+	if (seqkey.gsk_keylen > strlen(GTM_SEQ_POSTFIX))
 	{
-		strncpy(postfix, seqkey.gsk_key + (seqkey.gsk_keylen - strlen(GTM_SEQ_POSTFIX) - 1), strlen(GTM_SEQ_POSTFIX));
-		if (!strcmp(postfix, GTM_SEQ_POSTFIX))
-			elog(ERROR, "postfix of sequence key can not be _$OPENTENBASE$_sequence_temp_54312678712612.");
+		/* compare the suffix directly: strncpy copies exactly the postfix
+		 * length without a NUL, so the old strcmp compared byte 43 of
+		 * uninitialized stack storage, and for keylen 38..43 the offset
+		 * was negative (reading before the key buffer) */
+		if (strncmp(seqkey.gsk_key + (seqkey.gsk_keylen - strlen(GTM_SEQ_POSTFIX) - 1),
+					GTM_SEQ_POSTFIX, strlen(GTM_SEQ_POSTFIX)) == 0)
+			ereport(ERROR,
+					(EINVAL,
+					 errmsg("postfix of sequence key can not be %s", GTM_SEQ_POSTFIX)));
 	}
 
 	/*
