@@ -650,6 +650,7 @@ getTxnStatus(PGconn *conn, GlobalTransactionId gxid, int node_idx)
 	char stmt[1024];
 	PGresult *res;
 	char *res_s;
+	TXN_STATUS status;
 
 	static const char *STMT_FORM = "EXECUTE DIRECT ON (%s) 'SELECT pgxc_is_committed(''%d''::xid);'";
 	static const char *STMT_FORM_RUNNING = "EXECUTE DIRECT ON (%s) 'SELECT pgxc_is_inprogress(''%d''::xid);'";
@@ -664,20 +665,21 @@ getTxnStatus(PGconn *conn, GlobalTransactionId gxid, int node_idx)
 		PQclear(res);
 		sprintf(stmt, STMT_FORM_RUNNING, node_name, gxid);
 		res = PQexec(conn, stmt);
-		if (res == NULL || PQresultStatus(res) != PGRES_TUPLES_OK)
+		if (res == NULL || PQresultStatus(res) != PGRES_TUPLES_OK ||
+			PQgetisnull(res, 0, 0))
+		{
+			PQclear(res);
 			return TXN_STATUS_UNKNOWN;
-		if (PQgetisnull(res, 0, 0))
-			return TXN_STATUS_UNKNOWN;
+		}
 		res_s = PQgetvalue(res, 0, 0);
-		if (strcmp(res_s, "t") == 0)
-			return TXN_STATUS_INPROGRESS;
-		return TXN_STATUS_UNKNOWN;
+		status = strcmp(res_s, "t") == 0 ? TXN_STATUS_INPROGRESS : TXN_STATUS_UNKNOWN;
+		PQclear(res);
+		return status;
 	}
 	res_s = PQgetvalue(res, 0, 0);
-	if (strcmp(res_s, "t") == 0)
-		return TXN_STATUS_COMMITTED;
-	else
-		return TXN_STATUS_ABORTED;
+	status = strcmp(res_s, "t") == 0 ? TXN_STATUS_COMMITTED : TXN_STATUS_ABORTED;
+	PQclear(res);
+	return status;
 }
 
 static void
