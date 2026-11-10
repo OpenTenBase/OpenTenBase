@@ -38,9 +38,9 @@ DECLARE
 	exec_args JSONB;
 	result http_response;
 BEGIN
-	SELECT model_name, request_type, request_header, uri, content_type, default_args
-    FROM public.ai_model_list 
-    WHERE model_name = model_name_v 
+	SELECT m.model_name, m.request_type, m.request_header, m.uri, m.content_type, m.default_args
+    FROM public.ai_model_list AS m
+    WHERE m.model_name = model_name_v 
     INTO model_name, request_type, request_header, uri, content_type, default_args;
 
     IF model_name IS NULL THEN
