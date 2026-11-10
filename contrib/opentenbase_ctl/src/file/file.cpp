@@ -111,8 +111,23 @@ bool parseConfigFile(const std::string& filename, std::map<std::string, std::str
         std::string key = trim(trimmedLine.substr(0, equalsPos));
         std::string value = trim(trimmedLine.substr(equalsPos + 1));
 
-        // 查找注释的位置（#）
-        size_t commentPos = value.find('#');
+        // Ignore # only outside GUC strings; retain quotes and escapes verbatim.
+        size_t commentPos = std::string::npos;
+        bool inQuotes = false;
+        for (size_t pos = 0; pos < value.size(); ++pos) {
+            if (inQuotes && value[pos] == '\\' && pos + 1 < value.size()) {
+                ++pos;
+            } else if (value[pos] == '\'') {
+                if (inQuotes && pos + 1 < value.size() && value[pos + 1] == '\'') {
+                    ++pos;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (!inQuotes && value[pos] == '#') {
+                commentPos = pos;
+                break;
+            }
+        }
         if (commentPos != std::string::npos) {
             // 如果有注释，截取注释前的部分
             value = trim(value.substr(0, commentPos));
