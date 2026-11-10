@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include "types.h"
 #include "../log/log.h"
 #include "../utils/utils.h"
@@ -143,42 +144,48 @@ build_instance_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
 
 // 函数声明：判断字符串是否为合法的IP地址（IPv4或IPv6）
 bool is_valid_ip_address(const std::string& ip) {
-    // IPv4的正则表达式模式
-    std::regex ipv4_pattern(
-        R"(^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$)"
-    );
+    // inet_pton 认识的才是合法地址字面量。原来用一对正则匹配，IPv6 那一段漏掉了
+    // 若干合法写法（例如 ::1，以及不含 "::" 的全零地址），于是合法的 IPv6 节点
+    // 会被判成非法；IPv4 那一段又会接受 01.02.03.04 这类前导零写法。
+    unsigned char buf[16];
 
-    // IPv6的正则表达式模式
-    std::regex ipv6_pattern(
-        R"(^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|"
-        R"(([0-9a-fA-F]{1,4}:){1,7}:)|"
-        R"(([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4})|"
-        R"(([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2})|"
-        R"(([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3})|"
-        R"(([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4})|"
-        R"(([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5})|"
-        R"(:((:[0-9a-fA-F]{1,4}){1,6})|:))$)"
-    );
-
-    // 使用正则表达式进行匹配
-    return std::regex_match(ip, ipv4_pattern) || std::regex_match(ip, ipv6_pattern);
+    if (ip.empty()) {
+        return false;
+    }
+    if (inet_pton(AF_INET, ip.c_str(), buf) == 1) {
+        return true;
+    }
+    if (inet_pton(AF_INET6, ip.c_str(), buf) == 1) {
+        return true;
+    }
+    return false;
 }
 
 // 拆分节点列表
 // 使用 std::stringstream 分割字符串
-std::vector<std::string> parse_ip_list(const std::string& str) {
+// 解析逗号分隔的 IP 列表。空项（"a,,b" 或行尾逗号）跳过；非空项必须是合法
+// IP，否则返回 -1 —— 原来这里只做切分，除 gtm.master 之外的地址都没有校验，
+// 拼错的地址会安静地变成节点，直到后面建连才失败。
+int parse_ip_list(const std::string& str, std::vector<std::string>& items) {
     LOG_DEBUG_FMT("Parsing node list: %s", str.c_str());
-    std::vector<std::string> items;
+    items.clear();
     std::stringstream ss(str);
     std::string item;
-    
+
     while (std::getline(ss, item, ',')) {
         trim_whitespace(item);
+        if (item.empty()) {
+            continue;
+        }
+        if (!is_valid_ip_address(item)) {
+            LOG_ERROR_FMT("Not a valid IP address in node list: \"%s\"", item.c_str());
+            return -1;
+        }
         items.push_back(item);
         LOG_DEBUG_FMT("Parsed node item: %s", item.c_str());
     }
-    
-    return items;
+
+    return 0;
 }
 
 // 判断一个std::string变量（例如str）是否为空字符串或仅包含空格
@@ -251,7 +258,10 @@ build_gtm_node_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
     config.nodes.push_back(node);
 
     // gtm slave node
-    std::vector<std::string> gtm_slave_ips = parse_ip_list(cfg_file.gtm.slave);
+    std::vector<std::string> gtm_slave_ips;
+    if (parse_ip_list(cfg_file.gtm.slave, gtm_slave_ips) != 0) {
+        return -1;
+    }
     std::string current_name = node.name;
     for (const auto& ip : gtm_slave_ips) {
          NodeInfo node;
@@ -364,8 +374,16 @@ build_cn_node_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
     }
     
     // 获得IP列表
-    std::vector<std::string> master_ips = parse_ip_list(cfg_file.coordinators.master);
-    std::vector<std::string> slave_ips = parse_ip_list(cfg_file.coordinators.slave);
+    std::vector<std::string> master_ips;
+    std::vector<std::string> slave_ips;
+    if (parse_ip_list(cfg_file.coordinators.master, master_ips) != 0 ||
+        parse_ip_list(cfg_file.coordinators.slave, slave_ips) != 0) {
+        return -1;
+    }
+    if (master_ips.empty()) {
+        LOG_ERROR_FMT("coordinators.master must contain at least one valid IP.");
+        return -1;
+    }
     if (slave_ips.size() % master_ips.size() != 0) {
         LOG_ERROR_FMT("The number of IPs contained in master should be exactly several times that of the number of IPs in slave. Please correct your configuration..");
         return -1;
@@ -415,8 +433,16 @@ build_dn_node_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
     }
     
     // 获得IP列表
-    std::vector<std::string> master_ips = parse_ip_list(cfg_file.datanodes.master);
-    std::vector<std::string> slave_ips = parse_ip_list(cfg_file.datanodes.slave);
+    std::vector<std::string> master_ips;
+    std::vector<std::string> slave_ips;
+    if (parse_ip_list(cfg_file.datanodes.master, master_ips) != 0 ||
+        parse_ip_list(cfg_file.datanodes.slave, slave_ips) != 0) {
+        return -1;
+    }
+    if (master_ips.empty()) {
+        LOG_ERROR_FMT("datanodes.master must contain at least one valid IP.");
+        return -1;
+    }
     if (slave_ips.size() % master_ips.size() != 0) {
         LOG_ERROR_FMT("The number of IPs contained in master should be exactly several times that of the number of IPs in slave. Please correct your configuration..");
         return -1;
