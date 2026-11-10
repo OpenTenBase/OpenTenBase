@@ -427,14 +427,27 @@ int configure_cn_slave_node(NodeInfo *node, OpentenbaseConfig *install) {
     
     // find master node
     NodeInfo master_node;
+    bool master_found = false;
     for (size_t i = 0; i < install->nodes.size(); ++i) {
 
         if ((install->nodes[i].name == node->name && is_master_cn(install->nodes[i].type)))
         {
             master_node.ip = install->nodes[i].ip;
             master_node.port = install->nodes[i].port;
+            master_found = true;
             break;
         }
+    }
+    /*
+     * 和数据节点那条路径一样，这里也没有检查循环是否命中。NodeInfo::port 没有
+     * 默认值，没命中时 master_node.port 是不确定值、master_node.ip 是空串，
+     * 两者会被拼进 primary_conninfo，让备节点去连一个空地址加一个垃圾端口。
+     */
+    if (!master_found)
+    {
+        LOG_ERROR_FMT("Cannot find the master coordinator for slave node %s (%s)",
+                      node->name.c_str(), node->ip.c_str());
+        return -1;
     }
 
     // Configure postgresql.conf.user
