@@ -42,12 +42,36 @@ bits_to_text(bits8 *bits, int len)
 	return str;
 }
 
+/*
+ * xid_arg
+ *
+ * Fetch the transaction-id argument and refuse values a TransactionId cannot
+ * represent. TransactionId is uint32 while the SQL functions accept bigint, so
+ * a plain PG_GETARG_INT64 assignment narrows silently: 4294967297 becomes 1,
+ * and the caller then reads the GTS of an unrelated transaction instead of
+ * getting an error.
+ */
+static TransactionId
+xid_arg(FunctionCallInfo fcinfo, int argno)
+{
+	int64 value = PG_GETARG_INT64(argno);
+
+	if (value < 0 || value > (int64) PG_UINT32_MAX)
+		ereport(ERROR,
+				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
+				 errmsg("transaction id " INT64_FORMAT " is out of range", value),
+				 errhint("Transaction ids are 32-bit: pass a value between 0 and %u.",
+						 PG_UINT32_MAX)));
+
+	return (TransactionId) value;
+}
+
 PG_FUNCTION_INFO_V1(txid_gts);
 
 Datum
 txid_gts(PG_FUNCTION_ARGS)
 {
-	TransactionId xid = PG_GETARG_INT64(0);
+	TransactionId xid = xid_arg(fcinfo, 0);
 	CommitSeqNo gts;
 	bool found = false;
 
@@ -69,7 +93,7 @@ PG_FUNCTION_INFO_V1(txid_gts_raw);
 Datum
 txid_gts_raw(PG_FUNCTION_ARGS)
 {
-	TransactionId xid = PG_GETARG_INT64(0);
+	TransactionId xid = xid_arg(fcinfo, 0);
 	CommitSeqNo gts = 0;
 
 	if (TransactionIdIsNormal(xid))
@@ -90,7 +114,7 @@ PG_FUNCTION_INFO_V1(txid_set_gts);
 Datum
 txid_set_gts(PG_FUNCTION_ARGS)
 {
-	TransactionId xid = PG_GETARG_INT64(0);
+	TransactionId xid = xid_arg(fcinfo, 0);
 	CommitSeqNo   gts = (uint64)(PG_GETARG_INT64(1));
 
 	if (!superuser())
