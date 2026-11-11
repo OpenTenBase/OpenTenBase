@@ -18,6 +18,7 @@
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
+#include "storage/pg_numa.h"
 
 #include <signal.h>
 #include <unistd.h>
@@ -657,6 +658,20 @@ PGSharedMemoryCreate(Size size, bool makePrivate, int port,
 	 * can't see the header as valid but belonging to an invalid PID!
 	 */
 	hdr = (PGShmemHeader *) memAddress;
+
+	/*
+	 * Spread the main shared memory segment across NUMA nodes according to
+	 * the "numa" GUC.  By default the kernel uses a first-touch policy, so
+	 * every page is faulted onto the postmaster's local NUMA node; under a
+	 * large shared_buffers that node's local memory can be exhausted (OOM)
+	 * while other nodes stay idle.  Apply the policy before the segment is
+	 * first touched.
+	 */
+	if (AnonymousShmem != NULL)
+		pg_numa_apply_shmem_policy(AnonymousShmem, size);
+	else
+		pg_numa_apply_shmem_policy(memAddress, sysvsize);
+
 	hdr->creatorPID = getpid();
 	hdr->magic = PGShmemMagic;
 	hdr->dsm_control = 0;
