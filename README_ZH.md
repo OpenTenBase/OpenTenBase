@@ -255,12 +255,14 @@ slave=172.16.16.50,172.16.16.131
 master=172.16.16.49
 slave= 172.16.16.131
 nodes-per-server=1
+conf=/data/opentenbase/install/postgres.conf
 
 # 数据节点
 [datanodes]
 master=172.16.16.49,172.16.16.131
 slave=172.16.16.131,172.16.16.49
 nodes-per-server=1
+conf=/data/opentenbase/install/postgres.conf
 
 # 登录和部署账户
 [server]
@@ -286,6 +288,7 @@ package=/data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
 master=172.16.16.49
 slave=172.16.16.131
 nodes-per-server=1
+conf=/data/opentenbase/install/postgres.conf
 
 # 登录和部署账户
 [server]
@@ -315,6 +318,7 @@ package=/data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
 [datanodes]
 master=127.0.0.1
 nodes-per-server=1
+conf=/data/opentenbase/install/postgres.conf
 
 # 登录和部署账户
 [server]
@@ -327,7 +331,9 @@ ssh-port=36000
 level=DEBUG
 ```
 
-> **注意**：集中式单节点模式不需要配置 `[gtm]` 和 `[coordinators]` 段，GTM 功能内嵌在 CN 中。不要填写 `slave=` 行，否则解析器可能报 `Failed to parse configuration file`。
+> **注意**：集中式单节点模式不需要配置 `[gtm]` 和 `[coordinators]` 段，GTM 功能内嵌在 CN 中。`slave=` 行可以省略；但 `[datanodes]` 段必须配置 `conf=`（指向 GUC 配置文件，且该文件需存在），否则 `opentenbase_ctl` 会报 `Failed to parse configuration file`。
+
+> **关于 `conf=`**：执行 `install` 前，`opentenbase_ctl` 会解析 `[coordinators]` 与 `[datanodes]` 中 `conf=` 指向的 GUC 配置文件。该文件必须存在（空文件即可，例如 `touch ${INSTALL_PATH}/postgres.conf`）；未配置该选项或文件无法打开时，`install` 会报 `Failed to parse configuration file`。
 
 > **关于端口**：本文档不引入任何具体业务端口数字。客户端连接入口、节点端口等以 OpenTenBase 官方文档为准。`ssh-port=36000` 与分布式样例保持一致，便于工具识别。
 
@@ -455,7 +461,7 @@ postgres=#
 
 | 现象 | 原因 | 解决方案 |
 |------|------|---------|
-| `opentenbase_ctl install` 报 `Failed to parse configuration file` | `[datanodes]` 段 `slave=` 为空时解析器误判 | 集中式单节点模式不写 `slave=` 行 |
+| `opentenbase_ctl install` 报 `Failed to parse configuration file` | 未配置 `[coordinators]` / `[datanodes]` 的 `conf=`，或 `conf=` 指向的文件不存在；安装前解析 GUC 文件失败 | 先创建 GUC 文件（空文件即可，例如 `touch ${INSTALL_PATH}/postgres.conf`），并将 `conf=` 配置为绝对路径；`slave=` 留空是允许的，不是该报错的原因 |
 | `opentenbase_ctl install` 报 GTM 连接失败 | 集中式模式无独立 GTM 进程，但配置仍写了 `[gtm]` 段 | 集中式模式只保留 `[datanodes]` + `[server]` + `[log]` 段 |
 | `pg_ctl start` 后进程没起来 | 未指定节点类型 | 必须加 `-Z datanode`（或 `-Z coordinator`）|
 | `opentenbase_ctl install` 完成但节点未运行 | install 命令只执行 initdb，不自动启动 | 安装完成后执行 `opentenbase_ctl start -c opentenbase_config.ini` |

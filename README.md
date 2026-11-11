@@ -276,12 +276,14 @@ slave=172.16.16.50,172.16.16.131
 master=172.16.16.49
 slave= 172.16.16.131
 nodes-per-server=1
+conf=/data/opentenbase/install/postgres.conf
 
 # Data nodes
 [datanodes]
 master=172.16.16.49,172.16.16.131
 slave=172.16.16.131,172.16.16.49
 nodes-per-server=1
+conf=/data/opentenbase/install/postgres.conf
 
 # Login and deployment account
 [server]
@@ -308,6 +310,7 @@ package=/data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
 master=172.16.16.49
 slave=172.16.16.131
 nodes-per-server=1
+conf=/data/opentenbase/install/postgres.conf
 
 # Login and deployment account
 [server]
@@ -334,6 +337,7 @@ package=/data/opentenbase/install/opentenbase-5.21.8-i.x86_64.tar.gz
 [datanodes]
 master=127.0.0.1
 nodes-per-server=1
+conf=/data/opentenbase/install/postgres.conf
 
 # Login and deployment account
 [server]
@@ -345,6 +349,8 @@ ssh-port=36000
 [log]
 level=DEBUG
 ```
+
+> **Note on `conf=`**: `opentenbase_ctl` parses the GUC override file referenced by `conf=` in `[coordinators]` and `[datanodes]` before installing. The file must exist even when it is empty (e.g. `touch ${INSTALL_PATH}/postgres.conf`); if the option is missing or the file cannot be opened, `install` fails with `Failed to parse configuration file`.
 
 > **About ports**: This document does not introduce any specific business port numbers. Client connection entry, node ports, etc. are governed by the OpenTenBase official documentation. `ssh-port=36000` is kept consistent with the distributed sample for tool convenience.
 
@@ -454,7 +460,7 @@ The following common issues may be encountered when deploying and using OpenTenB
 
 | Symptom | Root cause | Solution |
 |---------|-----------|----------|
-| `opentenbase_ctl install` reports `Failed to parse configuration file` | The parser misbehaves when `[datanodes].slave=` is empty | In centralized single-node mode, omit the `slave=` line entirely |
+| `opentenbase_ctl install` reports `Failed to parse configuration file` | `conf=` is missing in `[coordinators]` / `[datanodes]`, or it points to a file that does not exist; the GUC file is parsed before installation | Create the GUC file first (an empty file is accepted, e.g. `touch ${INSTALL_PATH}/postgres.conf`) and set `conf=` to its absolute path; an empty `slave=` line is accepted and is not the cause of this error |
 | `opentenbase_ctl install` reports a GTM connection failure | Centralized mode has no standalone GTM process, but the configuration still contains a `[gtm]` block | In centralized mode, keep only `[datanodes]` + `[server]` + `[log]` |
 | `pg_ctl start` exits without leaving a running process | The node type was not specified | You must add `-Z datanode` (or `-Z coordinator`) |
 | `opentenbase_ctl install` finishes but no node is running | The `install` command only runs `initdb`; it does not auto-start the cluster | Run `opentenbase_ctl start -c opentenbase_config.ini` afterwards |
