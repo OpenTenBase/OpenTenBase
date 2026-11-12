@@ -317,9 +317,13 @@ class ThreadTask(threading.Thread):
         self.fout_case.close()
 
         ret = True
-        if not global_args.record and os.path.exists(test.result_file):
-            rc = ResultCompare(test.name, test.result_file, cast_output_file, 'sum.diffs', 'tmp')
-            ret = rc.compare()
+        if not global_args.record:
+            if not os.path.isfile(test.result_file):
+                global_thl_data.logger.error(f'expected result file not found: {test.result_file}')
+                ret = False
+            else:
+                rc = ResultCompare(test.name, test.result_file, cast_output_file, 'sum.diffs', 'tmp')
+                ret = rc.compare()
         if ret:
             ResultAgg(test.name)
             global_thl_data.logger.success(f'{test.name} success')
