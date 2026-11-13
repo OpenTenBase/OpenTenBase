@@ -740,7 +740,9 @@ ProcessUtilityPre(PlannedStmt *pstmt,
 						{
 							if (IsXidImplicit((const char *)stmt->gid))
 							{
-								elog(ERROR, "Invalid transaciton_id to prepare.");
+								ereport(ERROR,
+										(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+											 errmsg("invalid transaction id to prepare")));
 								break;
 							}
 						}
@@ -855,8 +857,10 @@ ProcessUtilityPre(PlannedStmt *pstmt,
 					if (strcmp(opt->defname, "force") == 0)
 						force = true;
 					else
-						elog(ERROR,
-								"unrecognized DROP DATABASE option \"%s\"", opt->defname);
+						ereport(ERROR,
+								(errcode(ERRCODE_SYNTAX_ERROR),
+									 errmsg("unrecognized DROP DATABASE option \"%s\"",
+										opt->defname)));
 				}
 
 				/* Clean connections before dropping a database on local node */
@@ -1018,7 +1022,11 @@ ProcessUtilityPre(PlannedStmt *pstmt,
 				groupoid = get_pgxc_groupoid(groupname);
 				if (is_group_sharding_inited(groupoid))
 				{
-					elog(ERROR, "shard info exist in group:%s groupoid:%d", groupname, groupoid);
+					ereport(ERROR,
+							(errcode(ERRCODE_OBJECT_IN_USE),
+								 errmsg("shard map exists in group \"%s\" (group oid %d)",
+									groupname, groupoid),
+								 errhint("Use CLEAN SHARDING before dropping the group.")));
 				}
 				
 				PgxcGroupRemove((DropGroupStmt *) parsetree);
@@ -1294,7 +1302,9 @@ ProcessUtilityPre(PlannedStmt *pstmt,
 				if (rd_locator_info && rd_locator_info->locatorType == LOCATOR_TYPE_REPLICATED && !IS_CENTRALIZED_DATANODE)
 				{
 					relation_close(rel, AccessShareLock);
-					elog(ERROR, "TRIGGER is not supported on replication table in distributed mode");
+					ereport(ERROR,
+							(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+								 errmsg("trigger is not supported on replication tables in distributed mode")));
 				}
 #endif
 				relation_close(rel, AccessShareLock);
@@ -2401,7 +2411,9 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 							}
 
 							if (name && strcmp(name, IMPLICIT_SAVEPOINT_NAME) == 0)
-								elog(ERROR, "cannot use this name for savepoint, please use others");
+								ereport(ERROR,
+										(errcode(ERRCODE_S_E_INVALID_SPECIFICATION),
+											 errmsg("cannot use this name for a savepoint, please use another name")));
 
 							elog(DEBUG1, "[NEST_LEVEL_CHECK:%d] recv savepoint %s. cur_level: %d", MyProcPid, name, GetCurrentTransactionNestLevel());
 
@@ -2659,7 +2671,9 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 				VacuumShardStmt *stmt = (VacuumShardStmt *)parsetree;
 				if(!IS_PGXC_DATANODE)
 				{
-					elog(ERROR, "this operation can only be executed on datanode.");
+					ereport(ERROR,
+							(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+								 errmsg("this operation can only be executed on a datanode")));
 				}
 				
 				ExecVacuumShard(stmt);
@@ -2970,13 +2984,18 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 
 			if (!stmt->isExtended && MajorShardAlreadyExist())
 			{
-				elog(ERROR, "major shard map has initialized already, it can not be initialized again.");
+				ereport(ERROR,
+						(errcode(ERRCODE_DUPLICATE_OBJECT),
+							 errmsg("major shard map has already been initialized, it cannot be initialized again")));
 			}
 
 			GetDatanodeGlobalInfo(parsetree, &nodeNum, &nodeIndex, &nodeOids, &nodeGroup);
 			if(is_group_sharding_inited(nodeGroup))
 			{
-				elog(ERROR, "shard map of group:%u has initialized already, it can not be initialized again.", nodeGroup);
+				ereport(ERROR,
+						(errcode(ERRCODE_DUPLICATE_OBJECT),
+							 errmsg("shard map of group %u has already been initialized, it cannot be initialized again",
+								nodeGroup)));
 				return;
 			}
 
@@ -3099,7 +3118,9 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 						}							
 						break;
 					case MOVE_DATA_STRATEGY_AT:
-						elog(ERROR, "Move Strategy MOVE_DATA_STRATEGY_AT is not supported in coordinator");
+						ereport(ERROR,
+								(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+									 errmsg("move strategy MOVE_DATA_STRATEGY_AT is not supported in coordinator")));
 						break;
 					default:
 						elog(ERROR, "Invalid Move Strategy: %d", stmt->strategy);
@@ -3118,7 +3139,9 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 				
 				if (!OidIsValid(group_oid))
 				{
-					elog(ERROR, "group with name:%s not found", strVal(stmt->group));
+					ereport(ERROR,
+							(errcode(ERRCODE_UNDEFINED_OBJECT),
+								 errmsg("group \"%s\" does not exist", strVal(stmt->group))));
 				}
 
 				/* check if the group contains this two datanodes */
@@ -3168,12 +3191,17 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			Oid group = get_pgxc_groupoid(stmt->group_name);
 			if (!OidIsValid(group))
 			{
-				elog(ERROR, "node group %s not exist.", stmt->group_name);
+				ereport(ERROR,
+						(errcode(ERRCODE_UNDEFINED_OBJECT),
+							 errmsg("node group \"%s\" does not exist", stmt->group_name)));
 			}
 
 			if (GroupHasRelations(group))
 			{
-				elog(ERROR, "node group %s still has relations inside, please remove them first.", stmt->group_name);
+				ereport(ERROR,
+						(errcode(ERRCODE_OBJECT_IN_USE),
+							 errmsg("node group \"%s\" still has relations inside, remove them first",
+								stmt->group_name)));
 			}
 
 			/* first drop sharding map locally */
@@ -3252,15 +3280,21 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 			/* Case: CLEAN SHARDING GROUP groupname FROM from_node TO to_node */
 			groupid = get_pgxc_groupoid(stmt->group_name);
 			if(InvalidOid == groupid)
-				elog(ERROR, "group name %s is not exist.", stmt->group_name);
+				ereport(ERROR,
+						(errcode(ERRCODE_UNDEFINED_OBJECT),
+							 errmsg("group \"%s\" does not exist", stmt->group_name)));
 
 			fromoid = get_pgxc_nodeoid(stmt->dn_from);
 			if(InvalidOid == fromoid)
-					elog(ERROR, "datanode %s is not exist.", stmt->dn_from);
+					ereport(ERROR,
+							(errcode(ERRCODE_UNDEFINED_OBJECT),
+								 errmsg("datanode \"%s\" does not exist", stmt->dn_from)));
 
 			tooid = get_pgxc_nodeoid(stmt->dn_to);
 			if(InvalidOid == fromoid)
-					elog(ERROR, "datanode %s is not exist.", stmt->dn_to);
+					ereport(ERROR,
+							(errcode(ERRCODE_UNDEFINED_OBJECT),
+								 errmsg("datanode \"%s\" does not exist", stmt->dn_to)));
 
 			if (IS_PGXC_DATANODE)
 			{
@@ -3294,7 +3328,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 					node_type = PGXC_NODE_DATANODE;
 					toidx = PGXCNodeGetNodeId(tooid, &node_type);
 					if(toidx < 0)
-						elog(ERROR, "innel error: datanode %d cannot be found.", tooid);
+						elog(ERROR, "inner error: datanode %d cannot be found", tooid);
 					execnodes->nodeList = lappend_int(execnodes->nodeList,toidx);
 					ExecUtilityStmtOnNodes(NULL, "CLEAN SHARDING;", execnodes, 
 											sentToRemote, false, 
@@ -3335,7 +3369,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 					node_type = PGXC_NODE_DATANODE;
 					fromidx = PGXCNodeGetNodeId(fromoid, &node_type);
 					if(fromidx < 0)
-						elog(ERROR, "innel error: datanode %d cannot be found.", fromidx);
+						elog(ERROR, "inner error: datanode %d cannot be found", fromidx);
 					execnodes->nodeList = lappend_int(execnodes->nodeList,fromidx);
 
 					ExecUtilityStmtOnNodes(NULL, "CLEAN SHARDING;", execnodes, 
@@ -3569,7 +3603,9 @@ ProcessUtilitySlow(ParseState *pstate,
 								/*make sure local coordinator always send create table command to remote cn and dn */
 								if (!is_object_temp && stmt_loc->relkind == OBJECT_TABLE && sentToRemote)
 								{
-									elog(ERROR, "Cannot support nondistribute table");
+									ereport(ERROR,
+											(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+												 errmsg("nondistributed tables are not supported")));
 								}
 
 #ifndef ENABLE_ALL_TABLE_TYPE
@@ -4154,7 +4190,9 @@ ProcessUtilitySlow(ParseState *pstate,
 					Oid createConstraintId = InvalidOid;
 
 					if (stmt->cross_node)
-					 	elog(ERROR, "not support global index yet");
+						ereport(ERROR,
+								(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+								 errmsg("global index is not supported yet")));
 					if (stmt->concurrent)
 						PreventTransactionChain(isTopLevel,
 												"CREATE INDEX CONCURRENTLY");
@@ -7575,8 +7613,10 @@ DropStmtPreTreatment(DropStmt *stmt, const char *queryString, bool sentToRemote,
                         {
                             if (false == schema_bound)
                             {
-                                elog(ERROR, "could not drop table:%s, cause mls poilcy is bound", 
-                                    rangevar->relname);
+                                ereport(ERROR,
+                                    (errcode(ERRCODE_OBJECT_IN_USE),
+                                        errmsg("could not drop table \"%s\": mls policy is bound",
+                                            rangevar->relname)));
                             }
                             /*
                              * if schema is crypted, table could be dropped directly.
@@ -7597,11 +7637,15 @@ DropStmtPreTreatment(DropStmt *stmt, const char *queryString, bool sentToRemote,
                                     if (false == schema_bound)
                                     {
 #ifdef _PG_REGRESS_
-                                        elog(ERROR, "could not drop table:%s, cause mls poilcy is bound", 
-                                            rangevar->relname);
+                                        ereport(ERROR,
+                                            (errcode(ERRCODE_OBJECT_IN_USE),
+                                                errmsg("could not drop table \"%s\": mls policy is bound",
+                                                    rangevar->relname)));
 #else
-                                        elog(ERROR, "could not drop table:%s, partition oid:%u cause mls poilcy is bound", 
-                                            rangevar->relname, partoid);
+                                        ereport(ERROR,
+                                            (errcode(ERRCODE_OBJECT_IN_USE),
+                                                errmsg("could not drop table \"%s\", partition oid %u: mls policy is bound",
+                                                    rangevar->relname, partoid)));
 #endif
                                     }
                                 } 
