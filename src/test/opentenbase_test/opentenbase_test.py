@@ -261,10 +261,11 @@ class ThreadTask(threading.Thread):
                 conn_name = linesplited[1]
                 current_conn = conns[conn_name]
             elif cmd == 'send':
-                self.SendSql(current_conn, line[len('send'):] + '\n')
+                # Preserve SQL operators and quoted text containing '#' or '%'.
+                self.SendSql(current_conn, line_org.strip()[len('send'):] + '\n')
                 current_conn = None
             elif cmd == 'sendblock':
-                self.SendBlockSql(current_conn, line[len('sendblock'):] + '\n')
+                self.SendBlockSql(current_conn, line_org.strip()[len('sendblock'):] + '\n')
                 current_conn = None
             elif cmd == 'reap':
                 conn_name = linesplited[1]
