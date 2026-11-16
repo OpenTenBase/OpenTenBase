@@ -244,6 +244,11 @@ stat_transaction(int node_count)
 	if (!statements_per_transaction)
 	{
 		statements_per_transaction = (int *) malloc((MAX_STATEMENTS_PER_TRAN + 1) * sizeof(int));
+		if (statements_per_transaction == NULL)
+		{
+			elog(LOG, "out of memory for statements_per_transaction");
+			return;
+		}
 		memset(statements_per_transaction, 0, (MAX_STATEMENTS_PER_TRAN + 1) * sizeof(int));
 	}
 	if (current_tran_statements > MAX_STATEMENTS_PER_TRAN)
@@ -256,6 +261,11 @@ stat_transaction(int node_count)
 		if (!nodes_per_transaction)
 		{
 			nodes_per_transaction = (int *) malloc(NumDataNodes * sizeof(int));
+			if (nodes_per_transaction == NULL)
+			{
+				elog(LOG, "out of memory for nodes_per_transaction");
+				return;
+			}
 			memset(nodes_per_transaction, 0, NumDataNodes * sizeof(int));
 		}
 		nodes_per_transaction[node_count - 1]++;
