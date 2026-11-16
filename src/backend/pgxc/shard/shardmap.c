@@ -3353,6 +3353,11 @@ RecoverShardStatistic(void)
 	int nelems = MAX_SHARDS;
 	int size   = sizeof(ShardRecord) * nelems;
 	ShardRecord *rec = (ShardRecord *)malloc(size);
+	if (rec == NULL)
+	{
+		elog(LOG, "out of memory for shard statistic recovery, size=%d", size);
+		return;
+	}
 
 	if(access(SHARD_STATISTIC_FILE_PATH, F_OK) == 0)
 	{
