@@ -174,8 +174,8 @@ int setEnvironmentVariableInBashrc(const std::string& var_name, const std::strin
         return 1;
     }
 
-    // 构建 echo 追加命令，将新的环境变量追加到 ~/.bashrc
-    std::string echo_command = "echo '" + var_name + "=" + var_value + "' >> ~/.bashrc";
+    // 构建 echo 追加命令，将新的环境变量追加到 ~/.bashrc（单引号引用防止注入）
+    std::string echo_command = "echo " + shell_quote(var_name + "=" + var_value) + " >> ~/.bashrc";
 
     // 执行 echo 追加命令
     ret = system(echo_command.c_str());

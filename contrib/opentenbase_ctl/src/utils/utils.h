@@ -144,6 +144,23 @@ bool is_fusion_version(std::string version);
  */
 bool is_Centralized_instance(std::string instance_type);
 
+/**
+ * 将字符串用单引号引用，使其在 shell 中被当作一个原样字面量参数，
+ * 防止字符串中的 `$()`、反引号、分号、空格、引号等被 shell 解释（命令注入）。
+ * 字符串内部的单引号会被转义为 '\''。
+ * @param s 原始字符串
+ * @return 单引号包裹后的字符串
+ */
+std::string shell_quote(const std::string& s);
+
+/**
+ * 校验 GUC 参数名是否为合法标识符（字母/下划线开头，后续可含字母、数字、下划线、点）。
+ * 用于防止参数名被注入到 sed/grep/echo 等 shell 命令中。
+ * @param name 参数名
+ * @return true 合法; false 非法
+ */
+bool is_valid_guc_name(const std::string& name);
+
 // sql 转义函数
 std::string escape_sql(const std::string& sql);
 
