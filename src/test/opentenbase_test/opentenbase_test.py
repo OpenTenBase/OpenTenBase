@@ -217,7 +217,7 @@ class ThreadTask(threading.Thread):
         cast_output_file = f'{global_output_dir}/{test.name}.output'
         if global_args.record:
             case_result_dir = os.path.dirname(os.path.abspath(test.result_file))
-            os.system(f'[ -d {case_result_dir} ] || mkdir {case_result_dir}')
+            os.makedirs(case_result_dir, exist_ok=True)
             self.fout_case = open(f'{test.result_file}', 'w')
         else:
             self.fout_case = open(cast_output_file, 'w')
