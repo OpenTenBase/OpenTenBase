@@ -196,6 +196,8 @@ class PgxcCtlConf:
         content = open('pgxc_ctl.conf').read()
         content = content.replace('_TABSE_TEST_XXX_YYY_____pgxcOwner', self.pgxcOwner)
         content = content.replace('_TABSE_TEST_XXX_YYY_____rundir', self.rundir)
+        content = content.replace('_TABSE_TEST_XXX_YYY_____gtmSlave__',
+                                  'y' if self.cluster_conf.gtm_slave > 0 else 'n')
         content = content.replace('_TABSE_TEST_XXX_YYY_____gtmMasterPort', str(self.gtmMasterPort))
         content = content.replace('_TABSE_TEST_XXX_YYY_____gtmSlavePort', str(self.gtmSlavePort))
         content = content.replace('_TABSE_TEST_XXX_YYY_____gtmSlavePort', str(self.gtmSlavePort))
