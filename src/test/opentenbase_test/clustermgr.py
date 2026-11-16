@@ -315,69 +315,72 @@ def CreateBaseCluster(cluster_conf, basedir):
 
     user = getpass.getuser()
 
-    for p in pgxc_ctl_conf.coordPorts:
-        try:
-            conn = psycopg2.connect(f"dbname='postgres' user='{user}' host='localhost' port={p}")
-            curs =  conn.cursor()
-            curs.execute("select oid, * from pgxc_node;")
-            all_rows = curs.fetchall()
-            pgxc_ctl_conf.cn_pgxc_node.append(all_rows)
-            global_thl_data.logger.debug(f'cn pg_class content {all_rows}')
-            curs.execute("select pg_relation_filepath('pgxc_node')")
-            res = curs.fetchone()
-            pgxc_ctl_conf.cn_pgxc_node_file.append(res)
-            global_thl_data.logger.debug(f'cn pg_class file {res}')
-        except:
-            global_thl_data.logger.error("Get pgxc node failed")
-    for p in pgxc_ctl_conf.coordSlavePorts:
-        conn_string = f"dbname='postgres' user='{user}' host='localhost' port={p}"
-        try:
-            conn = psycopg2.connect(conn_string)
-            curs =  conn.cursor()
-            curs.execute("select oid, * from pgxc_node;")
-            all_rows = curs.fetchall()
-            pgxc_ctl_conf.cn_slave_pgxc_node.append(all_rows)
-            global_thl_data.logger.debug(f'cn slave pg_class content {all_rows}')
-            curs.execute("select pg_relation_filepath('pgxc_node')")
-            res = curs.fetchone()
-            pgxc_ctl_conf.cn_slave_pgxc_node_file.append(res)
-            global_thl_data.logger.debug(f'cn slave pg_class file {res}')
-        except:
-            global_thl_data.logger.error(f"Get pgxc node failed: {conn_string}")
-            assert False
-    for p in pgxc_ctl_conf.datanodePorts:
-        try:
-            conn = psycopg2.connect(f"dbname='postgres' user='{user}' host='localhost' port={p}")
-            curs =  conn.cursor()
-            curs.execute("select oid, * from pgxc_node;")
-            all_rows = curs.fetchall()
-            pgxc_ctl_conf.dn_pgxc_node.append(all_rows)
-            global_thl_data.logger.debug(f'dn pg_class content {all_rows}')
-            curs.execute("select pg_relation_filepath('pgxc_node')")
-            res = curs.fetchone()
-            pgxc_ctl_conf.dn_pgxc_node_file.append(res)
-            global_thl_data.logger.debug(f'dn pg_class file {res}')
-        except:
-            global_thl_data.logger.error("Get pgxc node failed")
-    for p in pgxc_ctl_conf.datanodeSlavePorts:
-        try:
-            conn = psycopg2.connect(f"dbname='postgres' user='{user}' host='localhost' port={p}")
-            curs =  conn.cursor()
-            curs.execute("select oid, * from pgxc_node;")
-            all_rows = curs.fetchall()
-            pgxc_ctl_conf.dn_slave_pgxc_node.append(all_rows)
-            global_thl_data.logger.debug(f'dn slave pg_class content {all_rows}')
-            curs.execute("select pg_relation_filepath('pgxc_node')")
-            res = curs.fetchone()
-            pgxc_ctl_conf.dn_slave_pgxc_node_file.append(res)
-            global_thl_data.logger.debug(f'dn slave pg_class file {res}')
-        except:
-            global_thl_data.logger.error("Get pgxc node failed")
-
-
-    cmd = f'pgxc_ctl --home {basedir} -c {basedir}/pgxc_ctl.conf stop all >&/dev/null'
-    os.system(cmd)
-    time.sleep(2)
+    try:
+        for p in pgxc_ctl_conf.coordPorts:
+            try:
+                conn = psycopg2.connect(f"dbname='postgres' user='{user}' host='localhost' port={p}")
+                curs =  conn.cursor()
+                curs.execute("select oid, * from pgxc_node;")
+                all_rows = curs.fetchall()
+                pgxc_ctl_conf.cn_pgxc_node.append(all_rows)
+                global_thl_data.logger.debug(f'cn pg_class content {all_rows}')
+                curs.execute("select pg_relation_filepath('pgxc_node')")
+                res = curs.fetchone()
+                pgxc_ctl_conf.cn_pgxc_node_file.append(res)
+                global_thl_data.logger.debug(f'cn pg_class file {res}')
+            except:
+                global_thl_data.logger.error("Get pgxc node failed")
+                raise
+        for p in pgxc_ctl_conf.coordSlavePorts:
+            conn_string = f"dbname='postgres' user='{user}' host='localhost' port={p}"
+            try:
+                conn = psycopg2.connect(conn_string)
+                curs =  conn.cursor()
+                curs.execute("select oid, * from pgxc_node;")
+                all_rows = curs.fetchall()
+                pgxc_ctl_conf.cn_slave_pgxc_node.append(all_rows)
+                global_thl_data.logger.debug(f'cn slave pg_class content {all_rows}')
+                curs.execute("select pg_relation_filepath('pgxc_node')")
+                res = curs.fetchone()
+                pgxc_ctl_conf.cn_slave_pgxc_node_file.append(res)
+                global_thl_data.logger.debug(f'cn slave pg_class file {res}')
+            except:
+                global_thl_data.logger.error(f"Get pgxc node failed: {conn_string}")
+                assert False
+        for p in pgxc_ctl_conf.datanodePorts:
+            try:
+                conn = psycopg2.connect(f"dbname='postgres' user='{user}' host='localhost' port={p}")
+                curs =  conn.cursor()
+                curs.execute("select oid, * from pgxc_node;")
+                all_rows = curs.fetchall()
+                pgxc_ctl_conf.dn_pgxc_node.append(all_rows)
+                global_thl_data.logger.debug(f'dn pg_class content {all_rows}')
+                curs.execute("select pg_relation_filepath('pgxc_node')")
+                res = curs.fetchone()
+                pgxc_ctl_conf.dn_pgxc_node_file.append(res)
+                global_thl_data.logger.debug(f'dn pg_class file {res}')
+            except:
+                global_thl_data.logger.error("Get pgxc node failed")
+                raise
+        for p in pgxc_ctl_conf.datanodeSlavePorts:
+            try:
+                conn = psycopg2.connect(f"dbname='postgres' user='{user}' host='localhost' port={p}")
+                curs =  conn.cursor()
+                curs.execute("select oid, * from pgxc_node;")
+                all_rows = curs.fetchall()
+                pgxc_ctl_conf.dn_slave_pgxc_node.append(all_rows)
+                global_thl_data.logger.debug(f'dn slave pg_class content {all_rows}')
+                curs.execute("select pg_relation_filepath('pgxc_node')")
+                res = curs.fetchone()
+                pgxc_ctl_conf.dn_slave_pgxc_node_file.append(res)
+                global_thl_data.logger.debug(f'dn slave pg_class file {res}')
+            except:
+                global_thl_data.logger.error("Get pgxc node failed")
+                raise
+    finally:
+        cmd = f'pgxc_ctl --home {basedir} -c {basedir}/pgxc_ctl.conf stop all >&/dev/null'
+        os.system(cmd)
+        time.sleep(2)
 
     pgxc_ctl_conf.DumpToPickleFile()
 
