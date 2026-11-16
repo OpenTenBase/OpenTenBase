@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>opentenbase_ai 从 0 到 1 · 成果卡</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: #eef2f8;
+    padding: 32px 16px;
+    color: #1f2937;
+  }
+  .page { max-width: 840px; margin: 0 auto; }
+
+  /* 封面 */
+  .cover {
+    background: linear-gradient(120deg, #0052d9 0%, #1677ff 55%, #00c8ff 100%);
+    border-radius: 20px;
+    padding: 36px 38px;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 16px 40px rgba(0, 82, 217, 0.28);
+  }
+  .cover::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at 88% 12%, rgba(255,255,255,0.28), transparent 42%),
+                radial-gradient(circle at 65% 115%, rgba(255,255,255,0.12), transparent 40%);
+    pointer-events: none;
+  }
+  .cover .kicker { font-size: 13px; letter-spacing: 2px; opacity: 0.9; font-weight: 600; }
+  .cover h1 { font-size: 30px; font-weight: 800; margin: 10px 0 8px; }
+  .cover .sub { font-size: 14px; opacity: 0.94; line-height: 1.85; max-width: 660px; }
+  .cover .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+  .chip {
+    font-size: 12px; font-weight: 600;
+    padding: 5px 12px; border-radius: 999px;
+    background: rgba(255,255,255,0.2); color: #fff;
+    border: 1px solid rgba(255,255,255,0.35);
+  }
+
+  /* 卡片 */
+  .card {
+    background: #fff;
+    border-radius: 18px;
+    margin-top: 22px;
+    overflow: hidden;
+    box-shadow: 0 8px 26px rgba(15, 42, 84, 0.08);
+    border: 1px solid #e3eaf5;
+  }
+  .card-body { padding: 22px 30px 26px; }
+  .sec-title {
+    font-size: 14px; font-weight: 800; color: #0052d9;
+    letter-spacing: 1px; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sec-title::before { content: ""; width: 4px; height: 16px; border-radius: 2px; background: linear-gradient(#0052d9, #00c8ff); }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .stat-box {
+    background: #f6f9ff;
+    border: 1px solid #e0eafb;
+    border-radius: 12px;
+    text-align: center;
+    padding: 16px 6px;
+  }
+  .stat-box .n { font-size: 22px; font-weight: 800; color: #0052d9; }
+  .stat-box .l { font-size: 12px; color: #6b7280; margin-top: 4px; }
+
+  .hl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .hl {
+    background: #fbfdff;
+    border: 1px solid #e3eaf5;
+    border-left: 4px solid #1677ff;
+    border-radius: 10px;
+    padding: 13px 15px;
+  }
+  .hl .t { font-size: 14px; font-weight: 700; margin-bottom: 5px; }
+  .hl .d { font-size: 12.5px; color: #4b5563; line-height: 1.75; }
+  .hl code, td code { background: #eef2f8; padding: 1px 5px; border-radius: 4px; font-size: 12px; color: #0052d9; }
+
+  .sql-block {
+    background: #0d1526;
+    border-radius: 12px;
+    padding: 18px 20px;
+    font-family: "Cascadia Code", Consolas, monospace;
+    font-size: 13px; line-height: 1.9;
+    color: #93c5fd;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .sql-block .kw { color: #f0abfc; }
+  .sql-block .cm { color: #64748b; }
+
+  .table-wrap { overflow-x: auto; border: 1px solid #e3eaf5; border-radius: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #f6f9ff; color: #0052d9; text-align: left; padding: 10px 14px; font-weight: 700; white-space: nowrap; }
+  td { padding: 9px 14px; border-top: 1px solid #eef2f8; color: #374151; line-height: 1.65; }
+
+  .verify { display: flex; flex-direction: column; gap: 9px; }
+  .vrow { display: flex; align-items: flex-start; gap: 10px; font-size: 13.5px; color: #374151; line-height: 1.65; }
+  .vdot { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #fff; flex-shrink: 0; margin-top: 1px; }
+  .vdot.ok { background: #16a34a; }
+  .vdot.wait { background: #f59e0b; }
+
+  .honesty {
+    background: #fffbeb; border: 1px solid #fde68a;
+    border-radius: 10px; padding: 13px 16px;
+    font-size: 12.5px; color: #92400e; line-height: 1.8;
+    margin-top: 16px;
+  }
+
+  .link-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  .btn {
+    font-size: 13px; font-weight: 600;
+    padding: 9px 18px; border-radius: 999px;
+    text-decoration: none;
+  }
+  .btn.gh { background: #24292f; color: #fff; }
+  .btn.issue { background: #8250df; color: #fff; }
+  .btn.pr { background: #1a7f37; color: #fff; }
+  .btn.td { background: #e6f0ff; color: #0052d9; border: 1px solid #bfdbfe; }
+
+  .footer {
+    text-align: center;
+    margin-top: 26px;
+    font-size: 12px; color: #9ca3af;
+    line-height: 1.9;
+  }
+  .footer a { color: #0052d9; text-decoration: none; }
+
+  @media (max-width: 620px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .hl-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- 封面 -->
+  <div class="cover">
+    <div class="kicker">OPENTENBASE 开源贡献 · 成果卡</div>
+    <h1>把 AI 请进 SQL：opentenbase_ai「从 0 到 1」</h1>
+    <div class="sub">
+      opentenbase_ai 扩展上游没有 README，用户无法独立完成「安装 → 注册模型 → 一条 SQL 完成 AI 任务」的闭环。
+      本成果基于 OpenTenBase master 源码逐行核对，交付差异化定位的源码级文档 + 三段可执行 SQL 实践，
+      补齐 Issue #304 的目标空白，并与上游未合并的 PR #305 / #306 互补而非重复。
+    </div>
+    <div class="chips">
+      <span class="chip">📄 认领 Issue #304</span>
+      <span class="chip">🌿 feat/opentenbase-ai · commit 8224350</span>
+      <span class="chip">🤝 与 PR #305 / #306 互补</span>
+      <span class="chip">🗓 2026-09-19</span>
+    </div>
+  </div>
+
+  <!-- 数据总览 -->
+  <div class="card">
+    <div class="card-body">
+      <div class="stats-row">
+        <div class="stat-box"><div class="n">1</div><div class="l">源码级 README（约 200 行）</div></div>
+        <div class="stat-box"><div class="n">3</div><div class="l">配套可执行 SQL</div></div>
+        <div class="stat-box"><div class="n">20+</div><div class="l">函数/参数/GUC 逐项核对</div></div>
+        <div class="stat-box"><div class="n">1</div><div class="l">安全隐患发现并写入文档</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 核心成果 -->
+  <div class="card">
+    <div class="card-body">
+      <div class="sec-title">核心成果</div>
+      <div class="hl-grid">
+        <div class="hl">
+          <div class="t">📖 《opentenbase_ai 从 0 到 1》README</div>
+          <div class="d">安装前置（PG18 基线 + <code>http</code> 依赖）、模型注册机制（<code>ai_model_list</code> 复制表设计、<code>json_path</code> 结果提取模板的源码级讲解）、最小调用示例、FAQ、<b>已核对 / 待验证诚实清单</b>。</div>
+        </div>
+        <div class="hl">
+          <div class="t">🧩 三段配套 SQL</div>
+          <div class="d"><code>01_minimal_call</code> 一条 SQL 完成摘要 / 分类 / 整列加工；<code>02_mock_httpbin</code> 与上游回归测试同源，明确声明只验证请求构造而非真实推理；<code>03_rag_pgvector</code> embedding 入库 + 相似度检索 RAG 案例。</div>
+        </div>
+        <div class="hl">
+          <div class="t">🔒 安全提示（源码核对发现）</div>
+          <div class="d"><code>ai.*</code> 函数按 PG 默认向 PUBLIC 授予 EXECUTE——<b>任何能连库的用户都能注册 / 删除模型</b>。已写入文档并给出 REVOKE 加固建议，属上游两个 README PR 均未提及的内容。</div>
+        </div>
+        <div class="hl">
+          <div class="t">🤝 差异化协作策略</div>
+          <div class="d">上游 PR #305（611 行）/ #306（228 行）并存未合并，不另起炉灶：聚焦两 PR 未覆盖的 <b>mock 验证边界声明、RAG 案例、安全提示</b>，PR 说明引用 Issue #304 并注明互补关系。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 最小调用 -->
+  <div class="card">
+    <div class="card-body">
+      <div class="sec-title">一条 SQL 的力量</div>
+      <div class="sql-block"><span class="cm">-- 1. 注册模型（任何 OpenAI 兼容端点均可）</span>
+<span class="kw">SELECT</span> ai.add_completion_model(<span class="kw">'my-chat'</span>,
+    <span class="kw">'https://api.deepseek.com/v1/chat/completions'</span>,
+    <span class="kw">'{"model": "deepseek-chat", "temperature": 0.3}'</span>::jsonb,
+    <span class="kw">'sk-your-token'</span>, <span class="kw">'deepseek'</span>);
+
+<span class="cm">-- 2. 设默认模型（可选）</span>
+<span class="kw">SET</span> ai.completion_model = <span class="kw">'my-chat'</span>;
+
+<span class="cm">-- 3. 一条 SQL 完成 AI 任务</span>
+<span class="kw">SELECT</span> ai.summarize(<span class="kw">'一段长文本…'</span>);          <span class="cm">-- 摘要生成</span>
+<span class="kw">SELECT</span> ai.sentiment(<span class="kw">'物流太慢了，失望'</span>);     <span class="cm">-- 情感分类</span>
+
+<span class="cm">-- 整列加工：无需导出数据、无需 ETL</span>
+<span class="kw">UPDATE</span> feedback
+<span class="kw">SET</span> summary = ai.summarize(content),
+    is_positive = ai.generate_bool(<span class="kw">'好评返回true：'</span> || content);</div>
+    </div>
+  </div>
+
+  <!-- 核对依据 -->
+  <div class="card">
+    <div class="card-body">
+      <div class="sec-title">验证与依据</div>
+      <div class="table-wrap">
+        <table>
+          <tr><th>依据来源</th><th>核对内容</th></tr>
+          <tr><td><code>opentenbase_ai--1.0.sql</code></td><td>全部函数签名、参数默认值、表结构与权限（schema ai / ai_model_list 复制表 / ai.models 视图）</td></tr>
+          <tr><td><code>ai.c</code></td><td>3 个 GUC 注册（ai.completion_model / embedding_model / image_model，PGC_USERSET，默认 NULL）</td></tr>
+          <tr><td><code>opentenbase_ai.control</code></td><td>依赖声明 requires = 'http'（pgsql-http，需 libcurl）</td></tr>
+          <tr><td><code>sql/opentenbase_ai.sql</code></td><td>回归测试用例与 httpbin.org mock 端点的验证边界</td></tr>
+          <tr><td>Issue #304 / PR #305 / #306</td><td>上游状态实时核查（2026-09-19，均 Open 未合并）</td></tr>
+        </table>
+      </div>
+
+      <div style="margin-top:18px"></div>
+      <div class="verify">
+        <div class="vrow"><div class="vdot ok">✓</div><div>函数名 / 参数 / 默认值 / GUC / json_path 与 master 源码<b>逐字核对</b>（2026-09-19）</div></div>
+        <div class="vrow"><div class="vdot ok">✓</div><div>README 覆盖「完成一次调用所需全部信息」自查：安装 → 建扩展 → 注册 → 调用 → 排错 → 卸载</div></div>
+        <div class="vrow"><div class="vdot wait">…</div><div><b>待环境实测</b>：编译安装、CREATE EXTENSION、httpbin mock、真实模型调用、pgvector 检索——脚本全部就绪，VM（PG 18.6 + pgvector v0.8.6）就绪后逐项回填；已规避已知坑（PG18 + pgvector 0.8.6 建 HNSW &gt;2 万行段错误，演示规模 ≤1 万行）</div></div>
+      </div>
+
+      <div class="honesty">
+        ⚠️ <b>诚实声明</b>：本组当前无运行中的 OpenTenBase 集群，文档中「源码级核对」与「环境实测」严格区分标注；mock（httpbin）通过 ≠ 真实模型调用通过，接真实端点前需重跑最小调用验证。
+      </div>
+    </div>
+  </div>
+
+  <!-- 链接 -->
+  <div class="card">
+    <div class="card-body">
+      <div class="sec-title">成果链接</div>
+      <div class="link-row">
+        <a class="btn issue" href="https://github.com/OpenTenBase/OpenTenBase/issues/304">📄 Issue #304</a>
+        <a class="btn gh" href="https://github.com/Memsetqwq/OpenTenBase/tree/feat/opentenbase-ai">🌿 feat/opentenbase-ai 分支</a>
+        <a class="btn pr" href="https://github.com/OpenTenBase/OpenTenBase/pull/305">🔀 参考 PR #305</a>
+        <a class="btn pr" href="https://github.com/OpenTenBase/OpenTenBase/pull/306">🔀 参考 PR #306</a>
+        <a class="btn td" href="https://github.com/OpenTenBase/OpenTenBase">⭐ OpenTenBase 仓库</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    选题 8 · 把 AI 请进 SQL——opentenbase_ai 扩展实践（应用＋文档）<br>
+    生成于 2026-09-19 · 数据来源：OpenTenBase master 源码核对 · 上游 Issue / PR 实时状态
+  </div>
+</div>
+</body>
+</html>
