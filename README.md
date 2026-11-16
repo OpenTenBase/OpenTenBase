@@ -459,7 +459,7 @@ The following common issues may be encountered when deploying and using OpenTenB
 | `pg_ctl start` exits without leaving a running process | The node type was not specified | You must add `-Z datanode` (or `-Z coordinator`) |
 | `opentenbase_ctl install` finishes but no node is running | The `install` command only runs `initdb`; it does not auto-start the cluster | Run `opentenbase_ctl start -c opentenbase_config.ini` afterwards |
 | `opentenbase_ctl` reports `pg_config: command not found` | `PATH` does not include `$PG_HOME/bin` | Verify the environment variables are set and run `source ~/.bash_profile` |
-| GTM startup reports `FATAL: binding threads failed` (typically on machines with ≤ 2 CPU cores) | `pthread_setaffinity_np` returns `EINVAL` on low-core machines because `bind_service_threads()` produces an empty `cpuset` | Build `noaffinity.so` and inject it via `/etc/ld.so.preload`, or use a machine with ≥ 4 cores |
+| An older GTM build reports `FATAL: binding threads failed` on a small or CPU-restricted machine | Older builds assume CPU IDs 0 and 1 are available and can produce an empty service-thread mask | Use a build with startup-affinity-aware thread placement. GTM uses only its initially allowed CPUs, dedicates one to the timekeeper when at least two are available, and shares the CPU when only one is available. If the affinity query fails, inherited affinity is retained; no system-wide preload override is needed |
 
 ### Connection
 

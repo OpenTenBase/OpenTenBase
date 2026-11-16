@@ -23,6 +23,16 @@ all:
         $(MAKE) -C $$dir $@ || exit; \
     done
 
+# Linux-only integration test; does not require a database server or initgtm.
+.PHONY: check-affinity
+check-affinity: all
+	$(MKDIR_P) test
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(srcdir)/test/affinity_probe.c \
+		client/libgtmclient.a common/libgtm.a path/libgtmpath.a \
+		libpq/libpqcomm.a $(top_builddir)/src/port/libpgport.a \
+		$(LIBS) -lpthread -o test/affinity_probe$(X)
+	python3 $(srcdir)/test/test_affinity.py --gtm main/gtm$(X) --probe test/affinity_probe$(X)
+
 clobber:
 	@for dir in $(WANTED_DIRS); do \
         $(MAKE) -C $$dir $@ || exit; \
@@ -32,6 +42,7 @@ clean:
 	@for dir in $(WANTED_DIRS); do \
         $(MAKE) -C $$dir $@ || exit; \
     done
+	rm -f test/affinity_probe$(X)
 
 distclean: clean
 

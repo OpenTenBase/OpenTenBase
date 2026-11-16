@@ -241,7 +241,11 @@ void *GTM_ThreadBasebackup(void *argp);
 void *GTM_ThreadTimeBackup(void *argp);
 #endif
 
-void bind_thread_to_cores (cpu_set_t cpuset) ;
+/* Initialized before any worker starts, then read only. */
+static cpu_set_t timekeeper_cpuset;
+static cpu_set_t service_cpuset;
+static void initialize_thread_affinity(void);
+void bind_thread_to_cores(cpu_set_t cpuset);
 void bind_timekeeper_thread(void);
 void bind_service_threads(void);
 
@@ -1084,6 +1088,7 @@ main(int argc, char *argv[])
 	 * useful
 	 */
 	BaseInit(data_dir);
+	initialize_thread_affinity();
 
 	/*
 	 * Check options for the standby mode. Do it after StandbyLock has been
@@ -2205,48 +2210,91 @@ GTM_RemoveConnection(GTM_ConnectionInfo *conn)
 	GTM_ConnCleanup(conn);
 }
 
-void bind_thread_to_cores (cpu_set_t cpuset) 
+/*
+ * Save the startup affinity before the main thread narrows its own mask.
+ * Children inherit that narrowed mask, including the timekeeper.  A standby
+ * can also start a service thread before its connection to the primary succeeds.
+ */
+static void
+initialize_thread_affinity(void)
 {
+	cpu_set_t allowed;
+	int		ret;
+	int		cpu;
+	int		first_cpu = -1;
+	int		timekeeper_cpu = -1;
+	int		ncpus;
 
-   pthread_t current_thread = pthread_self(); 
-   int r;
+	CPU_ZERO(&timekeeper_cpuset);
+	CPU_ZERO(&service_cpuset);
+	ret = pthread_getaffinity_np(pthread_self(), sizeof(allowed), &allowed);
+	if (ret != 0)
+	{
+		/* For example, the kernel's CPU mask may exceed CPU_SETSIZE. */
+		elog(WARNING, "could not read CPU affinity: %s; keeping inherited affinity",
+			 strerror(ret));
+		return;
+	}
 
-   if((r = pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset)))
-   {
+	ncpus = CPU_COUNT(&allowed);
+	if (ncpus == 0)
+	{
+		elog(WARNING, "empty CPU affinity; keeping inherited affinity");
+		return;
+	}
+
+	for (cpu = 0; cpu < CPU_SETSIZE; cpu++)
+	{
+		if (!CPU_ISSET(cpu, &allowed))
+			continue;
+		if (first_cpu < 0)
+			first_cpu = cpu;
+		else
+		{
+			timekeeper_cpu = cpu;
+			break;
+		}
+	}
+	if (timekeeper_cpu < 0)
+		timekeeper_cpu = first_cpu;
+
+	CPU_SET(timekeeper_cpu, &timekeeper_cpuset);
+	service_cpuset = allowed;
+	/*
+	 * With three or more CPUs, retain the existing layout: leave the first
+	 * CPU for the OS, dedicate the second to the timekeeper, and use the rest
+	 * for services.  With two CPUs omit the OS reservation; with one, share.
+	 */
+	if (ncpus >= 3)
+		CPU_CLR(first_cpu, &service_cpuset);
+	if (ncpus >= 2)
+		CPU_CLR(timekeeper_cpu, &service_cpuset);
+}
+
+void
+bind_thread_to_cores(cpu_set_t cpuset)
+{
+	pthread_t current_thread = pthread_self();
+	int		r;
+
+	/* A failed affinity query leaves both masks empty: retain inheritance. */
+	if (CPU_COUNT(&cpuset) == 0)
+		return;
+
+	if ((r = pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset)))
+	{
 		elog(ERROR, "binding threads failed for %d", r);
-   }
+	}
 }
 
 void bind_timekeeper_thread(void)
 {
-	cpu_set_t cpuset;
-	
-	
-	CPU_ZERO(&cpuset);
-	/*
-	 * cpu 0 is reserved for OSS, to ensure that the timekeeper
-	 * can handle it in a timely manner dedicate cpu 1 to the
-	 * timekeeper thread
-	 */
-	CPU_SET(1, &cpuset);
-
-	bind_thread_to_cores(cpuset);
+	bind_thread_to_cores(timekeeper_cpuset);
 }
 
 void bind_service_threads(void)
 {
-	int cpu_num = get_nprocs();
-	int cpu;
-	cpu_set_t cpuset;
-	
-	
-	CPU_ZERO(&cpuset);
-	for(cpu = 2; cpu < cpu_num; cpu++)
-	{
-		CPU_SET(cpu, &cpuset);
-	}
-	
-	bind_thread_to_cores(cpuset);
+	bind_thread_to_cores(service_cpuset);
 }
 
 /* time keeper thread will not handle any signal, any signal will cause the thread exit. */
