@@ -147,8 +147,10 @@ class ThreadTask(threading.Thread):
         assert self.test
         OpenTenBaseLogger.CreateLogggerForThisThread(global_log_dir + f'{self.test.name}.log')
         self.SetupCluster()
-        self.RunSingleTest()
-        self.ShutdownCluster()
+        try:
+            self.RunSingleTest()
+        finally:
+            self.ShutdownCluster()
 
     def PatchConf(self):
         test = self.test
