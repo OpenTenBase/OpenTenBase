@@ -1609,6 +1609,30 @@ main(int argc, char *argv[])
 	}
 #endif
 
+	/*
+	 * Request workers share the registry with auxiliary threads.  Count the
+	 * helpers already registered, reserve the WAL senders and log collector
+	 * created below, and reuse any early standby worker.
+	 */
+	{
+		int		max_worker_threads;
+
+		GTM_RWLockAcquire(&GTMThreads->gt_lock, GTM_LOCKMODE_READ);
+		max_worker_threads = GTM_MAX_THREADS - (int) GTMThreads->gt_thread_count
+			- max_wal_sender - 1;
+		GTM_RWLockRelease(&GTMThreads->gt_lock);
+		if (g_standby_pre_server_thread != NULL)
+			max_worker_threads++;
+		if (max_worker_threads < 1)
+			elog(ERROR, "not enough GTM thread slots for request workers");
+		if (process_thread_num > max_worker_threads)
+		{
+			elog(WARNING, "reducing GTM worker threads from %d to %d to reserve auxiliary thread slots",
+				 process_thread_num, max_worker_threads);
+			process_thread_num = max_worker_threads;
+		}
+	}
+
     /*
      * maybe one GTM_ThreadMain create as g_standby_pre_server_thread before
      */
