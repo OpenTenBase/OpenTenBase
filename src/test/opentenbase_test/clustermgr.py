@@ -263,16 +263,22 @@ class PgxcCtlConf:
         matchObj = re.match(r'^cn(\d+)$', nodeid)
         if matchObj:
             cn = int(matchObj.group(1))
+            if cn < 1:
+                raise ValueError("node numbers must start at 1")
             return self.coordPorts[cn - 1]
 
         matchObj = re.match(r'^dn(\d+)$', nodeid)
         if matchObj:
             dn = int(matchObj.group(1))
+            if dn < 1:
+                raise ValueError("node numbers must start at 1")
             return self.datanodePorts[dn - 1]
 
         matchObj = re.match(r'^cn(\d+)slave(\d+)$', nodeid)
         if matchObj:
             cn = int(matchObj.group(1))
+            if cn < 1:
+                raise ValueError("node numbers must start at 1")
             slave = int(matchObj.group(2))
             assert slave == 1
             return self.coordSlavePorts[cn - 1]
@@ -280,6 +286,8 @@ class PgxcCtlConf:
         matchObj = re.match(r'^dn(\d+)slave(\d+)$', nodeid)
         if matchObj:
             dn = int(matchObj.group(1))
+            if dn < 1:
+                raise ValueError("node numbers must start at 1")
             slave = int(matchObj.group(2))
             assert slave == 1
             return self.datanodeSlavePorts[dn - 1]
@@ -296,11 +304,15 @@ class PgxcCtlConf:
         matchObj = re.match(r'^cn(\d+)$', nodeid)
         if matchObj:
             cn = int(matchObj.group(1))
+            if cn < 1:
+                raise ValueError("node numbers must start at 1")
             return self.coordForwardPorts[cn - 1]
 
         matchObj = re.match(r'^dn(\d+)$', nodeid)
         if matchObj:
             dn = int(matchObj.group(1))
+            if dn < 1:
+                raise ValueError("node numbers must start at 1")
             return self.datanodeForwardPorts[dn - 1]
 
         assert False
