@@ -1,0 +1,1103 @@
+-- =============================================================
+-- Regression tests for opentenbase_mysql_compat
+-- =============================================================
+CREATE EXTENSION opentenbase_mysql_compat;
+-- Move the extension into its own schema and search it before
+-- pg_catalog so the MySQL semantics of functions that OpenTenBase also
+-- provides as built-ins (concat, date_format, format, if) take effect.
+CREATE SCHEMA mysql_compat;
+ALTER EXTENSION opentenbase_mysql_compat SET SCHEMA mysql_compat;
+SET search_path = mysql_compat, pg_catalog, public;
+-- -------------------------------------------------------------
+-- CONCAT
+-- -------------------------------------------------------------
+SELECT concat('Open', 'Ten', 'Base');
+   concat    
+-------------
+ OpenTenBase
+(1 row)
+
+SELECT concat('value = ', 42);
+   concat   
+------------
+ value = 42
+(1 row)
+
+SELECT concat('price = ', 1.50::numeric);
+    concat    
+--------------
+ price = 1.50
+(1 row)
+
+SELECT concat('a', NULL, 'b');
+ concat 
+--------
+ 
+(1 row)
+
+-- -------------------------------------------------------------
+-- CONCAT_WS
+-- -------------------------------------------------------------
+SELECT concat_ws(',', 'First', 'Second', 'Third');
+     concat_ws      
+--------------------
+ First,Second,Third
+(1 row)
+
+SELECT concat_ws('-', 'a', NULL, 'b');
+ concat_ws 
+-----------
+ a-b
+(1 row)
+
+SELECT concat_ws(NULL, 'a', 'b');
+ concat_ws 
+-----------
+ 
+(1 row)
+
+SELECT concat_ws(',', 'First', 2, 3.5::numeric);
+  concat_ws  
+-------------
+ First,2,3.5
+(1 row)
+
+-- -------------------------------------------------------------
+-- FIND_IN_SET
+-- -------------------------------------------------------------
+SELECT find_in_set('b', 'a,b,c,d');
+ find_in_set 
+-------------
+           2
+(1 row)
+
+SELECT find_in_set('c', 'a,b,c,d');
+ find_in_set 
+-------------
+           3
+(1 row)
+
+SELECT find_in_set('z', 'a,b,c,d');
+ find_in_set 
+-------------
+           0
+(1 row)
+
+SELECT find_in_set('B', 'a,b,c');
+ find_in_set 
+-------------
+           2
+(1 row)
+
+SELECT find_in_set(NULL, 'a,b');
+ find_in_set 
+-------------
+            
+(1 row)
+
+SELECT find_in_set('a', NULL);
+ find_in_set 
+-------------
+            
+(1 row)
+
+SELECT find_in_set('', '');
+ find_in_set 
+-------------
+           1
+(1 row)
+
+SELECT find_in_set('', 'a,b');
+ find_in_set 
+-------------
+           0
+(1 row)
+
+SELECT find_in_set('a,b', 'a,b,c');
+ find_in_set 
+-------------
+           0
+(1 row)
+
+-- -------------------------------------------------------------
+-- ELT
+-- -------------------------------------------------------------
+SELECT elt(1, 'ej', 'Heja', 'hej', 'foo');
+ elt 
+-----
+ ej
+(1 row)
+
+SELECT elt(4, 'ej', 'Heja', 'hej', 'foo');
+ elt 
+-----
+ foo
+(1 row)
+
+SELECT elt(0, 'ej', 'Heja', 'hej', 'foo');
+ elt 
+-----
+ 
+(1 row)
+
+SELECT elt(5, 'ej', 'Heja', 'hej', 'foo');
+ elt 
+-----
+ 
+(1 row)
+
+SELECT elt(NULL, 'a', 'b');
+ elt 
+-----
+ 
+(1 row)
+
+SELECT elt(2, 'a', NULL);
+ elt 
+-----
+ 
+(1 row)
+
+-- -------------------------------------------------------------
+-- FIELD
+-- -------------------------------------------------------------
+SELECT field('Bb', 'Aa', 'Bb', 'Cc', 'Dd', 'Ff');
+ field 
+-------
+     2
+(1 row)
+
+SELECT field('Gg', 'Aa', 'Bb', 'Cc', 'Dd', 'Ff');
+ field 
+-------
+     0
+(1 row)
+
+SELECT field(NULL, 'a', 'b');
+ field 
+-------
+     0
+(1 row)
+
+SELECT field('bb', 'aa', 'BB');
+ field 
+-------
+     2
+(1 row)
+
+-- -------------------------------------------------------------
+-- INSERT
+-- -------------------------------------------------------------
+SELECT "insert"('Quadratic', 3, 4, 'What');
+  insert   
+-----------
+ QuWhattic
+(1 row)
+
+SELECT "insert"('Quadratic', -1, 4, 'What');
+  insert   
+-----------
+ Quadratic
+(1 row)
+
+SELECT "insert"('Quadratic', 3, 100, 'What');
+ insert 
+--------
+ QuWhat
+(1 row)
+
+SELECT mysql_insert('Quadratic', 3, 4, 'What');
+ mysql_insert 
+--------------
+ QuWhattic
+(1 row)
+
+SELECT "insert"('数据库管理系统', 3, 2, 'DB');
+    insert    
+--------------
+ 数据DB理系统
+(1 row)
+
+SELECT "insert"(NULL, 1, 1, 'x');
+ insert 
+--------
+ 
+(1 row)
+
+-- -------------------------------------------------------------
+-- SUBSTRING_INDEX
+-- -------------------------------------------------------------
+SELECT substring_index('www.mysql.com', '.', 2);
+ substring_index 
+-----------------
+ www.mysql
+(1 row)
+
+SELECT substring_index('www.mysql.com', '.', -2);
+ substring_index 
+-----------------
+ mysql.com
+(1 row)
+
+SELECT substring_index('www.mysql.com', '.', 0);
+ substring_index 
+-----------------
+ 
+(1 row)
+
+SELECT substring_index('www.mysql.com', ':', 1);
+ substring_index 
+-----------------
+ www.mysql.com
+(1 row)
+
+SELECT substring_index('a-b-c-d', '-', -1);
+ substring_index 
+-----------------
+ d
+(1 row)
+
+SELECT substring_index('www.mysql.com', '', 2);
+ substring_index 
+-----------------
+ 
+(1 row)
+
+SELECT substring_index(NULL, '.', 2);
+ substring_index 
+-----------------
+ 
+(1 row)
+
+-- -------------------------------------------------------------
+-- LOCATE / INSTR
+-- -------------------------------------------------------------
+SELECT locate('bar', 'foobarbar');
+ locate 
+--------
+      4
+(1 row)
+
+SELECT locate('xbar', 'foobar');
+ locate 
+--------
+      0
+(1 row)
+
+SELECT locate('bar', 'foobarbar', 5);
+ locate 
+--------
+      7
+(1 row)
+
+SELECT locate('BAR', 'foobar');
+ locate 
+--------
+      4
+(1 row)
+
+SELECT locate('', 'foobar');
+ locate 
+--------
+      1
+(1 row)
+
+SELECT locate('b', 'foobar', 0);
+ locate 
+--------
+      0
+(1 row)
+
+SELECT instr('foobarbar', 'bar');
+ instr 
+-------
+     4
+(1 row)
+
+SELECT instr('数据库系统', '库');
+ instr 
+-------
+     3
+(1 row)
+
+SELECT locate('bar', NULL);
+ locate 
+--------
+       
+(1 row)
+
+-- -------------------------------------------------------------
+-- REVERSE
+-- -------------------------------------------------------------
+SELECT reverse('abc');
+ reverse 
+---------
+ cba
+(1 row)
+
+SELECT reverse('数据库');
+ reverse 
+---------
+ 库据数
+(1 row)
+
+SELECT reverse('');
+ reverse 
+---------
+ 
+(1 row)
+
+-- -------------------------------------------------------------
+-- SPACE
+-- -------------------------------------------------------------
+SELECT space(5) = '     ';
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT space(0) = '';
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT space(-3) = '';
+ ?column? 
+----------
+ t
+(1 row)
+
+-- -------------------------------------------------------------
+-- UNHEX
+-- -------------------------------------------------------------
+SELECT unhex('4D7953514C');
+    unhex     
+--------------
+ \x4d7953514c
+(1 row)
+
+SELECT unhex('4d7953514c');
+    unhex     
+--------------
+ \x4d7953514c
+(1 row)
+
+SELECT unhex('abc');
+ unhex 
+-------
+ 
+(1 row)
+
+SELECT unhex('zz');
+ unhex 
+-------
+ 
+(1 row)
+
+SELECT unhex(NULL);
+ unhex 
+-------
+ 
+(1 row)
+
+-- -------------------------------------------------------------
+-- BIN / OCT
+-- -------------------------------------------------------------
+SELECT bin(5);
+ bin 
+-----
+ 101
+(1 row)
+
+SELECT bin(0);
+ bin 
+-----
+ 0
+(1 row)
+
+SELECT bin(-1);
+                               bin                                
+------------------------------------------------------------------
+ 1111111111111111111111111111111111111111111111111111111111111111
+(1 row)
+
+SELECT oct(8);
+ oct 
+-----
+ 10
+(1 row)
+
+SELECT oct(0);
+ oct 
+-----
+ 0
+(1 row)
+
+SELECT oct(12);
+ oct 
+-----
+ 14
+(1 row)
+
+-- -------------------------------------------------------------
+-- DATE_FORMAT
+-- -------------------------------------------------------------
+SELECT date_format('2009-10-04 22:23:00'::timestamp, '%W %M %Y');
+     date_format     
+---------------------
+ Sunday October 2009
+(1 row)
+
+SELECT date_format('2007-10-04 22:23:00'::timestamp, '%H:%i:%s');
+ date_format 
+-------------
+ 22:23:00
+(1 row)
+
+SELECT date_format('1900-10-04 22:23:00'::timestamp, '%D %y %a %d %m %b %j');
+       date_format        
+--------------------------
+ 4th 00 Thu 04 10 Oct 277
+(1 row)
+
+SELECT date_format('1997-10-04 22:23:00'::timestamp, '%H %k %I %r %T %S %w');
+            date_format             
+------------------------------------
+ 22 22 10 10:23:00 PM 22:23:00 00 6
+(1 row)
+
+SELECT date_format('1999-01-01'::timestamp, '%X %V');
+ date_format 
+-------------
+ 1998 52
+(1 row)
+
+SELECT date_format('2006-06-01'::timestamp, '%d');
+ date_format 
+-------------
+ 01
+(1 row)
+
+SELECT date_format('2006-06-13'::date, '%D');
+ date_format 
+-------------
+ 13th
+(1 row)
+
+SELECT date_format('2026-01-15 10:30:45.123456'::timestamp, '%f');
+ date_format 
+-------------
+ 123456
+(1 row)
+
+SELECT date_format('2024-02-29'::timestamp, '%Y-%m-%d %j %U %u %V %v %X %x');
+             date_format              
+--------------------------------------
+ 2024-02-29 060 08 09 08 09 2024 2024
+(1 row)
+
+SELECT date_format('2016-01-03'::timestamp, '%X %V %x %v');
+   date_format   
+-----------------
+ 2016 01 2015 53
+(1 row)
+
+SELECT date_format('2021-01-01'::timestamp, '%x %v');
+ date_format 
+-------------
+ 2020 53
+(1 row)
+
+SELECT date_format('2009-10-04 22:23:00'::timestamp, '100% %%!');
+ date_format 
+-------------
+ 100 %!
+(1 row)
+
+SELECT date_format('2009-10-04 22:23:00'::timestamp, '%p %l');
+ date_format 
+-------------
+ PM 10
+(1 row)
+
+SELECT date_format(NULL, '%Y');
+ date_format 
+-------------
+ 
+(1 row)
+
+SELECT date_format('2009-10-04 22:23:00'::timestamp, NULL);
+ date_format 
+-------------
+ 
+(1 row)
+
+-- -------------------------------------------------------------
+-- STR_TO_DATE
+-- -------------------------------------------------------------
+SELECT str_to_date('01,5,2013', '%d,%m,%Y');
+       str_to_date        
+--------------------------
+ Wed May 01 00:00:00 2013
+(1 row)
+
+SELECT str_to_date('May 1, 2013', '%M %d,%Y');
+       str_to_date        
+--------------------------
+ Wed May 01 00:00:00 2013
+(1 row)
+
+SELECT str_to_date('a09:30:17', 'a%h:%i:%s');
+       str_to_date        
+--------------------------
+ Mon Jan 01 09:30:17 0001
+(1 row)
+
+SELECT str_to_date('09:30:17 PM', '%h:%i:%s %p');
+       str_to_date        
+--------------------------
+ Mon Jan 01 21:30:17 0001
+(1 row)
+
+SELECT str_to_date('09:30:17 AM', '%h:%i:%s %p');
+       str_to_date        
+--------------------------
+ Mon Jan 01 09:30:17 0001
+(1 row)
+
+SELECT str_to_date('abc','abc');
+       str_to_date        
+--------------------------
+ Mon Jan 01 00:00:00 0001
+(1 row)
+
+SELECT str_to_date('09:30:17 PM', '%T');
+       str_to_date        
+--------------------------
+ Mon Jan 01 09:30:17 0001
+(1 row)
+
+SELECT str_to_date('2013 12 17', '%Y %j');
+       str_to_date        
+--------------------------
+ Sat Jan 12 00:00:00 2013
+(1 row)
+
+SELECT str_to_date('11:12:13.456', '%H:%i:%s.%f');
+         str_to_date          
+------------------------------
+ Mon Jan 01 11:12:13.456 0001
+(1 row)
+
+SELECT str_to_date(NULL, '%Y');
+ str_to_date 
+-------------
+ 
+(1 row)
+
+SELECT str_to_date('04/31/2004', '%m/%d/%Y');
+ERROR:  (22008) day value 31 is out of range
+HINT:   while processing column str_to_date
+-- -------------------------------------------------------------
+-- DATEDIFF
+-- -------------------------------------------------------------
+SELECT datediff('2007-12-31 23:59:59'::timestamp, '2007-12-30'::timestamp);
+ datediff 
+----------
+        1
+(1 row)
+
+SELECT datediff('2010-11-30'::date, '2010-01-31'::date);
+ datediff 
+----------
+      303
+(1 row)
+
+SELECT datediff('2010-01-31'::date, '2010-11-30'::date);
+ datediff 
+----------
+     -303
+(1 row)
+
+SELECT datediff('2020-01-02 01:00:00'::timestamp, '2020-01-01 23:00:00'::timestamp);
+ datediff 
+----------
+        1
+(1 row)
+
+SELECT datediff(NULL, '2020-01-01'::timestamp);
+ datediff 
+----------
+         
+(1 row)
+
+-- -------------------------------------------------------------
+-- TIMESTAMPDIFF
+-- -------------------------------------------------------------
+SELECT timestampdiff('MONTH', '2003-02-01'::timestamp, '2003-05-01'::timestamp);
+ timestampdiff 
+---------------
+             3
+(1 row)
+
+SELECT timestampdiff('YEAR', '2002-05-01'::timestamp, '2001-01-01'::timestamp);
+ timestampdiff 
+---------------
+            -1
+(1 row)
+
+SELECT timestampdiff('MINUTE', '2003-02-01'::timestamp, '2003-05-01 12:05:55'::timestamp);
+ timestampdiff 
+---------------
+        128885
+(1 row)
+
+SELECT timestampdiff('DAY', '2020-01-01 23:00:00'::timestamp, '2020-01-02 01:00:00'::timestamp);
+ timestampdiff 
+---------------
+             0
+(1 row)
+
+SELECT timestampdiff('WEEK', '2020-01-01'::timestamp, '2020-01-22'::timestamp);
+ timestampdiff 
+---------------
+             3
+(1 row)
+
+SELECT timestampdiff('MONTH', '2022-01-31'::timestamp, '2022-02-28'::timestamp);
+ timestampdiff 
+---------------
+             0
+(1 row)
+
+SELECT timestampdiff('MONTH', '2022-01-28'::timestamp, '2022-02-28'::timestamp);
+ timestampdiff 
+---------------
+             1
+(1 row)
+
+SELECT timestampdiff('QUARTER', '2022-01-01'::timestamp, '2022-12-31'::timestamp);
+ timestampdiff 
+---------------
+             3
+(1 row)
+
+SELECT timestampdiff('MICROSECOND', '2020-01-01 00:00:00'::timestamp, '2020-01-01 00:00:01'::timestamp);
+ timestampdiff 
+---------------
+       1000000
+(1 row)
+
+SELECT timestampdiff('HOUR', '2020-01-01 00:00:00'::timestamp, '2020-01-02 03:00:00'::timestamp);
+ timestampdiff 
+---------------
+            27
+(1 row)
+
+SELECT timestampdiff('SECOND', '2020-01-01 00:00:00'::timestamp, '2020-01-01 00:01:00'::timestamp);
+ timestampdiff 
+---------------
+            60
+(1 row)
+
+SELECT timestampdiff('YEAR2', '2020-01-01'::timestamp, '2021-01-01'::timestamp);
+ERROR:  (22023) unknown timestamp unit "YEAR2"
+HINT:   while processing column timestampdiff
+-- -------------------------------------------------------------
+-- TIMESTAMPADD
+-- -------------------------------------------------------------
+SELECT timestampadd('MINUTE', 1, '2003-01-02'::timestamp);
+       timestampadd       
+--------------------------
+ Thu Jan 02 00:01:00 2003
+(1 row)
+
+SELECT timestampadd('WEEK', 1, '2003-01-02'::timestamp);
+       timestampadd       
+--------------------------
+ Thu Jan 09 00:00:00 2003
+(1 row)
+
+SELECT timestampadd('QUARTER', 1, '2003-11-01'::timestamp);
+       timestampadd       
+--------------------------
+ Sun Feb 01 00:00:00 2004
+(1 row)
+
+SELECT timestampadd('YEAR', -1, '2003-01-02'::timestamp);
+       timestampadd       
+--------------------------
+ Wed Jan 02 00:00:00 2002
+(1 row)
+
+SELECT timestampadd('MONTH', 1, '2022-01-31'::timestamp);
+       timestampadd       
+--------------------------
+ Mon Feb 28 00:00:00 2022
+(1 row)
+
+SELECT timestampadd('MONTH', 1, '2024-01-31'::timestamp);
+       timestampadd       
+--------------------------
+ Thu Feb 29 00:00:00 2024
+(1 row)
+
+SELECT timestampadd('DAY', 31, '2020-01-01 23:59:59'::timestamp);
+       timestampadd       
+--------------------------
+ Sat Feb 01 23:59:59 2020
+(1 row)
+
+SELECT timestampadd('MICROSECOND', 500000, '2020-01-01 00:00:00'::timestamp);
+        timestampadd        
+----------------------------
+ Wed Jan 01 00:00:00.5 2020
+(1 row)
+
+SELECT timestampadd('SECOND', 1, '1999-12-31 23:59:59'::timestamp);
+       timestampadd       
+--------------------------
+ Sat Jan 01 00:00:00 2000
+(1 row)
+
+SELECT timestampadd('FORTNIGHT', 1, '2003-01-02'::timestamp);
+ERROR:  (22023) unknown timestamp unit "FORTNIGHT"
+HINT:   while processing column timestampadd
+-- -------------------------------------------------------------
+-- LAST_DAY
+-- -------------------------------------------------------------
+SELECT last_day('2003-02-05'::timestamp);
+  last_day  
+------------
+ 02-28-2003
+(1 row)
+
+SELECT last_day('2004-02-05'::timestamp);
+  last_day  
+------------
+ 02-29-2004
+(1 row)
+
+SELECT last_day('2003-12-31'::date);
+  last_day  
+------------
+ 12-31-2003
+(1 row)
+
+SELECT last_day(NULL);
+ last_day 
+----------
+ 
+(1 row)
+
+-- -------------------------------------------------------------
+-- QUARTER / DAY functions
+-- -------------------------------------------------------------
+SELECT quarter('2008-04-01'::timestamp);
+ quarter 
+---------
+       2
+(1 row)
+
+SELECT quarter('2008-01-01'::date);
+ quarter 
+---------
+       1
+(1 row)
+
+SELECT dayofweek('2007-02-03'::timestamp);
+ dayofweek 
+-----------
+         7
+(1 row)
+
+SELECT dayofweek('2026-10-14'::timestamp);
+ dayofweek 
+-----------
+         4
+(1 row)
+
+SELECT weekday('2026-10-14'::timestamp);
+ weekday 
+---------
+       2
+(1 row)
+
+SELECT dayofmonth('2026-10-14'::timestamp);
+ dayofmonth 
+------------
+         14
+(1 row)
+
+SELECT dayofyear('2026-02-28'::timestamp);
+ dayofyear 
+-----------
+        59
+(1 row)
+
+SELECT dayofyear('2024-12-31'::timestamp);
+ dayofyear 
+-----------
+       366
+(1 row)
+
+SELECT weekofyear('2008-02-20'::timestamp);
+ weekofyear 
+------------
+          8
+(1 row)
+
+SELECT weekofyear('2008-12-31'::timestamp);
+ weekofyear 
+------------
+          1
+(1 row)
+
+-- -------------------------------------------------------------
+-- FORMAT
+-- -------------------------------------------------------------
+SELECT format(12332.123456, 4);
+   format    
+-------------
+ 12,332.1235
+(1 row)
+
+SELECT format(12332.1, 4);
+   format    
+-------------
+ 12,332.1000
+(1 row)
+
+SELECT format(12332.123456, 0);
+ format 
+--------
+ 12,332
+(1 row)
+
+SELECT format(-12332.123456, 4);
+    format    
+--------------
+ -12,332.1235
+(1 row)
+
+SELECT format(12332.2::double precision, 2);
+  format   
+-----------
+ 12,332.20
+(1 row)
+
+SELECT format(12332, 1);
+  format  
+----------
+ 12,332.0
+(1 row)
+
+SELECT format(NULL, 2);
+ format 
+--------
+ 
+(1 row)
+
+-- -------------------------------------------------------------
+-- TRUNCATE
+-- -------------------------------------------------------------
+SELECT "truncate"(1.223, 1);
+ truncate 
+----------
+      1.2
+(1 row)
+
+SELECT "truncate"(1.999, 1);
+ truncate 
+----------
+      1.9
+(1 row)
+
+SELECT "truncate"(1.999, 0);
+ truncate 
+----------
+        1
+(1 row)
+
+SELECT "truncate"(-1.999, 1);
+ truncate 
+----------
+     -1.9
+(1 row)
+
+SELECT "truncate"(122, -2);
+ truncate 
+----------
+      100
+(1 row)
+
+SELECT "truncate"(-122, -2);
+ truncate 
+----------
+     -100
+(1 row)
+
+SELECT mysql_truncate(122.45, -1);
+ mysql_truncate 
+----------------
+            120
+(1 row)
+
+SELECT "truncate"(1.999::double precision, 1);
+ truncate 
+----------
+      1.9
+(1 row)
+
+-- -------------------------------------------------------------
+-- IF / IFNULL / ISNULL
+-- -------------------------------------------------------------
+SELECT if(1 > 0, 'true', 'false');
+  if  
+------
+ true
+(1 row)
+
+SELECT if(1 > 2, 'true', 'false');
+  if   
+-------
+ false
+(1 row)
+
+SELECT if(1 > 2, NULL::text, 'fallback');
+    if    
+----------
+ fallback
+(1 row)
+
+SELECT if(NULL::boolean, 'a'::text, 'b'::text);
+ if 
+----
+ b
+(1 row)
+
+SELECT if(true, 1, 2) + 10;
+ ?column? 
+----------
+       11
+(1 row)
+
+SELECT ifnull(NULL::int, 10::int);
+ ifnull 
+--------
+     10
+(1 row)
+
+SELECT ifnull('real'::text, 'fallback');
+ ifnull 
+--------
+ real
+(1 row)
+
+SELECT ifnull(NULL::text, NULL) IS NULL;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT isnull(NULL::text);
+ isnull 
+--------
+      1
+(1 row)
+
+SELECT isnull(5);
+ isnull 
+--------
+      0
+(1 row)
+
+SELECT isnull(''::text);
+ isnull 
+--------
+      0
+(1 row)
+
+-- -------------------------------------------------------------
+-- GROUP_CONCAT
+-- -------------------------------------------------------------
+CREATE TABLE gc_test (grp int, val text) DISTRIBUTE BY REPLICATION;
+INSERT INTO gc_test VALUES
+    (1, 'a'), (1, 'b'), (1, 'c'),
+    (2, 'x'), (2, NULL),
+    (3, NULL), (3, NULL);
+SELECT grp, group_concat(val ORDER BY val) FROM gc_test GROUP BY grp ORDER BY grp;
+ grp | group_concat 
+-----+--------------
+   1 | a,b,c
+   2 | x
+   3 | 
+(3 rows)
+
+SELECT grp, group_concat(val, ';' ORDER BY val) FROM gc_test GROUP BY grp ORDER BY grp;
+ grp | group_concat 
+-----+--------------
+   1 | a;b;c
+   2 | x
+   3 | 
+(3 rows)
+
+SELECT group_concat(DISTINCT val ORDER BY val) FROM gc_test;
+ group_concat 
+--------------
+ a,b,c,x
+(1 row)
+
+SELECT grp, group_concat(val ORDER BY val DESC) FROM gc_test WHERE grp = 1 GROUP BY grp;
+ grp | group_concat 
+-----+--------------
+   1 | c,b,a
+(1 row)
+
+CREATE TABLE gc_num (grp int, val int) DISTRIBUTE BY REPLICATION;
+INSERT INTO gc_num VALUES (1, 10), (1, 20), (2, 30);
+SELECT grp, group_concat(val ORDER BY val) FROM gc_num GROUP BY grp ORDER BY grp;
+ grp | group_concat 
+-----+--------------
+   1 | 10,20
+   2 | 30
+(2 rows)
+
+SELECT group_concat(NULL::text) FROM gc_test;
+ group_concat 
+--------------
+ 
+(1 row)
+
+SELECT group_concat('only'::text);
+ group_concat 
+--------------
+ only
+(1 row)
+
+DROP TABLE gc_test;
+DROP TABLE gc_num;
+-- -------------------------------------------------------------
+-- Verify the search_path shadowing documented in the README
+-- -------------------------------------------------------------
+SELECT concat('a', NULL, 'b');
+ concat 
+--------
+ 
+(1 row)
+
+SELECT concat('a', 1, 2);
+ concat 
+--------
+ a12
+(1 row)
+
+RESET search_path;
+-- Without the schema in front, pg_catalog built-ins win again:
+SELECT concat('a', NULL, 'b');
+ concat 
+--------
+ ab
+(1 row)
+
