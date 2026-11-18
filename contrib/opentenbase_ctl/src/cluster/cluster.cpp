@@ -186,10 +186,10 @@ std::string build_create_pgxz_node_cmd(NodeInfo *node, OpentenbaseConfig* config
         {
             // 本节点默认会生成一个IP为 localhost/端口为5432 的记录，需要修改一下节点路由的IP/Port
             // ALTER NODE cn001 with(HOST='172.16.16.49',PORT=11000);
-            create_sql += "ALTER NODE " + config->nodes[i].name + " WITH (HOST='"+ config->nodes[i].ip +"', PORT=" + std::to_string(config->nodes[i].port) +");";
+            create_sql += "ALTER NODE " + config->nodes[i].name + " WITH (HOST='"+ config->nodes[i].ip +"', PORT=" + std::to_string(config->nodes[i].port) + ", FORWARD=" + std::to_string(config->nodes[i].forward_port) + ");";
         } else {
             // CREATE NODE cn001 WITH (TYPE='coordinator', HOST='172.16.16.49', PORT=11000);
-            create_sql += "CREATE NODE " + config->nodes[i].name + " WITH (TYPE='"+ node_type +"', HOST='"+ config->nodes[i].ip +"', PORT=" + std::to_string(config->nodes[i].port) +");";
+            create_sql += "CREATE NODE " + config->nodes[i].name + " WITH (TYPE='"+ node_type +"', HOST='"+ config->nodes[i].ip +"', PORT=" + std::to_string(config->nodes[i].port) + ", FORWARD=" + std::to_string(config->nodes[i].forward_port) + ");";
         }
     }
 
