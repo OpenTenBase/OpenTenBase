@@ -25,6 +25,10 @@ For more information look at our website located at:
 
 	https://www.opentenbase.org/
 
+## Documentation
+
+- [Beginner Guide](doc/beginner-guide.md)
+
 ## Building
 ### System Requirements: 
 
