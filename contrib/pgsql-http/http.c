@@ -1478,10 +1478,6 @@ urlencode_cstr(const char* str_in, size_t str_in_len)
 	{
 		unsigned char c = str_in[i];
 
-		/* Break on NULL */
-		if (c == '\0')
-			break;
-
 		/* Replace ' ' with '+' */
 		if (c  == ' ')
 		{
@@ -1498,7 +1494,7 @@ urlencode_cstr(const char* str_in, size_t str_in_len)
 			continue;
 		}
 
-		/* Encode the remaining chars */
+		/* Encode the remaining chars, including NUL (%00) */
 		rv = snprintf(ptr, 4, "%%%02X", c);
 		if ( rv < 0 )
 			return NULL;
