@@ -77,7 +77,7 @@ extern int GTM_CVDestroy(GTM_CV *cv);
 extern int GTM_CVSignal(GTM_CV *cv);
 extern int GTM_CVBcast(GTM_CV *cv);
 extern int GTM_CVWait(GTM_CV *cv, GTM_MutexLock *lock);
-extern int GTM_CVTimeWait(GTM_CV *cv, GTM_MutexLock *lock,int micro_seconds);
+extern int GTM_CVTimeWait(GTM_CV *cv, GTM_MutexLock *lock, int milliseconds);
 
 typedef int s_lock_t;
 extern void SpinLockInit(s_lock_t *lock);
