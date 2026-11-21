@@ -9,31 +9,31 @@ CREATE TABLE partition_select_high PARTITION OF partition_select_parent
 CREATE TABLE partition_select_unrelated (id integer, payload text);
 INSERT INTO partition_select_parent VALUES (1, 'low'), (11, 'high');
 SELECT id, payload FROM partition_select_parent PARTITION (partition_select_low);
- id | payload 
+ id | payload
 ----+---------
   1 | low
 (1 row)
 
 SELECT p.id FROM partition_select_parent PARTITION (partition_select_high) AS p;
- id 
+ id
 ----
  11
 (1 row)
 
 SELECT count(*) FROM partition_select_parent PARTITION (partition_select_low);
- count 
+ count
 -------
      1
 (1 row)
 
 SELECT count(*) FROM partition_select_parent WHERE id = 1;
- count 
+ count
 -------
      1
 (1 row)
 
 SELECT partition_select_parent.id FROM partition_select_parent PARTITION (partition_select_low);
- id 
+ id
 ----
   1
 (1 row)
