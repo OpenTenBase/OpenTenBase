@@ -2261,13 +2261,13 @@ include_dir 'conf.d'
       <listitem>
        <para>
         <varname>wal_level</> determines how much information is written to
-        the WAL. The default value is <literal>replica</>, which writes enough
+        the WAL. The default value is <literal>logical</>, which adds
+        information necessary to support logical decoding.
+        <literal>replica</> writes enough
         data to support WAL archiving and replication, including running
         read-only queries on a standby server. <literal>minimal</> removes all
         logging except the information required to recover from a crash or
-        immediate shutdown.  Finally,
-        <literal>logical</> adds information necessary to support logical
-        decoding.  Each level includes the information logged at all lower
+        immediate shutdown.  Each level includes the information logged at all lower
         levels.  This parameter can only be set at server start.
        </para>
        <para>
@@ -3108,7 +3108,7 @@ include_dir 'conf.d'
        <para>
         Record commit time of transactions. This parameter
         can only be set in <filename>postgresql.conf</> file or on the server
-        command line. The default value is <literal>off</literal>.
+        command line. The default value is <literal>on</literal>.
        </para>
       </listitem>
      </varlistentry>
@@ -3535,7 +3535,7 @@ ANY <replaceable class="parameter">num_sync</replaceable> ( <replaceable class="
         <varname>max_worker_processes</varname>.
        </para>
        <para>
-        The default value is 4.
+        The default value is 64.
        </para>
       </listitem>
      </varlistentry>
@@ -3560,7 +3560,7 @@ ANY <replaceable class="parameter">num_sync</replaceable> ( <replaceable class="
         <varname>max_logical_replication_workers</varname>.
        </para>
        <para>
-        The default value is 2.
+        The default value is 4.
        </para>
       </listitem>
      </varlistentry>
