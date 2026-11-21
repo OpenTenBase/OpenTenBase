@@ -2419,7 +2419,14 @@ IsRelationDistribColumn(RelationLocInfo *locInfo, const char *attname)
 	/* Return true if column name equals to any distributed-column name*/
 	for(i = 0; i < locInfo->nDisAttrs; i++)
 	{
-		return (strcmp(attname, get_attname(locInfo->relid, locInfo->disAttrNums[i])) == 0);
+		char	*disAttrName = get_attname(locInfo->relid, locInfo->disAttrNums[i]);
+
+		/* get_attname returns NULL if the attribute is gone */
+		if (disAttrName == NULL)
+			continue;
+
+		if (strcmp(attname, disAttrName) == 0)
+			return true;
 	}
 	return false;
 }
