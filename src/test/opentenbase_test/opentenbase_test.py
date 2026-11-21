@@ -402,7 +402,7 @@ class OpenTenBaseTestController:
 
         self.CreateAllTask()
         self.RunAllTask()
-        self.PrintResult()
+        return self.PrintResult()
 
     def PrintResult(self):
         failed_test_set = set([testcase.name for testcase in self._test_case_list])
@@ -419,6 +419,7 @@ class OpenTenBaseTestController:
                 global_thl_data.logger.error(v)
         assert len(failed_test_set) + len(global_passed_set) == len(self._test_case_list), \
                "Why???????? This should not happen"
+        return 1 if failed_test_set else 0
 
     def CreateAllTask(self):
         self.thread_task_list = []
@@ -447,4 +448,4 @@ class OpenTenBaseTestController:
 global_thl_data.logger.info('PreChecking...')
 PreCheck.check()
 controller = OpenTenBaseTestController()
-controller.Run()
+sys.exit(controller.Run())
