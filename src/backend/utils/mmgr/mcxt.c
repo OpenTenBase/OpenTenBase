@@ -1699,6 +1699,7 @@ int32 get_total_memory_size(void)
 	Size   nTotalPage    = 0;
 	Size   nRssPage      = 0;
 	Size   nSharePage    = 0;
+	long   pageSize      = 0;
 	char   kfile[FILE_BUF_LEN]   = {0};
 	char   linebuf[FILE_BUF_LEN] = {0};
 	FILE   *handle       = NULL;
@@ -1722,9 +1723,22 @@ int32 get_total_memory_size(void)
 			/* read first three value of the file */
 			if (3 == sscanf(linebuf, "%lu %lu %lu", &nTotalPage, &nRssPage, &nSharePage))
 			{
+				/*
+				 * /proc/pid/statm is accounted in kernel pages, whose size
+				 * is not necessarily 4096 bytes (16K/64K pages exist on
+				 * arm64), so fetch the actual page size of the system.
+				 */
+				pageSize = sysconf(_SC_PAGESIZE);
+				if (pageSize <= 0)
+				{
+					elog(LOG, "get page size by sysconf failed, use default page size %d",
+						 LINUX_KERNEL_PAGE_SIZE);
+					pageSize = LINUX_KERNEL_PAGE_SIZE;
+				}
+
 				if (nRssPage >= nSharePage)
 				{
-					size = ((nRssPage - nSharePage) * LINUX_KERNEL_PAGE_SIZE ) / (1024 * 1024);
+					size = ((nRssPage - nSharePage) * pageSize) / (1024 * 1024);
 				}				
 			}
 		}			
