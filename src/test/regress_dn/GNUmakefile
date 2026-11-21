@@ -169,12 +169,12 @@ standbycheck: all
 
 contribcheck:
 	@for dir in $(contrib_check_dir); do \
-		$(MAKE) -C $(top_builddir)/$$dir check IS_DN_REGRESS=1 USE_MODULE_DB=1; \
+		$(MAKE) -C $(top_builddir)/$$dir check IS_DN_REGRESS=1 USE_MODULE_DB=1 || exit 1; \
 	done
 
 contribinstallcheck:
 	@for dir in $(contrib_check_dir); do \
-		$(MAKE) -C $(top_builddir)/$$dir installcheck IS_DN_REGRESS=1 USE_MODULE_DB=1; \
+		$(MAKE) -C $(top_builddir)/$$dir installcheck IS_DN_REGRESS=1 USE_MODULE_DB=1 || exit 1; \
 	done
 
 # old interfaces follow...
