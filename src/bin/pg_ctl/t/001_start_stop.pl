@@ -4,7 +4,7 @@ use warnings;
 use Config;
 use PostgresNode;
 use TestLib;
-use Test::More tests => 19;
+use Test::More tests => 20;
 
 my $tempdir       = TestLib::tempdir;
 my $tempdir_short = TestLib::tempdir_short;
@@ -32,9 +32,14 @@ else
 	print $conf "listen_addresses = '127.0.0.1'\n";
 }
 close $conf;
+# Keep Windows on its existing name; POSIX must not expand the log filename.
+local $ENV{PGCTL_TEST_LOG_NAME} = 'expanded';
+my $logname = $windows_os
+  ? '001_start_stop_server.log'
+  : '001_start_stop_server_$PGCTL_TEST_LOG_NAME.log';
+my $logfile = "$TestLib::log_path/$logname";
 my $ctlcmd = [
-	'pg_ctl', 'start', '-D', "$tempdir/data", '-l',
-	"$TestLib::log_path/001_start_stop_server.log" ];
+	'pg_ctl', 'start', '-D', "$tempdir/data", '-l', $logfile ];
 if ($Config{osname} ne 'msys')
 {
 	command_like($ctlcmd, qr/done.*server started/s, 'pg_ctl start');
@@ -45,6 +50,7 @@ else
 	# use the version of command_like that doesn't hang on Msys here
 	command_like_safe($ctlcmd, qr/done.*server started/s, 'pg_ctl start');
 }
+ok(-f $logfile, 'pg_ctl creates the requested log file');
 
 # sleep here is because Windows builds can't check postmaster.pid exactly,
 # so they may mistake a pre-existing postmaster.pid for one created by the
