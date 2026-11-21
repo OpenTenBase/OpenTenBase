@@ -25,6 +25,7 @@
 #include "catalog/pg_type.h"
 #include "catalog/pg_dblink.h"
 #include "catalog/pg_depend.h"
+#include "catalog/partition.h"
 #include "catalog/pg_synonym.h"
 #include "catalog/pg_childalias.h"
 #include "commands/view.h"
@@ -3694,6 +3695,45 @@ parse_partition_relname(ParseState *pstate, RangeVar *relation)
 	HeapTuple   childaliastup;
 	RangeVar	*new_rel = NULL;
 	Relation	rel;
+
+	/* Native partitions can be selected in PostgreSQL mode as well as in
+	 * Oracle compatibility mode.  A direct parent check avoids accepting an
+	 * unrelated table with the same name. */
+	if (!ORA_MODE)
+	{
+		Relation parent;
+		Relation child;
+		Oid parent_oid;
+		Oid child_oid;
+		RangeVar *child_rv;
+		char *parent_name = relation->relname;
+		char *parent_schema;
+
+		Assert(relation->childtablename);
+		parent = parserOpenTable(pstate, relation, AccessShareLock);
+		parent_oid = RelationGetRelid(parent);
+		parent_schema = get_namespace_name(RelationGetNamespace(parent));
+		if (parent->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
+			ereport(ERROR,
+					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+					 errmsg("relation \"%s\" is not a partitioned table", parent_name)));
+		heap_close(parent, NoLock);
+
+		child_rv = makeRangeVar(parent_schema,
+								relation->childtablename, relation->location);
+		child = parserOpenTable(pstate, child_rv, AccessShareLock);
+		child_oid = RelationGetRelid(child);
+		if (!child->rd_rel->relispartition ||
+			get_partition_parent(child_oid) != parent_oid)
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+					 errmsg("relation \"%s\" is not a partition of \"%s\"",
+							relation->childtablename, parent_name)));
+		heap_close(child, NoLock);
+
+		relation->relname = relation->childtablename;
+		return relation;
+	}
 
 	Assert(relation->childtablename);
 	rel = parserOpenTableNewRel(pstate, relation, AccessShareLock, &new_rel);

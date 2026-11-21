@@ -14863,6 +14863,22 @@ table_ref:	relation_expr opt_alias_clause
 					$1->alias = $2;
 					$$ = (Node *) $1;
 				}
+			| qualified_name PARTITION '(' name ')' opt_alias_clause
+				{
+					RangeVar *rv = $1;
+
+					/* Keep the parent name visible after the selected partition
+					 * replaces the scanned relation during parse analysis. */
+					rv->inh = false;
+					rv->alias = $6 ? $6 : makeAlias(rv->relname, NIL);
+#ifdef _PG_ORCL_
+					rv->dblinkname = NULL;
+					rv->childtablename = $4;
+#else
+					parser_yyerror("partition selection requires OpenTenBase partition support");
+#endif
+					$$ = (Node *) rv;
+				}
 			| relation_expr opt_alias_clause tablesample_clause
 				{
 					RangeTableSample *n = (RangeTableSample *) $3;

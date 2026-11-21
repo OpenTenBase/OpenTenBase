@@ -190,7 +190,7 @@ test: temp xml
 # ----------
 # Another group of parallel tests
 # ----------
-test: identity partition_join partition_prune partition_prune_hash hash_part partition_info indexing explain
+test: identity partition_join partition_prune partition_prune_hash hash_part partition_info indexing explain partition_select
 
 # event triggers cannot run concurrently with any test that runs DDL
 test: event_trigger

@@ -1217,7 +1217,9 @@ transformFromClauseItem(ParseState *pstate, Node *n,
 		int			rtindex;
 
 		/* Check if it's a CTE or tuplestore reference */
-		rte = getRTEForSpecialRelationTypes(pstate, rv);
+		/* A partition selector always names a physical parent table, never
+		 * a same-named CTE or ephemeral relation. */
+		rte = rv->childtablename ? NULL : getRTEForSpecialRelationTypes(pstate, rv);
 
 		/* if not found above, must be a table reference */
 		if (!rte)
