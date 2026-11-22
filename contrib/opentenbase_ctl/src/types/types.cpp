@@ -866,7 +866,7 @@ bool parse_command_line(int argc, char** argv, CommandLineArgs& args, Opentenbas
             // 设置环境变量
             if (setEnvironmentVariableInBashrc(Constants::ENV_CLUSTER_CONFIG_FILE, abolute_path) == 0) {
                 // 成功写入环境变量
-                LOG_INFO_FMT("Environment variable %s successfully set, value:%s\n", Constants::ENV_CLUSTER_CONFIG_FILE, args.config_file);
+                LOG_INFO_FMT("Environment variable %s successfully set, value:%s\n", Constants::ENV_CLUSTER_CONFIG_FILE, args.config_file.c_str());
             }
         }
         
@@ -1100,7 +1100,7 @@ int set_config_file_for_args(CommandLineArgs& args) {
         // 设置环境变量
         if (setEnvironmentVariableInBashrc(Constants::ENV_CLUSTER_CONFIG_FILE, abolute_path) == 0) {
             // 成功写入环境变量
-            LOG_INFO_FMT("Environment variable %s successfully set, value:%s\n", Constants::ENV_CLUSTER_CONFIG_FILE, args.config_file);
+            LOG_INFO_FMT("Environment variable %s successfully set, value:%s\n", Constants::ENV_CLUSTER_CONFIG_FILE, args.config_file.c_str());
         }
 
     }
