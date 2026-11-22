@@ -1294,7 +1294,7 @@ int excute_cmd_concurrency(OpentenbaseConfig *configInfo, const std::vector<std:
     std::string result;
     std::string cmd = configInfo->shell.shell_cmd;
     for (const std::string& server : server_list) {
-        LOG_INFO_FMT("Start to excute cmd(%s) on %s", cmd, server);
+        LOG_INFO_FMT("Start to excute cmd(%s) on %s", cmd.c_str(), server.c_str());
 
         // 捕获当前 server、i、以及其它所需变量
         threads.emplace_back([&, server, i]() {
@@ -1308,7 +1308,7 @@ int excute_cmd_concurrency(OpentenbaseConfig *configInfo, const std::vector<std:
             );
 
             if (ret != 0) {
-                LOG_ERROR_FMT("Failed to excute cmd(%s) on %s", cmd, server);
+                LOG_ERROR_FMT("Failed to excute cmd(%s) on %s", cmd.c_str(), server.c_str());
                 std::cout << "[ " << server << " ] Failed to excute cmd as user: " << configInfo->server.ssh_user << std::to_string(configInfo->server.ssh_port) << '\n';
                 results[i] = ret;
                 failedCount++;
@@ -1374,7 +1374,7 @@ int excute_sql_concurrency(OpentenbaseConfig *configInfo, const std::vector<Node
             continue;
         }
         
-        LOG_DEBUG_FMT("Start to excute cmd(%s) on %s", cmd, node);
+        LOG_DEBUG_FMT("Start to excute cmd(%s) on %s", cmd.c_str(), node.name.c_str());
 
         // 捕获当前 node、i、以及其它所需变量
         threads.emplace_back([&, node, i]() {
@@ -1394,7 +1394,7 @@ int excute_sql_concurrency(OpentenbaseConfig *configInfo, const std::vector<Node
                                           psql_cmd,
                                           result);
             if (ret != 0) {
-                LOG_WARN_FMT("Failed to excute sql(%s) on %s", cmd, node);
+                LOG_WARN_FMT("Failed to excute sql(%s) on %s", cmd.c_str(), node.name.c_str());
                 std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to excute sql in database " << configInfo->sql.database_name << " as user " << configInfo->sql.user_name << '\n';
                 results[i] = ret;
                 failedCount++;
@@ -1464,7 +1464,7 @@ int excute_show_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector
             int ret = show_guc(configInfo, node, output);
             if (ret != 0) {
                 LOG_WARN_FMT("Failed to show config item %s on node %s (%s)", 
-                        configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str());
+                        configInfo->guc.guc_name.c_str(), node.name.c_str(), node.ip.c_str());
                 std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to show config item " << configInfo->guc.guc_name  << '\n';
                 results[i] = ret;
                 failedCount++;
@@ -1533,7 +1533,7 @@ int excute_del_guc_concurrency(OpentenbaseConfig *configInfo, const std::vector<
             int ret = delete_guc(configInfo, node);
             if (ret != 0) {
                 LOG_WARN_FMT("Failed to delete config item %s on node %s (%s)", 
-                        configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str());
+                        configInfo->guc.guc_name.c_str(), node.name.c_str(), node.ip.c_str());
                 std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
                 results[i] = ret;
                 failedCount++;
@@ -1598,7 +1598,7 @@ int excute_change_guc_concurrency(OpentenbaseConfig *configInfo, const std::vect
             continue;
         }
         
-        LOG_INFO_FMT("Start to excute sql(%s) on %s", sql, node);
+        LOG_INFO_FMT("Start to excute sql(%s) on %s", sql.c_str(), node.name.c_str());
 
         // 捕获当前 node、i、以及其它所需变量
         threads.emplace_back([&, node, i]() {
@@ -1606,7 +1606,7 @@ int excute_change_guc_concurrency(OpentenbaseConfig *configInfo, const std::vect
             int ret = delete_guc(configInfo, node);
             if (ret != 0) {
                 LOG_WARN_FMT("Failed to delete config item %s on node %s (%s)", 
-                        configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str());
+                        configInfo->guc.guc_name.c_str(), node.name.c_str(), node.ip.c_str());
                 std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
                 results[i] = ret;
                 failedCount++;
@@ -1616,7 +1616,7 @@ int excute_change_guc_concurrency(OpentenbaseConfig *configInfo, const std::vect
             ret = add_guc(configInfo, node);
             if (ret != 0) {
                 LOG_WARN_FMT("Failed to delete config item %s on node %s (%s)", 
-                        configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str());
+                        configInfo->guc.guc_name.c_str(), node.name.c_str(), node.ip.c_str());
                 std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
                 results[i] = ret;
                 failedCount++;
@@ -1678,7 +1678,7 @@ int delete_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node) {
             result);
         if (ret != 0) {
             LOG_WARN_FMT("Failed to delete config item %s on node %s (%s): %s", 
-                    configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str(), result.c_str());
+                    configInfo->guc.guc_name.c_str(), node.name.c_str(), node.ip.c_str(), result.c_str());
             std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
         } 
         
@@ -1694,7 +1694,7 @@ int delete_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node) {
             result);
         if (ret != 0) {
             LOG_WARN_FMT("Failed to delete config item %s on node %s (%s): %s", 
-                    configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str(), result.c_str());
+                    configInfo->guc.guc_name.c_str(), node.name.c_str(), node.ip.c_str(), result.c_str());
             std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
         } 
 
@@ -1708,7 +1708,7 @@ int delete_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node) {
             result);
         if (ret != 0) {
             LOG_WARN_FMT("Failed to delete config item %s on node %s (%s): %s", 
-                    configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str(), result.c_str());
+                    configInfo->guc.guc_name.c_str(), node.name.c_str(), node.ip.c_str(), result.c_str());
             std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
         }
     }
@@ -1751,7 +1751,7 @@ int add_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node) {
                         result);
     if (ret != 0) {
         LOG_WARN_FMT("Failed to add config item %s on node %s (%s): %s", 
-                configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str(), result.c_str());
+                configInfo->guc.guc_name.c_str(), node.name.c_str(), node.ip.c_str(), result.c_str());
         std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to add config item " << configInfo->guc.guc_name  << '\n';
     }
 
@@ -1780,7 +1780,7 @@ int show_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node, std::str
             result);
         if (ret != 0) {
             LOG_WARN_FMT("Failed to show config item %s on node %s (%s): %s", 
-                    configInfo->guc.guc_name, node.name.c_str(), node.ip.c_str(), result.c_str());
+                    configInfo->guc.guc_name.c_str(), node.name.c_str(), node.ip.c_str(), result.c_str());
             std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to delete config item " << configInfo->guc.guc_name  << '\n';
         } 
 
@@ -1802,7 +1802,7 @@ int show_guc(const OpentenbaseConfig *configInfo, const NodeInfo& node, std::str
                                 psql_cmd,
                                 result);
         if (ret != 0) {
-            LOG_WARN_FMT("Failed to excute sql(%s) on %s", psql_cmd, node);
+            LOG_WARN_FMT("Failed to excute sql(%s) on %s", psql_cmd.c_str(), node.name.c_str());
             std::cout << node.name << " " << node.ip << ":" << std::to_string(node.port) << " Failed to excute sql in database " << configInfo->sql.database_name << " as user " << configInfo->sql.user_name << '\n';
         }
     }

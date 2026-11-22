@@ -130,7 +130,7 @@ excute_cp_file(const std::string& ip, int port, const std::string& username,
         // Remote execution
         int ret = remote_scp_file(ip, port, username, password, local_path, remote_path);
         if (ret != 0) {
-            LOG_ERROR_FMT("Failed to transfer package %s to %s (%s)", local_path, ip, remote_path);
+            LOG_ERROR_FMT("Failed to transfer package %s to %s (%s)", local_path.c_str(), ip.c_str(), remote_path.c_str());
             return -1;
         }
     }
