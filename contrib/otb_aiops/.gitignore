@@ -1,4 +1,6 @@
 otb_aiops
 test_otb_aiops
 test_user_config
+test_cluster_collector
+test_sql_audit
 *.o

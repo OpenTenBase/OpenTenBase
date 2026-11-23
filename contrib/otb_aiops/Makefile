@@ -16,6 +16,8 @@ OBJS = src/main.o \
        src/config/user_config.o \
        src/collector/collector.o \
        src/collector/storage_collector.o \
+       src/collector/cluster_collector.o \
+       src/collector/sql_audit.o \
        src/ai/prompt_builder.o \
        src/ai/llm_client.o
 
@@ -35,13 +37,21 @@ test_otb_aiops: tests/test_otb_aiops.cpp src/db/pg_client.cpp src/ai/llm_client.
 test_user_config: tests/test_user_config.cpp src/config/user_config.cpp
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $^ -o $@
 
-test: test_otb_aiops test_user_config
+test_cluster_collector: tests/test_cluster_collector.cpp src/collector/cluster_collector.cpp
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -ffunction-sections -fdata-sections $^ -Wl,--gc-sections -o $@
+
+test_sql_audit: tests/test_sql_audit.cpp src/collector/sql_audit.cpp
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -ffunction-sections -fdata-sections $^ -Wl,--gc-sections -o $@
+
+test: test_otb_aiops test_user_config test_cluster_collector test_sql_audit
 	./test_otb_aiops
 	./test_user_config
+	./test_cluster_collector
+	./test_sql_audit
 
 install: all
 	mkdir -p "$(DESTDIR)$(bindir)"
 	install -m 755 $(PROGRAM) "$(DESTDIR)$(bindir)/$(PROGRAM)"
 
 clean:
-	rm -f $(PROGRAM) test_otb_aiops test_user_config $(OBJS)
+	rm -f $(PROGRAM) test_otb_aiops test_user_config test_cluster_collector test_sql_audit $(OBJS)

@@ -1,5 +1,7 @@
 #include "ai/llm_client.h"
+#include "collector/cluster_collector.h"
 #include "collector/collector.h"
+#include "collector/sql_audit.h"
 #include "collector/storage_collector.h"
 #include "config/user_config.h"
 #include "db/pg_client.h"
@@ -26,6 +28,7 @@ void print_usage(std::ostream& out) {
         << "  inspect slow-sql       Show top active / slow queries\n"
         << "  inspect guc            Inspect key GUC configuration parameters\n"
         << "  inspect storage        Inspect largest relations and table bloat / dead tuples\n"
+        << "  audit <SQL>            Run static SQL audit rules + read-only EXPLAIN plan check\n"
         << "  diagnose               Collect all diagnostics and run LLM root-cause analysis\n"
         << "  ask <QUESTION>         Ask a natural-language ops question with live cluster snapshot\n\n"
         << "Connection Options (fallback to PGHOST/PGPORT/PGUSER/PGDATABASE/PGPASSWORD):\n"
@@ -35,6 +38,7 @@ void print_usage(std::ostream& out) {
         << "  -d, --dbname DB        Database name (default: postgres)\n"
         << "      --timeout MS       Statement timeout in ms (default: 5000)\n\n"
         << "Output & AI Options:\n"
+        << "      --all-nodes        Fan out diagnostics across all CN/DN nodes in pgxc_node\n"
         << "      --json             Output structured JSON\n"
         << "      --top N            Limit rows for slow-sql / storage (default: 10)\n"
         << "      --api-url URL      OpenAI-compatible chat completions endpoint (env: OTB_AI_BASE_URL)\n"
@@ -70,6 +74,7 @@ int main(int argc, char** argv) {
     }
     if (!std::getenv("OTB_AI_MODEL") && !saved_cfg.model.empty()) llm_cfg.model = saved_cfg.model;
     bool json_output = false;
+    bool all_nodes = false;
     int top_n = 10;
     std::vector<std::string> positional;
 
@@ -99,6 +104,8 @@ int main(int argc, char** argv) {
             db_cfg.dbname = require_arg(i, arg);
         } else if (arg == "--timeout") {
             db_cfg.statement_timeout_ms = std::stoi(require_arg(i, arg));
+        } else if (arg == "--all-nodes") {
+            all_nodes = true;
         } else if (arg == "--json") {
             json_output = true;
         } else if (arg == "--top") {
@@ -146,6 +153,11 @@ int main(int argc, char** argv) {
             std::cerr << "Error: 'ask' requires a question string\n";
             return 2;
         }
+    } else if (cmd == "audit") {
+        if (positional.size() < 2) {
+            std::cerr << "Error: 'audit' requires a SQL string\n";
+            return 2;
+        }
     } else if (cmd != "health" && cmd != "diagnose") {
         std::cerr << "Error: unknown command '" << cmd << "'\n";
         print_usage(std::cerr);
@@ -162,10 +174,13 @@ int main(int argc, char** argv) {
 
     otb::DiagnosticReport report;
     if (cmd == "health") {
-        report = otb::collect_health(db);
+        report = all_nodes ? otb::collect_cluster(db, db_cfg, "health", top_n)
+                           : otb::collect_health(db);
     } else if (cmd == "inspect") {
         const std::string& sub = positional[1];
-        if (sub == "locks") {
+        if (all_nodes) {
+            report = otb::collect_cluster(db, db_cfg, sub, top_n);
+        } else if (sub == "locks") {
             report = otb::collect_locks(db);
         } else if (sub == "2pc") {
             report = otb::collect_2pc(db);
@@ -179,11 +194,20 @@ int main(int argc, char** argv) {
             std::cerr << "Error: unknown inspect target '" << sub << "'\n";
             return 2;
         }
+    } else if (cmd == "audit") {
+        std::string sql_str;
+        for (size_t i = 1; i < positional.size(); ++i) {
+            if (i > 1) sql_str.push_back(' ');
+            sql_str += positional[i];
+        }
+        report = otb::audit_sql(db, sql_str);
     } else if (cmd == "diagnose" || cmd == "ask") {
         if (!json_output) {
-            std::cerr << "Collecting cluster diagnostics and querying " << llm_cfg.model << "...\n";
+            std::cerr << "Collecting " << (all_nodes ? "cluster-wide " : "")
+                      << "diagnostics and querying " << llm_cfg.model << "...\n";
         }
-        report = otb::collect_all(db, top_n);
+        report = all_nodes ? otb::collect_cluster(db, db_cfg, "all", top_n)
+                           : otb::collect_all(db, top_n);
         std::string snapshot_json = otb::report_to_json(report);
         otb::LlmResponse ai_resp;
         if (cmd == "diagnose") {

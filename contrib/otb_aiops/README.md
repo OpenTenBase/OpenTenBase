@@ -48,6 +48,15 @@ otb_aiops -p 11003 inspect guc
 
 # Inspect largest relations and table bloat / dead tuples
 otb_aiops -p 11003 inspect storage --top 10
+
+# Distributed cluster-wide fan-out across all CN/DN nodes registered in pgxc_node (no SSH required)
+otb_aiops health --all-nodes
+otb_aiops inspect 2pc --all-nodes --json
+otb_aiops diagnose --all-nodes
+
+# Pre-release SQL audit (static rules + read-only EXPLAIN Seq Scan check)
+otb_aiops audit "SELECT * FROM pg_class;"
+otb_aiops audit "DELETE FROM pg_class;"
 ```
 
 ### 2. AIOps Root-Cause Diagnosis & Q&A
@@ -75,7 +84,7 @@ make -C contrib/otb_aiops test
 - `diagnose` and `ask` only recommend read-safe verification SQL / low-impact remediation and never execute mutating statements automatically.
 - User configuration is stored at `~/.config/otb_aiops/config.ini` with POSIX `0600` permissions; API keys are hidden during input and masked on display.
 
-## Scope & Roadmap
+## Scope & Distributed Support
 
-- **Current scope (v0.1.0)**: Connects to a single OpenTenBase node (Coordinator or Datanode) via `libpq`, inspecting local runtime views (`pg_stat_activity`, `pg_locks`, `pg_prepared_xacts`, `pg_settings`, `pg_stat_user_tables`) together with OpenTenBase distributed catalog metadata (`pgxc_node`, `pgxc_group`).
-- **Planned follow-up**: Cluster-wide fan-out inspection (`--all-nodes`) across all CN/DN nodes registered in `pgxc_node` without requiring SSH.
+- **Single-node mode (default)**: Connects to one OpenTenBase node (Coordinator or Datanode) via `libpq`, inspecting local runtime views together with OpenTenBase distributed catalog metadata (`pgxc_node`, `pgxc_group`).
+- **Cluster-wide mode (`--all-nodes`)**: Discovers all Coordinator (`C`) and Datanode (`D`) nodes from `pgxc_node`, fans out read-only diagnostics to each node via `libpq` (no SSH required), prefixes each section with `[<node_name> (<C|D>)]`, and reports unreachable nodes cleanly in `Cluster Fan-Out Summary` without aborting the rest of the run.
