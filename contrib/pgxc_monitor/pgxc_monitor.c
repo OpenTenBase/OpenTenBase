@@ -181,8 +181,15 @@ do_gtm_ping(char *host, char* port, nodetype_t nodetype, char *nodename, bool ve
 		exit(3);
 	}
 	/* Use 60s as connection timeout */
-	sprintf(connect_str, "host=%s port=%s node_name=%s remote_type=%d postmaster=0 connect_timeout=60",
-			host, port, nodename ? nodename : "pgxc_monitor", GTM_NODE_COORDINATOR);
+	if (snprintf(connect_str, sizeof(connect_str),
+				 "host=%s port=%s node_name=%s remote_type=%d postmaster=0 connect_timeout=60",
+				 host, port, nodename ? nodename : "pgxc_monitor", GTM_NODE_COORDINATOR)
+		>= sizeof(connect_str))
+	{
+		fprintf(stderr, "%s: connection string is too long
+", progname);
+		exit(3);
+	}
 	if ((conn = PQconnectGTM(connect_str)) == NULL)
 	{
 		if (verbose)
@@ -208,38 +215,25 @@ do_node_ping(char *host, char *port, char *username, char *database, bool verbos
 	char *verbose_out = "";
 	char *out = verbose ? verbose_out : quiet_out;
 
-	/* Build psql command launched to node */
-	sprintf(command_line, "psql -w -q -c \"select 1 a\"");
-
-	/* Then add options if necessary */
-	if (username)
+	/* Build psql command launched to node; the argv-controlled pieces must
+	 * not overflow the fixed command_line buffer */
+	if (snprintf(command_line, sizeof(command_line),
+				 "psql -w -q -c \"select 1 a\"%s%s%s%s%s%s%s%s%s%s",
+				 username ? " -U " : "",
+				 username ? username : "",
+				 database ? " -d " : " -d postgres ",
+				 database ? database : "",
+				 host ? " -h " : "",
+				 host ? host : "",
+				 port ? " -p " : "",
+				 port ? port : "",
+				 out)
+		>= sizeof(command_line))
 	{
-		strcat(command_line, " -U ");
-		strcat(command_line, username);
+		fprintf(stderr, "%s: command line is too long
+", progname);
+		exit(3);
 	}
-
-	/* Add database name, default is "postgres" */
-	if (database)
-	{
-		strcat(command_line, " -d ");
-		strcat(command_line, database);
-	}
-	else
-		strcat(command_line, " -d postgres ");
-
-	if (host)
-	{
-		strcat(command_line, " -h ");
-		strcat(command_line, host);
-	}
-
-	if (port)
-	{
-		strcat(command_line, " -p ");
-		strcat(command_line, port);
-	}
-
-	strcat(command_line, out);
 
 	/* Launch the command and output result if necessary */
 	rc = system(command_line);
