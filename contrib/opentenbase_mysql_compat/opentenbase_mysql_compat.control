@@ -1,0 +1,5 @@
+# opentenbase_mysql_compat extension
+comment = 'MySQL compatibility functions for OpenTenBase'
+default_version = '1.0'
+module_pathname = '$libdir/opentenbase_mysql_compat'
+relocatable = true

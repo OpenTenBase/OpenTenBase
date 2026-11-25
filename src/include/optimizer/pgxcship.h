@@ -40,5 +40,7 @@ extern bool pgxc_find_unshippable_triggers(TriggerDesc *trigdesc, int16 trig_eve
 extern bool pgxc_is_trigger_shippable(Trigger *trigger);
 
 extern Node *get_var_from_arg(Node *arg);
+
+extern bool pgxc_is_vector_search_query(Query *query);
 #endif
 #endif

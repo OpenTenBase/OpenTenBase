@@ -315,7 +315,7 @@ extern void pgxc_build_dml_statement(PlannerInfo *root, CmdType cmdtype,
 extern Expr **pgxc_set_en_disExprs(Oid tableoid, Index resultRelationIndex, int *nExprs);
 
 extern char *pgxc_build_remote_tidscan_statement(RangeTblEntry *from_rte, List *tlist, List *quals, bool for_update);
-extern RemoteQuery *pgxc_FQS_create_remote_plan(Query *query, ExecNodes *exec_nodes,
+extern Plan *pgxc_FQS_create_remote_plan(Query *query, ExecNodes *exec_nodes,
                                                 bool is_exec_direct, FQS_MODE mode);
 #endif
 
