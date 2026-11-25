@@ -517,7 +517,7 @@ kill_zombie()
 	char cmd[MAXPGPATH];
 	char status[MAXPGPATH];
 	FILE *fp = NULL;
-	int  pid;
+	int  pid = 0;
 
 	snprintf(cmd,MAXPGPATH,"ps aux |grep -E \"\\[gtm\\]\\s*<defunct>\" | awk '{print $8,$2}'");
 
@@ -529,14 +529,35 @@ kill_zombie()
         return ;
 	}
 
-    while(fscanf(fp,"%s %d",status,&pid) != EOF)
-    {
-    	if(status[0] == 'Z' || status[0] == 'z')
-    	{
-    		write_stderr(_("%s: found zombie process %d"), progname,pid);
-    		kill(pid, SIGKILL);
-    	}
-    }
+	/*
+	 * Read both fields or skip the line. fscanf returns the number of items it
+	 * matched, so a line whose second column is not a number leaves pid at its
+	 * previous value (or uninitialised on the first line) and the old code
+	 * would then kill that stale or garbage pid. The width on %s keeps a long
+	 * field from running past the end of status.
+	 */
+	for (;;)
+	{
+		int			matched = fscanf(fp, "%1023s %d", status, &pid);
+
+		if (matched == EOF)
+			break;
+		if (matched == 0)
+		{
+			/* Nothing was consumed; drop a character so this cannot spin. */
+			if (fgetc(fp) == EOF)
+				break;
+			continue;
+		}
+		if (matched != 2)
+			continue;
+
+		if(status[0] == 'Z' || status[0] == 'z')
+		{
+			write_stderr(_("%s: found zombie process %d"), progname,pid);
+			kill(pid, SIGKILL);
+		}
+	}
 
 	pclose(fp);
 }
