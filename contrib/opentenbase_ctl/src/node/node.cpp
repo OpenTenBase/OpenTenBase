@@ -239,6 +239,7 @@ configure_postgresql_for_mpp(NodeInfo *node, OpentenbaseConfig *install) {
     } else {
         // do nothing
         LOG_ERROR_FMT("Failed to configure node %s (%s), node type is invalid.", node->name.c_str(), node->ip.c_str());
+        return -1;
     }
 
     LOG_INFO_FMT("Configuring PostgreSQL for node %s (%s)", node->name.c_str(), node->ip.c_str());

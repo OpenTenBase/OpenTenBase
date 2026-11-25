@@ -844,7 +844,8 @@ std::string build_initdb_cmd(NodeInfo* node, OpentenbaseConfig* install) {
     if (node_type == Constants::NODE_TYPE_GTM_MASTER || node_type == Constants::NODE_TYPE_GTM_SLAVE)
     {
         // /home/opentenbase/run/instance/test_cluster05/gtm001/data
-        command = "rm -rf " + dataDir + "/* " +
+        command = "mkdir -p " + dataDir + " && chmod 0700 " + dataDir +
+            " && rm -rf " + dataDir + "/* " +
             " && " + buid_ld_library_path_str(binDir) + 
             " && PGXC_CTL_SILENT=1 " + 
             " && " + binDir + "/bin/initgtm -Z gtm -D " + dataDir + " &>/dev/null";
@@ -852,7 +853,8 @@ std::string build_initdb_cmd(NodeInfo* node, OpentenbaseConfig* install) {
     else if (node_type == Constants::NODE_TYPE_CN_MASTER || node_type == Constants::NODE_TYPE_CN_SLAVE)
     {
         // /home/opentenbase/run/instance/test_cluster05/cn001/data
-        command = "rm -rf " + dataDir + "/* " +
+        command = "mkdir -p " + dataDir + " && chmod 0700 " + dataDir +
+            " && rm -rf " + dataDir + "/* " +
             " && " + buid_ld_library_path_str(binDir) + 
             " && PGXC_CTL_SILENT=1 " + 
             " && " + binDir + "/bin/initdb -U " + Constants::DEFAULT_USER_OF_INITDB + " -E utf8 --locale=" + locale + " --nodename " + node->name + " --nodetype coordinator -D " + dataDir 
@@ -862,7 +864,8 @@ std::string build_initdb_cmd(NodeInfo* node, OpentenbaseConfig* install) {
     else if (node_type == Constants::NODE_TYPE_DN_MASTER || node_type == Constants::NODE_TYPE_DN_SLAVE)
     {
         // /home/opentenbase/run/instance/test_cluster05/dn001/data
-        command = "rm -rf " + dataDir + "/* " +
+        command = "mkdir -p " + dataDir + " && chmod 0700 " + dataDir +
+            " && rm -rf " + dataDir + "/* " +
             " && " + buid_ld_library_path_str(binDir) + 
             " && PGXC_CTL_SILENT=1 " + 
             " && " + binDir + "/bin/initdb -U " + Constants::DEFAULT_USER_OF_INITDB + " -E utf8 --locale=" + locale + " --nodename " + node->name + " --nodetype datanode -D " + dataDir 

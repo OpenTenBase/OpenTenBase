@@ -385,7 +385,8 @@ build_cn_node_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
     }
     
     std::map<std::string, std::string> cn_guc_cfg;
-    if (!parseConfigFile(cfg_file.coordinators.conf, cn_guc_cfg)) {
+    if (!cfg_file.coordinators.conf.empty() &&
+        !parseConfigFile(cfg_file.coordinators.conf, cn_guc_cfg)) {
         LOG_ERROR_FMT("Failed to parse configuration file %s.", cfg_file.coordinators.conf.c_str());
         return -1;
     }
@@ -447,7 +448,8 @@ build_dn_node_config(const ConfigFile& cfg_file, OpentenbaseConfig& config) {
 
     // build dn guc config
     std::map<std::string, std::string> dn_guc_cfg;
-    if (!parseConfigFile(cfg_file.datanodes.conf, dn_guc_cfg)) {
+    if (!cfg_file.datanodes.conf.empty() &&
+        !parseConfigFile(cfg_file.datanodes.conf, dn_guc_cfg)) {
         LOG_ERROR_FMT("Failed to parse configuration file %s.", cfg_file.datanodes.conf.c_str());
         return -1;
     }
@@ -1120,16 +1122,18 @@ int fill_ports_for_nodes(OpentenbaseConfig* config) {
         std::string port_str = get_node_port(&node, config);
         if (port_str.empty()) {
             std::cerr << "Error: Failed to get port for node " << node.name << std::endl;
-            continue;
+            return -1;
         }
 
         try {
             int port = std::stoi(port_str);
             node.port = port;
         } catch (const std::invalid_argument& e) {
-            continue;
+            std::cerr << "Error: Invalid port for node " << node.name << ": " << port_str << std::endl;
+            return -1;
         } catch (const std::out_of_range& e) {
-            continue;
+            std::cerr << "Error: Port is out of range for node " << node.name << ": " << port_str << std::endl;
+            return -1;
         }
     }
 
