@@ -24,3 +24,4 @@ Many thanks to the following contributors for their contributions to OpenTenBase
 - [hlinnaka](https://github.com/hlinnaka)
 - [kkt-tc](https://github.com/kkt-tc)
 - [enkilee](https://github.com/enkilee)
+- [JackLau1222](https://github.com/JackLau1222)
