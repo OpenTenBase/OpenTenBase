@@ -680,7 +680,7 @@ int init_and_start_master_node(NodeInfo* node, OpentenbaseConfig* install) {
     // Step 5: Stop node
     LOG_INFO_FMT("Step %d/%d: Stopping node %s", 5, 6, node->name.c_str());
     if (stop_node(node, install) != 0) {
-        LOG_ERROR_FMT("Failed to start node");
+        LOG_ERROR_FMT("Failed to stop node %s (%s)", node->name.c_str(), node->ip.c_str());
         return -1;
     }
 
@@ -749,7 +749,14 @@ int init_node(NodeInfo* node, OpentenbaseConfig* install) {
         }
         
     } else {
-        //
+        /*
+         * 这里原来是空的，随后照样打印 "Successfully initdb"。当前六种类型都被
+         * 上面的分支覆盖，所以暂时走不到；一旦出现新的节点类型，它会被跳过初始化
+         * 却报告成功。未知类型必须失败。
+         */
+        LOG_ERROR_FMT("Unsupported node type \"%s\" for node %s (%s)",
+                      node->type.c_str(), node->name.c_str(), node->ip.c_str());
+        return -1;
     }
 
     LOG_INFO_FMT("Successfully initdb for node %s (%s)", node->name.c_str(), node->ip.c_str());
