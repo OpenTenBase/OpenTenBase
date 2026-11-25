@@ -1196,6 +1196,14 @@ transfer_and_extract_package(NodeInfo *node, OpentenbaseConfig *install) {
         std::cerr << "错误码: " << e.code() << '\n';
         std::cerr << "错误码值: " << e.code().value() << '\n';
         std::cerr << "错误类别: " << e.code().category().name() << '\n';
+        // 没有这个 return 时，异常被吞掉后函数继续往下走，打印
+        // "Successfully extracted package" 并返回 0 —— 传输失败被报成成功。
+        return -1;
+    }
+    catch (const std::exception& e) {
+        LOG_ERROR_FMT("Failed to transfer package to node %s (%s): %s",
+                node->name.c_str(), node->ip.c_str(), e.what());
+        return -1;
     }
     
     LOG_INFO_FMT("Successfully extracted package on node %s (%s)", 
