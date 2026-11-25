@@ -22,6 +22,7 @@ static void sift_up(binaryheap *heap, int node_off);
 static inline void swap_nodes(binaryheap *heap, int a, int b);
 
 /*
+ * 
  * binaryheap_allocate
  *
  * Returns a pointer to a newly-allocated heap that has the capacity to
@@ -65,6 +66,7 @@ binaryheap_reset(binaryheap *heap)
  *
  * Releases memory used by the given binaryheap.
  */
+//这个函数用于释放堆所占用的内存。
 void
 binaryheap_free(binaryheap *heap)
 {
@@ -80,6 +82,12 @@ binaryheap_free(binaryheap *heap)
  * the right child at 2*i+2. The parent of node i is at index (i-1)/2.
  */
 
+/*
+二叉堆的常用辅助函数
+左儿子：索引是2*i+1
+右儿子：索引是2*i+2
+父节点：(i-1)/2
+*/
 static inline int
 left_offset(int i)
 {
