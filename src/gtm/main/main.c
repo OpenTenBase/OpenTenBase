@@ -414,14 +414,33 @@ BaseInit(char *data_dir)
 
     if (Log_directory == NULL)
     {
+        /*
+         * GTMDataDir 来自命令行 -D，长度不受 GTM_MAX_PATH 约束；这里原先用
+         * sprintf 往只有 GTM_MAX_PATH 字节的缓冲区里拼，路径一长就越过堆块。
+         * 返回值为负或被截断时报错退出，而不是带着半个路径继续启动。
+         */
+        int     n;
+
         Log_directory = (char *) pg_malloc(GTM_MAX_PATH);
-        sprintf(Log_directory, "%s/%s", GTMDataDir, GTM_LOG_FILE_DIR);
+        n = snprintf(Log_directory, GTM_MAX_PATH, "%s/%s", GTMDataDir, GTM_LOG_FILE_DIR);
+        if (n < 0 || n >= GTM_MAX_PATH)
+        {
+            write_stderr("log directory path exceeds max size\n");
+            exit(1);
+        }
     }
 
     if (GTMLogFile == NULL)
     {
+        int     n;
+
         GTMLogFile = (char *) pg_malloc(GTM_MAX_PATH);
-        sprintf(GTMLogFile, "%s/%s", Log_directory, GTM_LOG_FILE);
+        n = snprintf(GTMLogFile, GTM_MAX_PATH, "%s/%s", Log_directory, GTM_LOG_FILE);
+        if (n < 0 || n >= GTM_MAX_PATH)
+        {
+            write_stderr("log file path exceeds max size\n");
+            exit(1);
+        }
     }
 
 	/* Save Node Register File in register.c */
