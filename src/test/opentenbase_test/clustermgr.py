@@ -11,6 +11,7 @@ import pickle
 import re
 import struct
 import getpass
+import shlex
 
 from common import ClusterConf
 from common import ExecCommand
@@ -478,22 +479,27 @@ def CloneCluster(srcdir, targetdir):
 
 def ChangeConf(dst_dir, conf_item):
     node_parent_dirs = ['coord', 'coord_slave', 'dn_master', 'dn_slave']
+    node_dirs = []
+    conf_key = conf_item.split('=', 1)[0].strip()
+    setting = re.compile(r'^\s*' + re.escape(conf_key) + r'\s*=')
     for parent in node_parent_dirs:
-        onetypename = dst_dir + '/database/' + parent
-        onetypedir = os.listdir(onetypename)
-        for pgdata in onetypedir:
-            name = pgdata + '/postgresql.conf'
-            conf_key = conf_item.split('=')[0]
-            cmd = f"sed -i '/{conf_key}/d' {name}"
-            global_thl_data.logger.debug(cmd)
-            ExecCommand(cmd)
-            cmd = f'echo -e "\\nadded by opentenbase_test test case\\n{conf_item}" >> {name}'
-            global_thl_data.logger.debug(cmd)
-            ExecCommand(cmd)
-    for parent in node_parent_dirs:
-        onetypename = dst_dir + '/database/' + parent
-        onetypedir = os.listdir(onetypename)
-        for pgdata in onetypedir:
-            cmd = f'pg_ctl -D {pgdata} reload'
-            global_thl_data.logger.debug(cmd)
-            ExecCommand(cmd)
+        onetypename = os.path.join(dst_dir, 'database', parent)
+        if not os.path.isdir(onetypename):
+            continue
+        for node in os.listdir(onetypename):
+            pgdata = os.path.join(onetypename, node)
+            if not os.path.isdir(pgdata):
+                continue
+            name = os.path.join(pgdata, 'postgresql.conf')
+            with open(name) as fin:
+                lines = [line for line in fin if not setting.match(line)]
+            with open(name, 'w') as fout:
+                fout.writelines(lines)
+                fout.write(f'\n# added by opentenbase_test test case\n{conf_item}\n')
+            node_dirs.append(pgdata)
+
+    # Finish writing every node's configuration before requesting reloads.
+    for pgdata in node_dirs:
+        cmd = f'pg_ctl -D {shlex.quote(pgdata)} reload'
+        global_thl_data.logger.debug(cmd)
+        ExecCommand(cmd)
