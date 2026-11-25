@@ -12,6 +12,7 @@
 objfiles.txt
 lib*.pc
 /.idea
+/.vscode
 .*/.DS_Store
 /src/.idea/misc.xml
 /src/.idea/modules.xml
