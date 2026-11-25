@@ -912,3 +912,215 @@ CREATE OPERATOR CLASS sparsevec_l1_ops
 	OPERATOR 1 <+> (sparsevec, sparsevec) FOR ORDER BY float_ops,
 	FUNCTION 1 l1_distance(sparsevec, sparsevec),
 	FUNCTION 3 hnsw_sparsevec_support(internal);
+
+-- ----------------------------------------------------------------------------
+-- Diagnostic helpers for vector index introspection
+--
+-- The four functions below are used by the "recall low" troubleshooting
+-- workflow:
+--
+--   SELECT * FROM ivfflat_index_info('my_ivfflat_idx'::regclass);
+--   SELECT * FROM hnsw_index_info('my_hnsw_idx'::regclass);
+--   SELECT * FROM ivfflat_recommend_probes('my_ivfflat_idx'::regclass, 0.95);
+--   SELECT * FROM hnsw_recommend_ef_search('my_hnsw_idx'::regclass, 10, 0.95);
+--
+-- They are implemented in PL/pgSQL on top of the system catalogs instead of
+-- C, because a set-returning C function needs a different boilerplate on
+-- every PostgreSQL generation (materialized SRF on PG13+ vs. the older
+-- value-per-call protocol).  Reading the values from the catalog keeps this
+-- addition portable across the versions that vendor this copy of pgvector
+-- (OpenTenBase master is based on PostgreSQL 10, upstream pgvector 0.8.6
+-- requires PostgreSQL 13+).
+--
+--   lists / m / ef_construction are stored as index reloptions, and fall back
+--   to the extension defaults when the index was created without an explicit
+--   WITH (...) clause.  dimensions comes from the indexed column's type
+--   modifier.  probes / ef_search are the current session's GUC values.
+-- ----------------------------------------------------------------------------
+
+CREATE FUNCTION ivfflat_index_info(idx regclass) RETURNS TABLE(
+	lists integer,
+	dimensions integer,
+	opclass text,
+	probes integer)
+LANGUAGE plpgsql STABLE
+AS $$
+DECLARE
+	v_amname text;
+	v_lists integer;
+	v_dimensions integer;
+	v_opclass text;
+	v_probes integer;
+BEGIN
+	SELECT am.amname INTO v_amname
+	FROM pg_class c JOIN pg_am am ON am.oid = c.relam
+	WHERE c.oid = idx;
+
+	IF v_amname IS NULL THEN
+		RAISE EXCEPTION 'relation "%" is not an index', idx::text;
+	END IF;
+	IF v_amname <> 'ivfflat' THEN
+		RAISE EXCEPTION 'relation "%" is not an ivfflat index', idx::text;
+	END IF;
+
+	SELECT (regexp_match(opt, '^lists=([0-9]+)$'))[1]::integer INTO v_lists
+	FROM unnest(coalesce((SELECT reloptions FROM pg_class WHERE oid = idx), ARRAY[]::text[])) AS opt
+	WHERE opt LIKE 'lists=%';
+
+	v_lists := coalesce(v_lists, 100);
+
+	SELECT substring(format_type(a.atttypid, a.atttypmod) from '\(([0-9]+)\)')::integer
+	INTO v_dimensions
+	FROM pg_index i
+	JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = i.indkey[0]
+	WHERE i.indexrelid = idx;
+
+	SELECT opc.opcname INTO v_opclass
+	FROM pg_index i JOIN pg_opclass opc ON opc.oid = i.indclass[0]
+	WHERE i.indexrelid = idx;
+
+	v_probes := current_setting('ivfflat.probes', true)::integer;
+
+	RETURN QUERY SELECT v_lists, v_dimensions, v_opclass, v_probes;
+END;
+$$;
+
+CREATE FUNCTION hnsw_index_info(idx regclass) RETURNS TABLE(
+	m integer,
+	ef_construction integer,
+	dimensions integer,
+	opclass text,
+	ef_search integer)
+LANGUAGE plpgsql STABLE
+AS $$
+DECLARE
+	v_amname text;
+	v_m integer;
+	v_ef integer;
+	v_dimensions integer;
+	v_opclass text;
+	v_efsearch integer;
+BEGIN
+	SELECT am.amname INTO v_amname
+	FROM pg_class c JOIN pg_am am ON am.oid = c.relam
+	WHERE c.oid = idx;
+
+	IF v_amname IS NULL THEN
+		RAISE EXCEPTION 'relation "%" is not an index', idx::text;
+	END IF;
+	IF v_amname <> 'hnsw' THEN
+		RAISE EXCEPTION 'relation "%" is not an hnsw index', idx::text;
+	END IF;
+
+	SELECT (regexp_match(opt, '^m=([0-9]+)$'))[1]::integer INTO v_m
+	FROM unnest(coalesce((SELECT reloptions FROM pg_class WHERE oid = idx), ARRAY[]::text[])) AS opt
+	WHERE opt LIKE 'm=%';
+
+	SELECT (regexp_match(opt, '^ef_construction=([0-9]+)$'))[1]::integer INTO v_ef
+	FROM unnest(coalesce((SELECT reloptions FROM pg_class WHERE oid = idx), ARRAY[]::text[])) AS opt
+	WHERE opt LIKE 'ef_construction=%';
+
+	v_m := coalesce(v_m, 16);
+	v_ef := coalesce(v_ef, 64);
+
+	SELECT substring(format_type(a.atttypid, a.atttypmod) from '\(([0-9]+)\)')::integer
+	INTO v_dimensions
+	FROM pg_index i
+	JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = i.indkey[0]
+	WHERE i.indexrelid = idx;
+
+	SELECT opc.opcname INTO v_opclass
+	FROM pg_index i JOIN pg_opclass opc ON opc.oid = i.indclass[0]
+	WHERE i.indexrelid = idx;
+
+	v_efsearch := current_setting('hnsw.ef_search', true)::integer;
+
+	RETURN QUERY SELECT v_m, v_ef, v_dimensions, v_opclass, v_efsearch;
+END;
+$$;
+
+-- ----------------------------------------------------------------------------
+-- Recommendation helpers for the query-time index parameters.
+--
+-- These compute a sensible (min, recommended, max) range for the runtime
+-- GUCs ivfflat.probes and hnsw.ef_search.  They are pure PL/pgSQL wrappers
+-- over the *_index_info() helpers above and add a small heuristic based on a
+-- target_recall value in [0.0, 1.0].
+--
+-- target_recall multiplier table:
+--     rec < 0.9   -> 0.7x
+--     rec < 0.95  -> 1.0x  (default tier)
+--     rec <= 0.99 -> 1.5x
+--     rec >  0.99 -> 2.5x
+--
+-- Out-of-range target_recall is clamped to [0.0, 1.0].
+-- ----------------------------------------------------------------------------
+
+CREATE FUNCTION ivfflat_recommend_probes(
+	idx regclass,
+	target_recall float8 DEFAULT 0.9
+) RETURNS TABLE(
+	probes_min integer,
+	probes_recommended integer,
+	probes_max integer)
+LANGUAGE plpgsql STABLE
+AS $$
+DECLARE
+	lists int;
+	mult float8;
+	rec int;
+	mn int;
+	mx int;
+	r float8 := LEAST(1.0, GREATEST(0.0, target_recall));
+BEGIN
+	SELECT i.lists FROM ivfflat_index_info(idx) i INTO lists;
+
+	mult := CASE
+		WHEN r < 0.9  THEN 0.7
+		WHEN r < 0.95 THEN 1.0
+		WHEN r <= 0.99 THEN 1.5
+		ELSE 2.5
+	END;
+
+	rec := LEAST(32768, GREATEST(1, CEIL(sqrt(lists::float8) * mult)::int));
+	mn  := GREATEST(1, rec / 2);
+	mx  := GREATEST(rec, lists / 2);
+
+	RETURN QUERY SELECT mn, rec, mx;
+END;
+$$;
+
+CREATE FUNCTION hnsw_recommend_ef_search(
+	idx regclass,
+	top_k int DEFAULT 10,
+	target_recall float8 DEFAULT 0.9
+) RETURNS TABLE(
+	ef_search_min integer,
+	ef_search_recommended integer,
+	ef_search_max integer)
+LANGUAGE plpgsql STABLE
+AS $$
+DECLARE
+	e int;
+	mult float8;
+	rec int;
+	mn int;
+	mx int;
+	r float8 := LEAST(1.0, GREATEST(0.0, target_recall));
+BEGIN
+	SELECT i.ef_construction FROM hnsw_index_info(idx) i INTO e;
+
+	mult := CASE
+		WHEN r < 0.9  THEN 0.7
+		WHEN r < 0.95 THEN 1.0
+		WHEN r <= 0.99 THEN 1.5
+		ELSE 2.5
+	END;
+
+	rec := LEAST(1000, GREATEST(e, CEIL(e::float8 * mult)::int, top_k * 2));
+	mn  := e;
+	mx  := LEAST(1000, e * 4);
+
+	RETURN QUERY SELECT mn, rec, mx;
+END;
+$$;
