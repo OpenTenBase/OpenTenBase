@@ -426,7 +426,7 @@ CreatePackageFunctions(Oid pkgoid, const char *pkgsrc, Oid pkgcrrspndingns,
 				}
 				break;
 			default:
-				ereport(ERROR, (errmsg("unsupport raw stmt:%d",
+				ereport(ERROR, (errmsg("unsupported raw stmt:%d",
 									rawStmt->stmt->type)));
 			break;
 		}

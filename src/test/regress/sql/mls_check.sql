@@ -399,7 +399,7 @@ select attnum,enable,username,nspname,tblname from pg_data_mask_user order by tb
 drop table tbl_drop_white_list_by_col;
 drop table tbl_drop_white_list_batch;
 
---case: orignal partitions would bind datamask to its children all, cover L1\L2\Lx....
+--case: original partitions would bind datamask to its children all, cover L1\L2\Lx....
 drop table if exists order_range_list;
 create table order_range_list(f1 int, f2 int2, f3 int4, f4 int8, f5 varchar, f6 text, f7 char(20), f8 varchar, f9 numeric, f10 timestamp, f11 float4, f12 float8) partition by list (f6);
 
@@ -459,7 +459,7 @@ select * from order_range_list_bj_201701 order by f1 asc;
 select * from order_range_list_bj_201702 order by f1 asc;
 select * from order_range_list_bj_201703 order by f1 asc;
 
---orignal values
+--original values
 \c - godlike2
 select * from order_range_list order by f1 asc;
 select * from order_range_list_gd order by f1 asc;
@@ -539,7 +539,7 @@ select MLS_DATAMASK_DROP_TABLE_POLICY('public', 'test_table_mask_update');
 \c - godlike
 drop  table  test_table_mask_update;
 
---test for MLS_DATAMASK_UPDATE_TABLE_POLICY with orignal partition
+--test for MLS_DATAMASK_UPDATE_TABLE_POLICY with original partition
 \c - godlike
 create table order_range_list(id bigserial not null,userid integer,product text,area text, createdate timestamp) partition by list ( area );
 create table order_range_list_gd partition of order_range_list for values in ('guangdong') partition by range(createdate); 
@@ -737,7 +737,7 @@ select * from tbl_mls_test where f1 = 1024 and f2 >= '2018-05-01' and f2 < '2018
 -- test vacuum analyze
 vacuum analyze tbl_mls_test;
 
---case: orignal partition, interval partition with index
+--case: original partition, interval partition with index
 \c - godlike
 create table tbl_mls_part_list( a int ,b int ) PARTITION BY LIST (b) ;
 CREATE TABLE tbl_mls_part_list_1 PARTITION OF tbl_mls_part_list FOR VALUES IN (1);
@@ -788,7 +788,7 @@ truncate crypt_schema_5.tbl_crypt_6;
 alter table crypt_schema_5.tbl_crypt_6 set schema public;
 
 \c - godlike 
---sucess, index could be drop directly.
+--success, index could be drop directly.
 drop index public.idx_tbl_crypt_6_id;
 --success, even mls_admin dose not unbind tbl_crypt_5
 drop table crypt_schema_5.tbl_crypt_5;
@@ -796,7 +796,7 @@ drop table crypt_schema_5.tbl_crypt_5;
 \c - mls_admin
 select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_TABLE('public', 'tbl_crypt_6'); 
 \c - godlike
---sucess, after unbound
+--success, after unbound
 drop table public.tbl_crypt_6;
 \c - mls_admin
 select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_SCHEMA('crypt_schema_5');
@@ -888,7 +888,7 @@ select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_SCHEMA('crypt_schema_sm66');
 \c - godlike
 drop schema crypt_schema_sm66;
 
---case set, for orignal partition tables
+--case set, for original partition tables
 --case1, parent and child L1 was created, bind crypt policy to parent
 \c - godlike
 create table order_range_list(id bigserial not null,userid integer,product text,area text, createdate date) partition by list ( area );
@@ -1137,7 +1137,7 @@ drop table crypt_schema_materializedview_single.crypt_schema_materializedview_si
 select attnum,algorithm_id,spcoid,spcname,nspname,tblname from pg_transparent_crypt_policy_map where tblname ilike 'crypt_schema_materializedview_single%';
 select MLS_TRANSPARENT_CRYPT_ALGORITHM_UNBIND_SCHEMA('crypt_schema_materializedview_single');
 
---case 6 orignal partition delete cascaded
+--case 6 original partition delete cascaded
 \c - godlike 
 create schema crypt_schema_partition_range;
 \c - mls_admin 

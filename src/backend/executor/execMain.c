@@ -4070,8 +4070,8 @@ EvalPlanQualEnd(EPQState *epqstate)
 
 #ifdef _MLS_
 /*
- * cls user could access cls system tables and orignal system tables, and no more access limit
- * audit user could access audit system tables and orignal system tables, and no more access limit
+ * cls user could access cls system tables and original system tables, and no more access limit
+ * audit user could access audit system tables and original system tables, and no more access limit
  * other users has no privilege to access cls system tables and audit system tables, and need to check other limitation.
  */
 static int ExecCheckRTERelkindextPerms(RangeTblEntry *rte)

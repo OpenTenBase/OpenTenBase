@@ -1203,7 +1203,7 @@ pg_table_size(PG_FUNCTION_ARGS)
 	if (!isRestoreMode && IS_PGXC_DATANODE && (RELKIND_PARTITIONED_TABLE == rel->rd_rel->relkind))
 	{
         /*
-         * this is orignal partition, use \d+ show the parent and all its children 'table size' together,
+         * this is original partition, use \d+ show the parent and all its children 'table size' together,
          * while, if it is a sub parent, the result contains this sub parent table and all its children. 
          */
         List     *  children;

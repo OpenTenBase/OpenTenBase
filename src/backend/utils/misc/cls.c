@@ -968,7 +968,7 @@ void mls_create_cls_check_expr(Relation rel)
     Oid relid;
     int16 attnum;
 
-    /* skip other relation except tables and orignal partition tables */
+    /* skip other relation except tables and original partition tables */
     if ((RELKIND_RELATION != rel->rd_rel->relkind)
        &&(RELKIND_PARTITIONED_TABLE != rel->rd_rel->relkind))
     {

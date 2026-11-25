@@ -103,7 +103,7 @@ BEGIN
             RAISE EXCEPTION 'table:%.% has attnum:% bound datamask policy, datamask:%', schema_name, table_name, attnum_check, datamask_check;
     END IF;
   
-    --check if orignal partition table
+    --check if original partition table
     sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
             ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
     EXECUTE sql_cmd INTO relkind, relid;
@@ -123,7 +123,7 @@ BEGIN
             
             idx := idx+1;
         END LOOP;
-        --RAISE NOTICE 'is orignal partition table %', table_name;
+        --RAISE NOTICE 'is original partition table %', table_name;
     END IF;
   
     --pass all judgement, go
@@ -249,7 +249,7 @@ BEGIN
             RAISE EXCEPTION 'table:%.% has attnum:% bound datamask policy, datamask:%', schema_name, table_name, attnum_check, datamask_check;
     END IF;
     
-    --check if orignal partition table
+    --check if original partition table
     sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
             ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
     EXECUTE sql_cmd INTO relkind, relid;
@@ -269,7 +269,7 @@ BEGIN
             
             idx := idx+1;
         END LOOP;
-        --RAISE NOTICE 'is orignal partition table %', table_name;
+        --RAISE NOTICE 'is original partition table %', table_name;
     END IF;
     
     --pass all judgement, go
@@ -393,7 +393,7 @@ BEGIN
             RAISE EXCEPTION 'table:%.% has attnum:% bound datamask policy, datamask:%', schema_name, table_name, attnum_check, datamask_check;
     END IF;
     
-    --check if orignal partition table
+    --check if original partition table
     sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
             ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
     EXECUTE sql_cmd INTO relkind, relid;
@@ -413,7 +413,7 @@ BEGIN
             
             idx := idx+1;
         END LOOP;
-        --RAISE NOTICE 'is orignal partition table %', table_name;
+        --RAISE NOTICE 'is original partition table %', table_name;
     END IF;
   
     --pass all judgement, go
@@ -494,7 +494,7 @@ BEGIN
     --RAISE NOTICE '%', sql_cmd;
     EXECUTE sql_cmd;
     
-    --check if orignal partition table
+    --check if original partition table
     sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
             ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
     EXECUTE sql_cmd INTO relkind, relid;
@@ -562,7 +562,7 @@ BEGIN
     --RAISE NOTICE '%', sql_cmd;
     EXECUTE sql_cmd;
     
-    --check if orignal partition table
+    --check if original partition table
     sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
             ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
     EXECUTE sql_cmd INTO relkind, relid;
@@ -641,7 +641,7 @@ BEGIN
     --check need cascade drop
     IF need_cascade = TRUE THEN
     
-        --check if orignal partition table
+        --check if original partition table
         sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
                 ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
         EXECUTE sql_cmd INTO relkind, relid;
@@ -711,7 +711,7 @@ BEGIN
     
     --check need cascade drop
     IF need_cascade = TRUE THEN
-        --check if orignal partition table
+        --check if original partition table
         sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
                 ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
         EXECUTE sql_cmd INTO relkind, relid;
@@ -886,7 +886,7 @@ BEGIN
     --RAISE NOTICE '%', sql_cmd;
     EXECUTE sql_cmd;
     
-    --check if orignal partition table
+    --check if original partition table
     sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
             ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
     EXECUTE sql_cmd INTO relkind, relid;
@@ -966,7 +966,7 @@ BEGIN
     --RAISE NOTICE '%', sql_cmd;
     EXECUTE sql_cmd;
     
-    --check if orignal partition table
+    --check if original partition table
     sql_cmd := 'select c.relkind, c.oid from pg_class c, pg_namespace n where c.relname = ''' 
             ||table_name||''' and n.nspname = '''||schema_name||''' and c.relnamespace = n.oid ;';
     EXECUTE sql_cmd INTO relkind, relid;
@@ -1611,7 +1611,7 @@ $$
 LANGUAGE default_plsql;
 
 ----------------------------datamask end-------------------------
---get name and oid of orignal partition children
+--get name and oid of original partition children
 CREATE OR REPLACE FUNCTION MLS_GET_PARTITION_CHILDREN(IN relid INTEGER, OUT childname VARCHAR[], OUT childoid INTEGER[])
 RETURNS record
 AS $$
