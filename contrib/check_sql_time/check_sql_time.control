@@ -1,0 +1,5 @@
+# check_sql_time extension
+comment = 'find out the sql that is exceeding expectations'
+default_version = '1.0'
+module_pathname = '$libdir/check_sql_time'
+relocatable = false
