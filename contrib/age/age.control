@@ -1,0 +1,6 @@
+# Apache AGE distributed graph extension for OpenTenBase
+comment = 'AGE distributed property graph database extension for OpenTenBase'
+default_version = '1.0.0'
+module_pathname = '$libdir/age'
+relocatable = false
+schema = ag_catalog
