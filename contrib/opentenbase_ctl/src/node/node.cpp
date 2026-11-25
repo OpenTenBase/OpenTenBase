@@ -1030,11 +1030,14 @@ int configure_pg_hba(NodeInfo *node, OpentenbaseConfig *install) {
     if (is_dn_node(node->type)) {  // datanode
         command += std::string("host    all    ") + std::string(Constants::DEFAULT_USER_OF_INITDB) + "    all    trust\n";
     } else if (is_cn_node(node->type)) {  // coordinator
-        // All other IPs must input password to connect CN
-        // command += "host    all    all    0.0.0.0/0    md5\n";
-        // command += "host    all    all    ::0/0        md5\n";
-        command += "host    all    all    0.0.0.0/0    trust\n";
-        command += "host    all    all    ::0/0        trust\n";
+        /*
+         * 注释声明的是"其他 IP 连接 CN 必须输入密码"，但下一行给出的却是
+         * trust —— 任何地址都能以任意用户免密码连上协调节点。这里按注释的
+         * 说法改回 md5。如果确实希望开放免密码访问，那应该改注释而不是让两者
+         * 继续矛盾。
+         */
+        command += "host    all    all    0.0.0.0/0    md5\n";
+        command += "host    all    all    ::0/0        md5\n";
     }
     
     command += "' >> " + node->data_path + "/pg_hba.conf";
