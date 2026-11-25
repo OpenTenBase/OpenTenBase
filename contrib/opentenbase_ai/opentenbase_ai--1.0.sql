@@ -30,7 +30,10 @@ RETURNS http_response AS $$
 DECLARE
 	uri TEXT;
     model_name TEXT;
-	request_header TEXT;
+    -- ai_model_list.request_header is http_header[], not text: there is no
+    -- assignment cast from the array type to text, so declaring it as TEXT made
+    -- the SELECT ... INTO below fail on every call.
+	request_header http_header[];
 	content_type TEXT;
 	request_type TEXT;
 	default_args JSONB;
