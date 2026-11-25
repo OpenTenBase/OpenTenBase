@@ -1,0 +1,42 @@
+{
+    "name": "pgxc_ora_sysview",
+    "abstract": "Extension to add Oracle SYSTEM VIEW compatibility to OpenTenBase",
+    "version": "1.0.0",
+    "maintainer": "joyannlin",
+    "license": "postgresql",
+    "release_status": "stable",
+    "provides": {
+       "pgxc_ora_sysview": {
+          "abstract": "Extension to add Oracle SYSTEM VIEW compatibility to OpenTenBase",
+          "file": "sql/pgxc_ora_sysview--1.0.0.sql",
+          "docfile": "README.md",
+          "version": "1.0.0"
+       }
+    },
+    "resources": {
+       "bugtracker": {
+          "web": "https://github.com/joyannlin/pgxc_ora_sysview/issues"
+       },
+       "repository": {
+         "url":  "git://github.com/joyannlin/pgxc_ora_sysview.git",
+         "web":  "https://github.com/joyannlin/pgxc_ora_sysview.git",
+         "type": "git"
+       }
+    },
+    "prereqs": {
+        "runtime": {
+            "requires": {
+                "OpenTenBase": "V2"
+            }
+        }
+    },
+    "generated_by": "joyannlin",
+    "meta-spec": {
+       "version": "1.0.0",
+       "url": "http://pgxn.org/meta/spec.txt"
+    },
+    "tags": [
+       "oracle system view",
+       "OpenTenBase"
+    ]
+ }

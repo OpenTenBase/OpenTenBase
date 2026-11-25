@@ -1,0 +1,316 @@
+-- Test tables DDL export
+\i test/sql/get_ddl/get_ddl_table.sql
+SELECT dbms_metadata.get_ddl('TABLE','table_all','gdmmm') from dual;
+                                                                                                                                                                 get_ddl                                                                                                                                                                  
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- Table definition
+CREATE TABLE gdmmm.table_all (a integer DEFAULT nextval('gdmmm.table_all_a_seq'::regclass)NOT NULL,b integer NOT NULL,c character varying(20) DEFAULT 'def'::character varying,d integer ) WITH (autovacuum_enabled=false,fillfactor=70,autovacuum_vacuum_scale_factor=0.2,autovacuum_analyze_scale_factor=0.1) DISTRIBUTE BY SHARD(a) to GROUP default_group;
+
+-- Table comments
+COMMENT ON TABLE gdmmm.table_all IS 'This is a comment for the table.';
+
+-- Column comments
+COMMENT ON COLUMN gdmmm.table_all.a IS 'This is a comment for the column.';
+COMMENT ON COLUMN gdmmm.table_all.b IS 'This is a comment for the column.';
+
+
+-- Constraints
+ALTER TABLE gdmmm.table_all ADD CONSTRAINT table_all_pkey PRIMARY KEY (a);
+
+
+(1 row)
+
+SELECT dbms_metadata.get_ddl('TABLE','table_all_child','gdmmm') from dual;
+                                                    get_ddl                                                    
+---------------------------------------------------------------------------------------------------------------
+-- Table definition
+CREATE TABLE gdmmm.table_all_child (id integer NOT NULL) DISTRIBUTE BY SHARD(id) to GROUP default_group;
+
+-- Constraints
+ALTER TABLE gdmmm.table_all_child ADD CONSTRAINT child_uniq UNIQUE (id);
+
+
+
+-- Referential constraints
+ALTER TABLE gdmmm.table_all_child ADD CONSTRAINT "Fk_customer" FOREIGN KEY (id) REFERENCES gdmmm.table_all(a);
+
+(1 row)
+
+SELECT dbms_metadata.get_ddl('TABLE','sales','gdmmm') from dual;
+                                                             get_ddl                                                             
+---------------------------------------------------------------------------------------------------------------------------------
+-- Table definition
+CREATE TABLE gdmmm.sales (sale_id integer NOT NULL,"Sale date" date NOT NULL,amount numeric ) PARTITION BY RANGE("Sale date") DISTRIBUTE BY SHARD(sale_id) to GROUP default_group;
+
+-- Constraints
+ALTER TABLE gdmmm.sales ADD CONSTRAINT sales_pkey PRIMARY KEY (sale_id, "Sale date");
+                                                                                                                              +
+ 
+(1 row)
+
+SELECT dbms_metadata.get_ddl('TABLE','Sample unlogged table','gdmmm') from dual;
+                                                                                                         get_ddl                                                                                                          
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- Table definition
+CREATE UNLOGGED TABLE gdmmm."Sample unlogged table" (id integer DEFAULT nextval('gdmmm."Sample unlogged table_id_seq"'::regclass)NOT NULL,"name of customer" character varying(255) ,"Age" integer ,"Birth_Date" date ) DISTRIBUTE BY SHARD(id) to GROUP default_group;
+
+-- Column comments
+COMMENT ON COLUMN gdmmm."Sample unlogged table"."name of customer" IS 'This is a comment for the column.';
+
+
+-- Constraints
+ALTER TABLE gdmmm."Sample unlogged table" ADD CONSTRAINT "Sample unlogged table_pkey" PRIMARY KEY (id);
+ALTER TABLE gdmmm."Sample unlogged table" ADD CONSTRAINT "Unique age" UNIQUE (id, "Age");
+
+ALTER TABLE gdmmm."Sample unlogged table" ADD CHECK (("Birth_Date" > '1900-01-01'::date));
+ 
+(1 row)
+
+-- tests for schema as NULL
+SET search_path TO public, gdmmm;
+SELECT dbms_metadata.get_ddl('TABLE','table_all') from dual;
+                                                                                                                                                              get_ddl                                                                                                                                                               
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- Table definition
+CREATE TABLE gdmmm.table_all (a integer DEFAULT nextval('table_all_a_seq'::regclass)NOT NULL,b integer NOT NULL,c character varying(20) DEFAULT 'def'::character varying,d integer ) WITH (autovacuum_enabled=false,fillfactor=70,autovacuum_vacuum_scale_factor=0.2,autovacuum_analyze_scale_factor=0.1) DISTRIBUTE BY SHARD(a) to GROUP default_group;
+
+-- Table comments
+COMMENT ON TABLE gdmmm.table_all IS 'This is a comment for the table.';
+
+-- Column comments
+COMMENT ON COLUMN gdmmm.table_all.a IS 'This is a comment for the column.';
+COMMENT ON COLUMN gdmmm.table_all.b IS 'This is a comment for the column.';
+
+
+-- Constraints
+ALTER TABLE gdmmm.table_all ADD CONSTRAINT table_all_pkey PRIMARY KEY (a);
+
+
+(1 row)
+
+SELECT dbms_metadata.get_ddl('TABLE','table_all_child') from dual;
+                                                 get_ddl                                                 
+---------------------------------------------------------------------------------------------------------
+-- Table definition
+CREATE TABLE gdmmm.table_all_child (id integer NOT NULL) DISTRIBUTE BY SHARD(id) to GROUP default_group;
+
+-- Constraints
+ALTER TABLE gdmmm.table_all_child ADD CONSTRAINT child_uniq UNIQUE (id);
+
+
+
+-- Referential constraints
+ALTER TABLE gdmmm.table_all_child ADD CONSTRAINT "Fk_customer" FOREIGN KEY (id) REFERENCES table_all(a);
+
+(1 row)
+
+SELECT dbms_metadata.get_ddl('TABLE','sales') from dual;
+                                                             get_ddl                                                             
+---------------------------------------------------------------------------------------------------------------------------------
+-- Table definition
+CREATE TABLE gdmmm.sales (sale_id integer NOT NULL,"Sale date" date NOT NULL,amount numeric ) PARTITION BY RANGE("Sale date") DISTRIBUTE BY SHARD(sale_id) to GROUP default_group;
+
+-- Constraints
+ALTER TABLE gdmmm.sales ADD CONSTRAINT sales_pkey PRIMARY KEY (sale_id, "Sale date");
+
+
+(1 row)
+
+SELECT dbms_metadata.get_ddl('TABLE','Sample unlogged table') from dual;
+                                                                                                      get_ddl                                                                                                       
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- Table definition
+CREATE UNLOGGED TABLE gdmmm."Sample unlogged table" (id integer DEFAULT nextval('"Sample unlogged table_id_seq"'::regclass)NOT NULL,"name of customer" character varying(255) ,"Age" integer ,"Birth_Date" date ) DISTRIBUTE BY SHARD(id) to GROUP default_group;
+
+-- Column comments
+COMMENT ON COLUMN gdmmm."Sample unlogged table"."name of customer" IS 'This is a comment for the column.';
+
+
+-- Constraints
+ALTER TABLE gdmmm."Sample unlogged table" ADD CONSTRAINT "Sample unlogged table_pkey" PRIMARY KEY (id);
+ALTER TABLE gdmmm."Sample unlogged table" ADD CONSTRAINT "Unique age" UNIQUE (id, "Age");
+
+ALTER TABLE gdmmm."Sample unlogged table" ADD CHECK (("Birth_Date" > '1900-01-01'::date));
+
+(1 row)
+
+-- Test views DDL export
+\i test/sql/get_ddl/get_ddl_view.sql
+SELECT dbms_metadata.get_ddl('VIEW','gg_d','gdmmm') from dual;
+               get_ddl               
+-------------------------------------
+CREATE VIEW gdmmm.gg_d AS  SELECT table_all.a
+   FROM table_all;
+(1 row)
+
+SELECT dbms_metadata.get_ddl('VIEW','Global fines','gdmmm') from dual;
+                            get_ddl                             
+----------------------------------------------------------------
+CREATE VIEW gdmmm."Global fines" AS  SELECT "Sample unlogged table"."name of customer"
+   FROM "Sample unlogged table";
+(1 row)
+
+-- tests for schema as NULL
+SET search_path TO public, gdmmm;
+SELECT dbms_metadata.get_ddl('VIEW','gg_d') from dual;
+               get_ddl               
+-------------------------------------
+CREATE VIEW gdmmm.gg_d AS  SELECT table_all.a
+   FROM table_all;
+(1 row)
+
+SELECT dbms_metadata.get_ddl('VIEW','Global fines') from dual;
+                            get_ddl                             
+----------------------------------------------------------------
+CREATE VIEW gdmmm."Global fines" AS  SELECT "Sample unlogged table"."name of customer"
+   FROM "Sample unlogged table";
+(1 row)
+
+-- Test sequences DDL export
+\i test/sql/get_ddl/get_ddl_sequence.sql
+SELECT dbms_metadata.get_ddl('SEQUENCE','attach Line','gdmmm') from dual;
+                                                         get_ddl                                                          
+--------------------------------------------------------------------------------------------------------------------------
+CREATE SEQUENCE gdmmm."attach Line" START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 CACHE 1 NO CYCLE;
+(1 row)
+
+-- tests for schema as NULL
+SET search_path TO public, gdmmm;
+SELECT dbms_metadata.get_ddl('SEQUENCE','attach Line') from dual;
+                                                         get_ddl                                                          
+--------------------------------------------------------------------------------------------------------------------------
+CREATE SEQUENCE gdmmm."attach Line" START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 CACHE 1 NO CYCLE;
+(1 row)
+
+-- Test routines DDL export
+\i test/sql/get_ddl/get_ddl_routine.sql
+SELECT dbms_metadata.get_ddl('FUNCTION','Merge objects','gdmmm') from dual;
+                                           get_ddl                                           
+---------------------------------------------------------------------------------------------
+ CREATE OR REPLACE FUNCTION gdmmm."Merge objects"("First_val" text, actual_finder "Address")+
+  RETURNS text                                                                              +
+  LANGUAGE plpgsql                                                                          +
+ AS $function$                                                                              +
+ BEGIN                                                                                      +
+     RETURN "First_val" || actual_finder."City";                                            +
+ END                                                                                        +
+ $function$                                                                                 +
+ ;                                                                                          +
+(1 row)
+
+-- tests for schema as NULL
+SET search_path TO public, gdmmm;
+SELECT dbms_metadata.get_ddl('FUNCTION','Merge objects') from dual;
+                                           get_ddl                                           
+---------------------------------------------------------------------------------------------
+ CREATE OR REPLACE FUNCTION gdmmm."Merge objects"("First_val" text, actual_finder "Address")+
+  RETURNS text                                                                              +
+  LANGUAGE plpgsql                                                                          +
+ AS $function$                                                                              +
+ BEGIN                                                                                      +
+     RETURN "First_val" || actual_finder."City";                                            +
+ END                                                                                        +
+ $function$                                                                                 +
+ ;                                                                                          +
+(1 row)
+
+-- Test triggers DDL export
+\i test/sql/get_ddl/get_ddl_trigger.sql
+SELECT dbms_metadata.get_ddl('TRIGGER','order','gdmmm') from dual;
+                                                get_ddl                                                
+-------------------------------------------------------------------------------------------------------
+CREATE TRIGGER "order" BEFORE INSERT ON table_all FOR EACH ROW EXECUTE PROCEDURE double_salary();
+(1 row)
+
+-- Test index and constraint DDL export
+\i test/sql/get_ddl/get_ddl_index_constraint.sql
+SELECT dbms_metadata.get_ddl('INDEX','perf_index','gdmmm') from dual;
+                          get_ddl                           
+------------------------------------------------------------
+CREATE INDEX perf_index ON table_all USING btree (c);
+(1 row)
+
+SELECT dbms_metadata.get_ddl('INDEX','Gin_Index_Name','gdmmm') from dual;
+                                             get_ddl                                              
+--------------------------------------------------------------------------------------------------
+CREATE INDEX "Gin_Index_Name" ON "Sample unlogged table" USING spgist ("name of customer");
+(1 row)
+
+SELECT dbms_metadata.get_ddl('CONSTRAINT','child_uniq','gdmmm') from dual;
+                                 get_ddl                                 
+-------------------------------------------------------------------------
+ALTER TABLE gdmmm.table_all_child ADD CONSTRAINT child_uniq UNIQUE (id);
+(1 row)
+
+SELECT dbms_metadata.get_ddl('CONSTRAINT','Unique age','gdmmm') from dual;
+                                       get_ddl                                        
+--------------------------------------------------------------------------------------
+ALTER TABLE gdmmm."Sample unlogged table" ADD CONSTRAINT "Unique age" UNIQUE (id, "Age");
+(1 row)
+
+SELECT dbms_metadata.get_ddl('CHECK_CONSTRAINT','check','gdmmm') from dual;
+                                                  get_ddl                                                   
+------------------------------------------------------------------------------------------------------------
+ALTER TABLE gdmmm."Sample unlogged table" ADD CONSTRAINT "check" CHECK ("Birth_Date" > '1900-01-01'::date);
+(1 row)
+
+SELECT dbms_metadata.get_ddl('REF_CONSTRAINT','Fk_customer','gdmmm') from dual;
+                                                 get_ddl                                                 
+---------------------------------------------------------------------------------------------------------
+ALTER TABLE gdmmm.table_all_child ADD CONSTRAINT "Fk_customer" FOREIGN KEY (id) REFERENCES table_all(a);
+(1 row)
+
+-- tests for schema as NULL
+SET search_path TO public, gdmmm;
+SELECT dbms_metadata.get_ddl('INDEX','perf_index') from dual;
+                          get_ddl                           
+------------------------------------------------------------
+CREATE INDEX perf_index ON table_all USING btree (c);
+(1 row)
+
+SELECT dbms_metadata.get_ddl('INDEX','Gin_Index_Name') from dual;
+                                             get_ddl                                              
+--------------------------------------------------------------------------------------------------
+CREATE INDEX "Gin_Index_Name" ON "Sample unlogged table" USING spgist ("name of customer");
+(1 row)
+
+SELECT dbms_metadata.get_ddl('CONSTRAINT','child_uniq') from dual;
+                                 get_ddl                                 
+-------------------------------------------------------------------------
+ALTER TABLE gdmmm.table_all_child ADD CONSTRAINT child_uniq UNIQUE (id);
+(1 row)
+
+SELECT dbms_metadata.get_ddl('CONSTRAINT','Unique age') from dual;
+                                       get_ddl                                        
+--------------------------------------------------------------------------------------
+ALTER TABLE gdmmm."Sample unlogged table" ADD CONSTRAINT "Unique age" UNIQUE (id, "Age");
+(1 row)
+
+-- Test type DDL export
+\i test/sql/get_ddl/get_ddl_type.sql
+SELECT dbms_metadata.get_ddl('TYPE','Address','gdmmm') from dual;
+                                       get_ddl                                        
+--------------------------------------------------------------------------------------
+CREATE TYPE gdmmm."Address" AS ( "City" character varying, loc location, pin bigint);
+(1 row)
+
+SELECT dbms_metadata.get_ddl('TYPE','location','gdmmm') from dual;
+                                   get_ddl                                   
+-----------------------------------------------------------------------------
+CREATE TYPE gdmmm.location AS ( lat double precision, lon double precision);
+(1 row)
+
+-- tests for schema as NULL
+SET search_path TO public, gdmmm;
+SELECT dbms_metadata.get_ddl('TYPE','Address') from dual;
+                                       get_ddl                                        
+--------------------------------------------------------------------------------------
+CREATE TYPE gdmmm."Address" AS ( "City" character varying, loc location, pin bigint);
+(1 row)
+
+SELECT dbms_metadata.get_ddl('TYPE','location') from dual;
+                                   get_ddl                                   
+-----------------------------------------------------------------------------
+CREATE TYPE gdmmm.location AS ( lat double precision, lon double precision);
+(1 row)
+

@@ -1,0 +1,67 @@
+joyann=# -- connecting superuser(default)
+joyann=# \connect - opentenbase
+You are now connected to database "joyann" as user "opentenbase".
+joyann=# SET search_path = sys;
+SET
+joyann=# SELECT owner,partitioned,count(*) from dba_tables group by 1,2 order by 1;
+r,partitioned,count(*) from all_tables group by 1,2 order by 1;
+
+SELECT partitioned,count(*) from user_tables group by 1 order by 1;
+
+-- connecting db using zjaauser(Only able to access some tables under the schema jynnn)
+\connect - zjaauser
+SET search_pat    owner    | partitioned | count 
+-------------+-------------+-------
+ joyann      | NO          |     1
+ jynnuser    | NO          |     3
+ opentenbase | NO          |   108
+ opentenbase | YES         |     2
+ zjaauser    | NO          |     5
+(5 rows)
+
+joyann=# 
+joyann=# -- connecting db using jynnuser(tables owner)
+joyann=# \connect - jynnuser
+You are now connected to database "joyann" as user "jynnuser".
+joyann=> 
+joyann=> SET search_path = sys;
+SET
+joyann=> SELECT owner,partitioned,count(*) from all_tables group by 1,2 order by 1;
+h = sys;
+SELECT owner,partitioned,count(*) from all_tables group by 1,2 order by 1;
+
+SELECT partitioned,count(*) from user_tables group by 1 order by 1;
+    owner    | partitioned | count 
+-------------+-------------+-------
+ jynnuser    | NO          |     3
+ opentenbase | NO          |    89
+(2 rows)
+
+joyann=> 
+joyann=> SELECT partitioned,count(*) from user_tables group by 1 order by 1;
+ partitioned | count 
+-------------+-------
+ NO          |     3
+(1 row)
+
+joyann=> 
+joyann=> -- connecting db using zjaauser(Only able to access some tables under the schema jynnn)
+joyann=> \connect - zjaauser
+You are now connected to database "joyann" as user "zjaauser".
+joyann=> SET search_path = sys;
+SET
+joyann=> SELECT owner,partitioned,count(*) from all_tables group by 1,2 order by 1;
+    owner    | partitioned | count 
+-------------+-------------+-------
+ jynnuser    | NO          |     1
+ opentenbase | NO          |    89
+ zjaauser    | NO          |     5
+(3 rows)
+
+joyann=> 
+joyann=> SELECT partitioned,count(*) from user_tables group by 1 order by 1;
+ partitioned | count 
+-------------+-------
+ NO          |     5
+(1 row)
+
