@@ -310,12 +310,21 @@ BEGIN
                 )
             ) || config);
             
-            -- Clean up result - remove non-numeric characters
-            text_result := regexp_replace(text_result, '[^0-9\-]', '', 'g');
-            
-            -- Handle empty result
+            -- Keep the first number the model produced. The previous expression
+            -- kept every digit in the reply, so "3.9" became 39 and
+            -- "12 apples and 34 oranges" became 1234, and a reply containing two
+            -- numbers could not be cast at all.
+            -- Thousands separators are a formatting habit, not a value: drop
+            -- them first so "1,234" is read as 1234 rather than as 1.
+            text_result := regexp_replace(text_result, '([0-9]),([0-9]{3})', '\1\2', 'g');
+            text_result := substring(text_result from '[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)');
+
             IF text_result = '' OR text_result IS NULL THEN
                 text_result := '0';
+            ELSE
+                -- An integer target must not concatenate the fractional part:
+                -- round the number the model actually gave instead.
+                text_result := round(text_result::numeric)::text;
             END IF;
             
         -- Floating point types
@@ -330,10 +339,12 @@ BEGIN
                 )
             ) || config);
             
-            -- Clean up result - keep only valid numeric characters
-            text_result := regexp_replace(text_result, '[^0-9\.\-\+eE]', '', 'g');
-            
-            -- Handle empty result
+            -- Same rule for floats: take the first number, including an optional
+            -- exponent, instead of keeping every digit and stray sign in the
+            -- reply (which produced things like "3.9e" that cannot be cast).
+            text_result := regexp_replace(text_result, '([0-9]),([0-9]{3})', '\1\2', 'g');
+            text_result := substring(text_result from '[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?');
+
             IF text_result = '' OR text_result IS NULL THEN
                 text_result := '0';
             END IF;
