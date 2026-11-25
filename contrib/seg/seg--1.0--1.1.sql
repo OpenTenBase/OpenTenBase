@@ -32,6 +32,7 @@ PERFORM pg_catalog.set_config('search_path', old_path, true);
 END
 $$;
 
+-- 更新函数以及设为并行安全
 ALTER FUNCTION seg_in(cstring) PARALLEL SAFE;
 ALTER FUNCTION seg_out(seg) PARALLEL SAFE;
 ALTER FUNCTION seg_over_left(seg, seg) PARALLEL SAFE;

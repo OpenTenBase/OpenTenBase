@@ -3,16 +3,19 @@
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION ltree" to load this file. \quit
 
+-- 创建函数 ltree_in，将 cstring 类型转换为 ltree 类型
 CREATE FUNCTION ltree_in(cstring)
 RETURNS ltree
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
 
+-- 创建函数 ltree_out，将 ltree 类型转换为 cstring 类型
 CREATE FUNCTION ltree_out(ltree)
 RETURNS cstring
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
 
+-- 创建 ltree 类型，指定其内部长度为 -1，并指定输入、输出、存储函数以及参数
 CREATE TYPE ltree (
 	INTERNALLENGTH = -1,
 	INPUT = ltree_in,
@@ -22,102 +25,115 @@ CREATE TYPE ltree (
 
 
 --Compare function for ltree
+-- 创建函数 ltree_cmp，用于比较两个 ltree 类型的值并返回 int4 类型的结果
 CREATE FUNCTION ltree_cmp(ltree,ltree)
 RETURNS int4
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
 
+-- 创建函数 ltree_lt，用于检查一个 ltree 值是否小于另一个 ltree 值并返回 bool 类型的结果
 CREATE FUNCTION ltree_lt(ltree,ltree)
 RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
 
+-- 创建函数 ltree_le，用于检查一个 ltree 值是否小于或等于另一个 ltree 值并返回 bool 类型的结果
 CREATE FUNCTION ltree_le(ltree,ltree)
 RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
 
+-- 创建函数 ltree_eq，用于检查两个 ltree 值是否相等并返回 bool 类型的结果
 CREATE FUNCTION ltree_eq(ltree,ltree)
 RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
 
+-- 创建函数 ltree_ge，用于检查一个 ltree 值是否大于或等于另一个 ltree 值并返回 bool 类型的结果
 CREATE FUNCTION ltree_ge(ltree,ltree)
 RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
 
+-- 创建函数 ltree_gt，用于检查一个 ltree 值是否大于另一个 ltree 值并返回 bool 类型的结果
 CREATE FUNCTION ltree_gt(ltree,ltree)
 RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
 
+-- 创建函数 ltree_ne，用于检查两个 ltree 值是否不相等并返回 bool 类型的结果
 CREATE FUNCTION ltree_ne(ltree,ltree)
 RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE PARALLEL SAFE;
 
 
+-- 创建操作符 <，用于比较两个 ltree 值，基于 ltree_lt 函数的结果
 CREATE OPERATOR < (
         LEFTARG = ltree,
-	RIGHTARG = ltree,
-	PROCEDURE = ltree_lt,
+        RIGHTARG = ltree,
+        PROCEDURE = ltree_lt,
         COMMUTATOR = '>',
-	NEGATOR = '>=',
+        NEGATOR = '>=',
         RESTRICT = contsel,
-	JOIN = contjoinsel
+        JOIN = contjoinsel
 );
 
+-- 创建操作符 <=，用于比较两个 ltree 值，基于 ltree_le 函数的结果
 CREATE OPERATOR <= (
         LEFTARG = ltree,
-	RIGHTARG = ltree,
-	PROCEDURE = ltree_le,
+        RIGHTARG = ltree,
+        PROCEDURE = ltree_le,
         COMMUTATOR = '>=',
-	NEGATOR = '>',
+        NEGATOR = '>',
         RESTRICT = contsel,
-	JOIN = contjoinsel
+        JOIN = contjoinsel
 );
 
+-- 创建操作符 >=，用于比较两个 ltree 值，基于 ltree_ge 函数的结果
 CREATE OPERATOR >= (
         LEFTARG = ltree,
-	RIGHTARG = ltree,
-	PROCEDURE = ltree_ge,
+        RIGHTARG = ltree,
+        PROCEDURE = ltree_ge,
         COMMUTATOR = '<=',
-	NEGATOR = '<',
+        NEGATOR = '<',
         RESTRICT = contsel,
-	JOIN = contjoinsel
+        JOIN = contjoinsel
 );
 
+-- 创建操作符 >，用于比较两个 ltree 值，基于 ltree_gt 函数的结果
 CREATE OPERATOR > (
         LEFTARG = ltree,
-	RIGHTARG = ltree,
-	PROCEDURE = ltree_gt,
+        RIGHTARG = ltree,
+        PROCEDURE = ltree_gt,
         COMMUTATOR = '<',
-	NEGATOR = '<=',
+        NEGATOR = '<=',
         RESTRICT = contsel,
-	JOIN = contjoinsel
+        JOIN = contjoinsel
 );
 
+-- 创建操作符 =，用于比较两个 ltree 值，基于 ltree_eq 函数的结果
 CREATE OPERATOR = (
         LEFTARG = ltree,
-	RIGHTARG = ltree,
-	PROCEDURE = ltree_eq,
+        RIGHTARG = ltree,
+        PROCEDURE = ltree_eq,
         COMMUTATOR = '=',
-	NEGATOR = '<>',
+        NEGATOR = '<>',
         RESTRICT = eqsel,
-	JOIN = eqjoinsel,
+        JOIN = eqjoinsel,
         SORT1 = '<',
-	SORT2 = '<'
+        SORT2 = '<'
 );
 
+-- 创建操作符 <>，用于比较两个 ltree 值，基于 ltree_ne 函数的结果
 CREATE OPERATOR <> (
         LEFTARG = ltree,
-	RIGHTARG = ltree,
-	PROCEDURE = ltree_ne,
+        RIGHTARG = ltree,
+        PROCEDURE = ltree_ne,
         COMMUTATOR = '<>',
-	NEGATOR = '=',
+        NEGATOR = '=',
         RESTRICT = neqsel,
-	JOIN = neqjoinsel
+        JOIN = neqjoinsel
 );
 
 --util functions
