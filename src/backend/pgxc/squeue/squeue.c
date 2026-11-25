@@ -142,7 +142,7 @@ CreatePipe(uint32 size)
 }
 
 void
-DestoryPipe(PGPipe *pPipe)
+DestroyPipe(PGPipe *pPipe)
 {
 	if (pPipe)
 	{

@@ -429,9 +429,9 @@ static void       pooler_sig_hup_handler(SIGNAL_ARGS);
 static bool       BmpMgrHasIndexAndClear(BitmapMgr *mgr, int index);
 static inline  void  agent_increase_ref_count(PoolAgent *agent);
 static inline  void  agent_decrease_ref_count(PoolAgent *agent);
-static inline  bool  agent_can_destory(PoolAgent *agent);
-static inline  void  agent_pend_destory(PoolAgent *agent);
-static inline  void  agent_set_destory(PoolAgent *agent);
+static inline  bool  agent_can_destroy(PoolAgent *agent);
+static inline  void  agent_pend_destroy(PoolAgent *agent);
+static inline  void  agent_set_destroy(PoolAgent *agent);
 static inline  bool  agent_pending(PoolAgent *agent);
 static inline  void  agent_handle_pending_agent(PoolAgent *agent);
 static inline  void  pooler_init_sync_control(PGXCPoolSyncNetWorkControl *control);
@@ -1212,7 +1212,7 @@ agent_init(PoolAgent *agent, const char *database, const char *user_name,
 	MemoryContextSwitchTo(oldcontext);
 
 	agent->query_count     = 0;
-	agent->destory_pending = false;
+	agent->destroy_pending = false;
 	agent->breconnecting   = false;
 	agent->locked_pooler = false;
 	if (PoolConnectDebugPrint)
@@ -1249,7 +1249,7 @@ destroy_pend_agent(PoolAgent *agent)
 	}
 
 	MemoryContextDelete(agent->mcxt);
-	agent_set_destory(agent);
+	agent_set_destroy(agent);
 	pfree(agent);
 }
 
@@ -1279,17 +1279,17 @@ agent_destroy(PoolAgent *agent)
 			fd, agent->pid, agent->num_dn_connections, agent->num_coord_connections);
 	}
 
-	/* check whether we can destory the agent */
-	if (agent_can_destory(agent))
+	/* check whether we can destroy the agent */
+	if (agent_can_destroy(agent))
 	{
 		destroy_pend_agent(agent);
 	}
 	else
 	{
-		agent_pend_destory(agent);
+		agent_pend_destroy(agent);
 	}
 
-    /* Destory shadow */
+    /* Destroy shadow */
     if (BmpMgrHasIndexAndClear(poolAgentMgr, agentindex))
     {
         --agentCount;
@@ -1314,7 +1314,7 @@ release_pend_agent_connections(PoolAgent *agent)
 		elog(LOG, POOL_MGR_PREFIX"release_pend_agent_connections enter, release_pending_type %d", agent->release_pending_type);
 	}
 
-	if (agent_can_destory(agent))
+	if (agent_can_destroy(agent))
 	{
 		/* Discard connections if any remaining */
 		if (agent->pool)
@@ -1802,7 +1802,7 @@ agent_handle_input(PoolAgent * agent, StringInfo s)
 					pq_getmsgend(s);
 					if (PoolConnectDebugPrint)
 					{
-						elog(LOG, POOL_MGR_PREFIX"receive command %c from agent:%d. destory=%d", qtype, agent->pid, destroy);
+						elog(LOG, POOL_MGR_PREFIX"receive command %c from agent:%d. destroy=%d", qtype, agent->pid, destroy);
 					}
 					agent_release_all_connections(agent, destroy);
 				}
@@ -2053,9 +2053,9 @@ agent_acquire_connections(PoolAgent *agent, List *datanodelist, List *coordlist,
 				acquire_succeed_num++;
 				if (PoolConnectDebugPrint)
 				{
-					/* double check, to ensure no double destory and multiple agents for one slot */
+					/* double check, to ensure no double destroy and multiple agents for one slot */
 					elog(LOG, POOL_MGR_PREFIX"[agent_acquire_connections] pid:%d get datanode connection nodeindex:%d nodename:%s backend_pid:%d slot_seq:%d refcount:%d from hash table", agent->pid, node, slot->node_name, slot->backend_pid, slot->seqnum, slot->refcount);
-					if (slot->bdestoryed || slot->pid != -1)
+					if (slot->bdestroyed || slot->pid != -1)
 					{
 						abort();
 					}
@@ -2168,8 +2168,8 @@ agent_acquire_connections(PoolAgent *agent, List *datanodelist, List *coordlist,
 				if (PoolConnectDebugPrint)
 				{
 					elog(LOG, POOL_MGR_PREFIX"[agent_acquire_connections] pid:%d get coord connection nodeindex:%d nodename:%s backend_pid:%d slot_seq:%d from hash table", agent->pid, node, slot->node_name, slot->backend_pid, slot->seqnum);
-					/* double check, to ensure no double destory and multiple agents for one slot */
-					if (slot->bdestoryed || slot->pid != -1)
+					/* double check, to ensure no double destroy and multiple agents for one slot */
+					if (slot->bdestroyed || slot->pid != -1)
 					{
 						abort();
 					}
@@ -2866,7 +2866,7 @@ agent_release_all_connections(PoolAgent *agent, bool force_destroy)
 	 * still being processed in the background and cannot be
 	 * directly released the slot
  	*/
-	if (!agent_can_destory(agent))
+	if (!agent_can_destroy(agent))
 	{
 		agent->release_pending_type = (force_destroy) ? FORCE_RELEASE_ALL : RELEASE_ALL;
 		elog(LOG, POOL_MGR_PREFIX"pend release all connections, ref_count:%d, pid:%d, force_destroy:%d", agent->ref_count, agent->pid, force_destroy);
@@ -3278,7 +3278,7 @@ reload_database_pools(PoolAgent *agent, bool check_pool_size)
 	 */
 	agent_release_all_connections(agent, true);
 
-	/* before destory nodepool, just wait for all async task is done */
+	/* before destroy nodepool, just wait for all async task is done */
 	bsucceed = pooler_wait_for_async_task_done();
 	if (!bsucceed)
 	{
@@ -3320,7 +3320,7 @@ reload_database_pools(PoolAgent *agent, bool check_pool_size)
 				/* Node has been removed or altered */
 				if (nodePool->size == nodePool->freeSize && !nodePool->asyncInProgress)
 				{
-					elog(LOG, POOL_MGR_PREFIX"nodePool:%s has been changed, size:%d, freeSize:%d nodeName:%s, destory it now", nodePool->connstr, nodePool->size, nodePool->freeSize, nodePoolNodeName(nodePool));
+					elog(LOG, POOL_MGR_PREFIX"nodePool:%s has been changed, size:%d, freeSize:%d nodeName:%s, destroy it now", nodePool->connstr, nodePool->size, nodePool->freeSize, nodePoolNodeName(nodePool));
 					destroy_node_pool(nodePool);
 					if ((--nodePool->nodeInfo->ref_count) == 0)
 						hash_search(g_NodeSingletonInfo, &nodePool->nodeoid, HASH_REMOVE, NULL);
@@ -3888,7 +3888,7 @@ release_connection(PoolAgent *agent, DatabasePool *dbPool, PGXCNodePoolSlot *slo
 		 * In any case the slot is no longer valid.
 		 */
 
-		elog(WARNING, POOL_MGR_PREFIX"release_connection connection to nodeidx:%d, backend_pid:%d, can not find nodepool, just destory it", nodeidx, slot->backend_pid);
+		elog(WARNING, POOL_MGR_PREFIX"release_connection connection to nodeidx:%d, backend_pid:%d, can not find nodepool, just destroy it", nodeidx, slot->backend_pid);
 		destroy_slot(nodeidx, node, slot);
 		return;
 	}
@@ -3905,7 +3905,7 @@ release_connection(PoolAgent *agent, DatabasePool *dbPool, PGXCNodePoolSlot *slo
 		force_destroy = true;
 	}
 
-	/* destory the slot of former nodePool */
+	/* destroy the slot of former nodePool */
 	if (slot->m_version != nodePool->m_version)
 	{
 		if (PoolConnectDebugPrint)
@@ -3985,7 +3985,7 @@ release_connection(PoolAgent *agent, DatabasePool *dbPool, PGXCNodePoolSlot *slo
 			elog(DEBUG1, POOL_MGR_PREFIX"Cleaning up connection from pool %s, closing", userPool->connstr);
 			if (PoolConnectDebugPrint)
 			{
-				elog(LOG, POOL_MGR_PREFIX"release_connection destory connection to node:%s backend_pid:%d nodeidx:%d nodepool size:%d freeSize:%d", nodePoolNodeName(nodePool), slot->backend_pid, nodeidx, nodePool->size, nodePool->freeSize);
+				elog(LOG, POOL_MGR_PREFIX"release_connection destroy connection to node:%s backend_pid:%d nodeidx:%d nodepool size:%d freeSize:%d", nodePoolNodeName(nodePool), slot->backend_pid, nodeidx, nodePool->size, nodePool->freeSize);
 			}
 			destroy_slot(nodeidx, node, slot);
 
@@ -4172,13 +4172,13 @@ destroy_slot_ex(int32 nodeidx, Oid node, PGXCNodePoolSlot *slot, char *file, int
 	if (PoolConnectDebugPrint)
 	{
 		/* should never happened */
-		if (slot->bdestoryed)
+		if (slot->bdestroyed)
 		{
 			abort();
 		}
 	}
 
-	/* record last time destory position */
+	/* record last time destroy position */
 	slot->file   = file;
 	slot->lineno = line;
 
@@ -4188,7 +4188,7 @@ destroy_slot_ex(int32 nodeidx, Oid node, PGXCNodePoolSlot *slot, char *file, int
 		if (slot->conn == NULL && slot->xc_cancelConn == NULL)
 		{
 			/* conns are all NULL, no need async cancel,just free memory */
-			slot->bdestoryed = true;
+			slot->bdestroyed = true;
 			if (slot->pgoptions != NULL)
 				pfree(slot->pgoptions);
 			pfree(slot);
@@ -4203,7 +4203,7 @@ destroy_slot_ex(int32 nodeidx, Oid node, PGXCNodePoolSlot *slot, char *file, int
 		elog(LOG, POOL_MGR_PREFIX"destroy_slot_ex no pipeline avaliable, sync close connection node:%u nodeidx:%d usecount:%d slot_seq:%d", node, nodeidx, slot->usecount, slot->seqnum);
 		PQfreeCancel((PGcancel *)slot->xc_cancelConn);
 		PGXCNodeClose(slot->conn);
-		slot->bdestoryed = true;
+		slot->bdestroyed = true;
 		if (slot->pgoptions)
 			pfree(slot->pgoptions);
 		pfree(slot);
@@ -4221,7 +4221,7 @@ destroy_slot_ex(int32 nodeidx, Oid node, PGXCNodePoolSlot *slot, char *file, int
 	connReq->slot[0].xc_cancelConn = slot->xc_cancelConn;
 	connReq->slot[0].conn          = slot->conn;
 	connReq->slot[0].seqnum        = slot->seqnum;
-	connReq->slot[0].bdestoryed    = slot->bdestoryed;
+	connReq->slot[0].bdestroyed    = slot->bdestroyed;
 	connReq->slot[0].file          = slot->file;
 	connReq->slot[0].lineno        = slot->lineno;
 
@@ -4250,7 +4250,7 @@ destroy_slot_ex(int32 nodeidx, Oid node, PGXCNodePoolSlot *slot, char *file, int
 	}
 
 	/* set destroy flag */
-	slot->bdestoryed = true;
+	slot->bdestroyed = true;
 	if (slot->pgoptions)
 		pfree(slot->pgoptions);
 	pfree(slot);
@@ -4273,7 +4273,7 @@ close_slot(int32 nodeidx, Oid node, PGXCNodePoolSlot *slot)
 
 	if (PoolConnectDebugPrint)
 	{
-		if (slot->bdestoryed)
+		if (slot->bdestroyed)
 		{
 			abort();
 		}
@@ -4316,7 +4316,7 @@ close_slot(int32 nodeidx, Oid node, PGXCNodePoolSlot *slot)
 		elog(LOG, POOL_MGR_PREFIX"async close connection node:%u nodeidx:%d threadid:%d usecount:%d slot_seq:%d", node, nodeidx, threadid, slot->usecount, slot->seqnum);
 	}
 	/* set destroy flag */
-	slot->bdestoryed = true;
+	slot->bdestroyed = true;
 }
 
 
@@ -5744,7 +5744,7 @@ static void pooler_sync_connections_to_nodepool(void)
 					destroy_slot(nodeidx, asyncInfo->node, asyncInfo->slot);
 					if (PoolConnectDebugPrint)
 					{
-						elog(LOG, POOL_MGR_PREFIX"destory connection to node:%u nodeidx:%d nodepool size:%d freeSize:%d for unmatch version, slot->m_version:%d, nodePool->m_version:%d", asyncInfo->node, nodeidx, nodePool->size, nodePool->freeSize, asyncInfo->slot->m_version, nodePool->m_version);
+						elog(LOG, POOL_MGR_PREFIX"destroy connection to node:%u nodeidx:%d nodepool size:%d freeSize:%d for unmatch version, slot->m_version:%d, nodePool->m_version:%d", asyncInfo->node, nodeidx, nodePool->size, nodePool->freeSize, asyncInfo->slot->m_version, nodePool->m_version);
 					}
 				}
 
@@ -7476,37 +7476,37 @@ static inline void agent_decrease_ref_count(PoolAgent *agent)
 	 agent->ref_count--;
 }
 
-static inline bool agent_can_destory(PoolAgent *agent)
+static inline bool agent_can_destroy(PoolAgent *agent)
 {
 	 return 0 == agent->ref_count;
 }
 
-static inline void agent_pend_destory(PoolAgent *agent)
+static inline void agent_pend_destroy(PoolAgent *agent)
 {
-	 elog(LOG, POOL_MGR_PREFIX"agent_pend_destory end, ref_count:%d, pid:%d", agent->ref_count, agent->pid);
-	 agent->destory_pending = true;
+	 elog(LOG, POOL_MGR_PREFIX"agent_pend_destroy end, ref_count:%d, pid:%d", agent->ref_count, agent->pid);
+	 agent->destroy_pending = true;
 }
 
 
-static inline void agent_set_destory(PoolAgent *agent)
+static inline void agent_set_destroy(PoolAgent *agent)
 {
-	 agent->destory_pending = false;
+	 agent->destroy_pending = false;
 }
 
 static inline bool agent_pending(PoolAgent *agent)
 {
-	 return agent->destory_pending;
+	 return agent->destroy_pending;
 }
 
 static inline void agent_handle_pending_agent(PoolAgent *agent)
 {
 	if (agent)
 	{
-		if (agent_pending(agent) && agent_can_destory(agent))
+		if (agent_pending(agent) && agent_can_destroy(agent))
 		{
 			destroy_pend_agent(agent);
 		}
-		else if (agent->release_pending_type != RELEASE_NOTHING && agent_can_destory(agent))
+		else if (agent->release_pending_type != RELEASE_NOTHING && agent_can_destroy(agent))
 		{
 			release_pend_agent_connections(agent);
 		}
@@ -8388,7 +8388,7 @@ handle_release_connections(PoolAgent * agent, StringInfo s)
 	 * still being processed in the background and cannot be
 	 * directly released the slot
 	 */
-	if (!agent_can_destory(agent))
+	if (!agent_can_destroy(agent))
 	{
 		agent->release_pending_type = RELEASE_PARTITAL;
 		agent->release_ctx = (ReleaseContext *)palloc(sizeof(ReleaseContext));

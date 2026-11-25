@@ -313,7 +313,7 @@ GTM_RWLockDestroy(GTM_RWLock *lock)
 	if(thr && thr->write_locks_hold &&
 	    thr->xlog_inserting && lock->lock_flag&GTM_RWLOCK_FLAG_STORE)
 	{
-		elog(LOG,"lock destory %p",lock);
+		elog(LOG,"lock destroy %p",lock);
 		for(i = 0; i < thr->current_write_number ; i++ )
 		{
 		    if(thr->write_locks_hold[i] == lock)
@@ -536,7 +536,7 @@ GTM_Queue * CreateQueue(uint32 size)
 	SpinLockInit(&(queue->q_lock));
 	return queue;
 }
-void DestoryQueue(GTM_Queue *queue)
+void DestroyQueue(GTM_Queue *queue)
 {
 	if (queue)
 	{

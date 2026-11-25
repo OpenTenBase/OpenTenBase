@@ -57,7 +57,7 @@ typedef struct
 	int32  m_version;  /* version of node slot */
 	int32  pid;		   /* agent pid that contains the slot */
 	int32  seqnum;	   /* slot seqnum for the slot, unique for one slot */
-	bool   bdestoryed; /* used to show whether we are destoryed */
+	bool   bdestroyed; /* used to show whether we are destroyed */
 	char   *file;      /* file where destroy the slot */
 	int32  lineno;	   /* lineno where destroy the slot */
 	char   *node_name; /* connection node name , pointer to datanode_pool node_name, no memory allocated*/
@@ -185,7 +185,7 @@ typedef struct
 	bool            breconnecting; /* whether we are reconnecting */
 	int             agentindex;
 
-	bool            destory_pending; /* whether we have been ordered to destory */
+	bool            destroy_pending; /* whether we have been ordered to destroy */
 	bool            locked_pooler;
 	int32			ref_count;		 /* reference count */
 	ReleaseType     release_pending_type; /* whether we have been ordered to release connections */

@@ -15,7 +15,7 @@ PG_MODULE_MAGIC;
 PG_FUNCTION_INFO_V1(test_compress_and_decompress);
 
 
-uint64 
+uint64
 generateRandom64BitNumber() {
     uint64 randomNum = 0;
     for (int i = 0; i < 8; i++) {
@@ -24,11 +24,11 @@ generateRandom64BitNumber() {
     return randomNum;
 }
 
-bool 
+bool
 generate_zero_numbers_file(const char* filename, long long size)
 {
     FILE* fp = fopen(filename, "wb");
-    long long experct_len = size;
+    long long expect_len = size;
 
     if (fp == NULL)
     {
@@ -42,7 +42,7 @@ generate_zero_numbers_file(const char* filename, long long size)
         int bytesToWrite = (size < bufferSize * 8) ? size : bufferSize * 8;
 
         for (int i = 0; i < bufferSize; i++) {
-            buffer[i] = 0;  // Generate random byte
+            buffer[i] = 0;  // Generate zero byte
         }
 
         fwrite(buffer, 1, bytesToWrite, fp);
@@ -53,15 +53,15 @@ generate_zero_numbers_file(const char* filename, long long size)
     long long write_len = ftell(fp);
     
     fclose(fp);
-    ereport(LOG, (errmsg("file %s expert len:%ld, write:%ld", filename, experct_len, write_len)));
-    return (write_len == experct_len);
+    ereport(LOG, (errmsg("file %s expect len:%ld, write:%ld", filename, expect_len, write_len)));
+    return (write_len == expect_len);
 }
 
 bool 
 generate_random_numbers_file(const char* filename, long long size)
 {
     FILE* fp = fopen(filename, "wb");
-    long long experct_len = size;
+    long long expect_len = size;
     
     if (fp == NULL)
     {
@@ -89,8 +89,8 @@ generate_random_numbers_file(const char* filename, long long size)
     long long write_len = ftell(fp);
     
     fclose(fp);
-    ereport(LOG, (errmsg("file %s expert len:%ld, write:%ld", filename, experct_len, write_len)));
-    return (write_len == experct_len);
+    ereport(LOG, (errmsg("file %s expect len:%ld, write:%ld", filename, expect_len, write_len)));
+    return (write_len == expect_len);
 }
 
 
@@ -98,7 +98,7 @@ bool
 generate_increase_numbers_file(const char* filename, long long size)
 {
     FILE* fp = fopen(filename, "wb");
-    long long experct_len = size;
+    long long expect_len = size;
     if (fp == NULL)
     {
         ereport(WARNING, (errmsg("file %s open failed", filename)));
@@ -125,8 +125,8 @@ generate_increase_numbers_file(const char* filename, long long size)
     long long write_len = ftell(fp);
     
     fclose(fp);
-    ereport(LOG, (errmsg("file %s expert len:%ld, write:%ld", filename, experct_len, write_len)));
-    return (write_len == experct_len);
+    ereport(LOG, (errmsg("file %s expect len:%ld, write:%ld", filename, expect_len, write_len)));
+    return (write_len == expect_len);
 }
 
 
@@ -135,41 +135,41 @@ bool
 test_compress_and_decompress_file(const char *file_path)
 {
     const int FILE_NAME_SIZE = 1024;
-    char compres_file_path[FILE_NAME_SIZE];
-    snprintf(compres_file_path, FILE_NAME_SIZE, "%s.cps", file_path);
-    unlink(compres_file_path);
-    CompressResouce *res = simple_init_compress_resouce();
+    char compress_file_path[FILE_NAME_SIZE];
+    snprintf(compress_file_path, FILE_NAME_SIZE, "%s.cps", file_path);
+    unlink(compress_file_path);
+    CompressResource *res = simple_init_compress_resource();
 
-    if (compress_file(res, file_path, compres_file_path) != 0)
+    if (compress_file(res, file_path, compress_file_path) != 0)
     {
         ereport(WARNING, (errmsg("file %s compress failed:%s", file_path, res->errormsg_buf)));
-        free_compress_resouce(res);
-        unlink(compres_file_path);
+        free_compress_resource(res);
+        unlink(compress_file_path);
         return false;
     }
 
-    free_compress_resouce(res);
+    free_compress_resource(res);
 
-    char decompres_file_path[FILE_NAME_SIZE];
-    snprintf(decompres_file_path, FILE_NAME_SIZE, "%s.new", file_path);
-    unlink(decompres_file_path);
-    DecompressResouce *de_res = simple_init_decompress_resouce();
+    char decompress_file_path[FILE_NAME_SIZE];
+    snprintf(decompress_file_path, FILE_NAME_SIZE, "%s.new", file_path);
+    unlink(decompress_file_path);
+    DecompressResource *de_res = simple_init_decompress_resource();
 
-    if (decompress_file(de_res, compres_file_path, decompres_file_path) != 0)
+    if (decompress_file(de_res, compress_file_path, decompress_file_path) != 0)
     {
-        ereport(WARNING, (errmsg("file %s decompress failed:%s", compres_file_path, de_res->errormsg_buf)));
-        free_decompress_resouce(de_res);
-        unlink(compres_file_path);
-        unlink(decompres_file_path);
+        ereport(WARNING, (errmsg("file %s decompress failed:%s", compress_file_path, de_res->errormsg_buf)));
+        free_decompress_resource(de_res);
+        unlink(compress_file_path);
+        unlink(decompress_file_path);
         return false;
     }
 
-    free_decompress_resouce(de_res);
+    free_decompress_resource(de_res);
 
-    bool ret = CompareFiles(file_path, decompres_file_path);
-    ereport(LOG, (errmsg("file %s and file %s compare result:%d", compres_file_path, decompres_file_path, ret)));
-    unlink(compres_file_path);
-    unlink(decompres_file_path);
+    bool ret = CompareFiles(file_path, decompress_file_path);
+    ereport(LOG, (errmsg("file %s and file %s compare result:%d", compress_file_path, decompress_file_path, ret)));
+    unlink(compress_file_path);
+    unlink(decompress_file_path);
 
     return ret;
 }

@@ -27,19 +27,19 @@ report_invalid_msg(char *errormsg_buf, const char *fmt, ...)
 }
 
 void 
-free_compress_resouce(CompressResouce *resouce)
+free_compress_resource(CompressResource *resource)
 {
-    if (resouce == NULL)
+    if (resource == NULL)
         return;
-    if (resouce->ctx != NULL)
-        ZSTD_freeCCtx(resouce->ctx);
-    if (resouce->errormsg_buf != NULL)
-        pfree(resouce->errormsg_buf);
-    if (resouce->zstd_out_buf.dst != NULL)
-        pfree(resouce->zstd_out_buf.dst);
-    if (resouce->in_buf_ptr != NULL)
-        pfree(resouce->in_buf_ptr);
-    pfree(resouce);
+    if (resource->ctx != NULL)
+        ZSTD_freeCCtx(resource->ctx);
+    if (resource->errormsg_buf != NULL)
+        pfree(resource->errormsg_buf);
+    if (resource->zstd_out_buf.dst != NULL)
+        pfree(resource->zstd_out_buf.dst);
+    if (resource->in_buf_ptr != NULL)
+        pfree(resource->in_buf_ptr);
+    pfree(resource);
 }
 
 
@@ -47,85 +47,85 @@ free_compress_resouce(CompressResouce *resouce)
   compress_level: zstd paremter
   in_size: max input buffer size
 */
-CompressResouce *
-init_compress_resouce(int compress_level, size_t in_size)
+CompressResource *
+init_compress_resource(int compress_level, size_t in_size)
 {
     size_t zerr;
-    CompressResouce *resouce = (CompressResouce *)palloc_extended(sizeof(CompressResouce),
+    CompressResource *resource = (CompressResource *)palloc_extended(sizeof(CompressResource),
 						MCXT_ALLOC_NO_OOM | MCXT_ALLOC_ZERO);
-    if (resouce == NULL)
+    if (resource == NULL)
         return NULL;
     
-    resouce->compress_level = compress_level;
-    resouce->in_size = in_size;
-    resouce->in_buf_ptr = palloc_extended(resouce->in_size, MCXT_ALLOC_NO_OOM);
-    resouce->zstd_in_buf.src = resouce->in_buf_ptr;
+    resource->compress_level = compress_level;
+    resource->in_size = in_size;
+    resource->in_buf_ptr = palloc_extended(resource->in_size, MCXT_ALLOC_NO_OOM);
+    resource->zstd_in_buf.src = resource->in_buf_ptr;
 
-    if (resouce->zstd_in_buf.src == NULL) 
+    if (resource->zstd_in_buf.src == NULL) 
     {
-        pfree(resouce);
+        pfree(resource);
         return NULL;
     }
  
-    resouce->out_size = ZSTD_compressBound(resouce->in_size) + 16;
-    resouce->zstd_out_buf.dst = palloc_extended(resouce->out_size, MCXT_ALLOC_NO_OOM);
-    if (resouce->zstd_out_buf.dst == NULL) 
+    resource->out_size = ZSTD_compressBound(resource->in_size) + 16;
+    resource->zstd_out_buf.dst = palloc_extended(resource->out_size, MCXT_ALLOC_NO_OOM);
+    if (resource->zstd_out_buf.dst == NULL) 
     {
-        pfree(resouce->in_buf_ptr);
-        pfree(resouce);
+        pfree(resource->in_buf_ptr);
+        pfree(resource);
         return NULL;
     }
 
-    resouce->errormsg_buf = palloc_extended(ZSTD_ERRORMSG_LEN + 1, MCXT_ALLOC_NO_OOM);
-    if (resouce->errormsg_buf == NULL) 
+    resource->errormsg_buf = palloc_extended(ZSTD_ERRORMSG_LEN + 1, MCXT_ALLOC_NO_OOM);
+    if (resource->errormsg_buf == NULL) 
     {
-        pfree(resouce->zstd_out_buf.dst);
-        pfree(resouce->in_buf_ptr);
-        pfree(resouce);
+        pfree(resource->zstd_out_buf.dst);
+        pfree(resource->in_buf_ptr);
+        pfree(resource);
         return NULL;
     }
 
-    resouce->errormsg_buf[0] = '\0';
+    resource->errormsg_buf[0] = '\0';
 
-    resouce->ctx = ZSTD_createCCtx();  /* memory is not under our control */
+    resource->ctx = ZSTD_createCCtx();  /* memory is not under our control */
 
-    if (resouce->ctx == NULL)
+    if (resource->ctx == NULL)
     {
-        pfree(resouce->errormsg_buf);
-        pfree(resouce->zstd_out_buf.dst);
-        pfree(resouce->in_buf_ptr);
-        pfree(resouce);
+        pfree(resource->errormsg_buf);
+        pfree(resource->zstd_out_buf.dst);
+        pfree(resource->in_buf_ptr);
+        pfree(resource);
         return NULL;
     }
 
-    zerr = ZSTD_CCtx_setParameter(resouce->ctx, ZSTD_c_compressionLevel, resouce->compress_level);
+    zerr = ZSTD_CCtx_setParameter(resource->ctx, ZSTD_c_compressionLevel, resource->compress_level);
     if (ZSTD_isError(zerr))
     {
-        ZSTD_freeCCtx(resouce->ctx);
-        pfree(resouce->errormsg_buf);
-        pfree(resouce->zstd_out_buf.dst);
-        pfree(resouce->in_buf_ptr);
-        pfree(resouce);
+        ZSTD_freeCCtx(resource->ctx);
+        pfree(resource->errormsg_buf);
+        pfree(resource->zstd_out_buf.dst);
+        pfree(resource->in_buf_ptr);
+        pfree(resource);
         return NULL;
     }
 
-    zerr = ZSTD_CCtx_setParameter(resouce->ctx, ZSTD_c_checksumFlag, 1);
+    zerr = ZSTD_CCtx_setParameter(resource->ctx, ZSTD_c_checksumFlag, 1);
     if (ZSTD_isError(zerr))
     {
-        ZSTD_freeCCtx(resouce->ctx);
-        pfree(resouce->errormsg_buf);
-        pfree(resouce->zstd_out_buf.dst);
-        pfree(resouce->in_buf_ptr);
-        pfree(resouce);
+        ZSTD_freeCCtx(resource->ctx);
+        pfree(resource->errormsg_buf);
+        pfree(resource->zstd_out_buf.dst);
+        pfree(resource->in_buf_ptr);
+        pfree(resource);
         return NULL;
     }
-    return resouce;
+    return resource;
 }
 
-CompressResouce *
-simple_init_compress_resouce(void)
+CompressResource *
+simple_init_compress_resource(void)
 {
-    return init_compress_resouce(3, ZSTD_BLOCKSIZE_MAX);
+    return init_compress_resource(3, ZSTD_BLOCKSIZE_MAX);
 }
 
 static ssize_t 
@@ -165,7 +165,7 @@ retry:
 }
 
 int 
-compress_file(CompressResouce *resouce, const char *src_path, const char *dst_path)
+compress_file(CompressResource *resource, const char *src_path, const char *dst_path)
 {
     int src_fd;
     int dst_fd;
@@ -173,21 +173,21 @@ compress_file(CompressResouce *resouce, const char *src_path, const char *dst_pa
     
     Assert(src_path != NULL);
     Assert(dst_path != NULL);
-    Assert(resouce != NULL);
-    ZSTD_CCtx_reset(resouce->ctx, ZSTD_reset_session_only);
-    resouce->compressed_size = 0;
+    Assert(resource != NULL);
+    ZSTD_CCtx_reset(resource->ctx, ZSTD_reset_session_only);
+    resource->compressed_size = 0;
 
     src_fd = open(src_path, O_RDONLY, (S_IRUSR | S_IWUSR));
     if (src_fd < 0)
     {
-        report_invalid_msg(resouce->errormsg_buf, "compress:open file %s failed:%s", src_path, strerror(errno));
+        report_invalid_msg(resource->errormsg_buf, "compress:open file %s failed:%s", src_path, strerror(errno));
         return 1;
     }
 
     dst_fd = open(dst_path, O_RDWR | O_CREAT, (S_IRUSR | S_IWUSR));
     if (dst_fd < 0)
     {
-        report_invalid_msg(resouce->errormsg_buf, "compress:open file %s failed:%s", dst_path, strerror(errno));
+        report_invalid_msg(resource->errormsg_buf, "compress:open file %s failed:%s", dst_path, strerror(errno));
         close(src_fd);
         return 1;
     }
@@ -196,50 +196,50 @@ compress_file(CompressResouce *resouce, const char *src_path, const char *dst_pa
     {
         bool finished = false;
         ZSTD_EndDirective mode = ZSTD_e_continue;
-        ssize_t read_len = zstd_file_read(src_fd, resouce->zstd_in_buf.src, resouce->in_size);
+        ssize_t read_len = zstd_file_read(src_fd, resource->zstd_in_buf.src, resource->in_size);
         if (read_len < 0)
         {
             close(src_fd);
             close(dst_fd);
-            report_invalid_msg(resouce->errormsg_buf, "compress:read file %s content failed:%s", src_path, strerror(errno));
+            report_invalid_msg(resource->errormsg_buf, "compress:read file %s content failed:%s", src_path, strerror(errno));
             return 1;
         }
 
-        if (read_len < resouce->in_size)
+        if (read_len < resource->in_size)
         {
             read_end = true;
             mode = ZSTD_e_end;
         }
             
-        resouce->zstd_in_buf.size = (size_t)read_len;
-        resouce->zstd_in_buf.pos = 0;
-        resouce->compressed_size += (size_t)read_len;
+        resource->zstd_in_buf.size = (size_t)read_len;
+        resource->zstd_in_buf.pos = 0;
+        resource->compressed_size += (size_t)read_len;
 
         while (!finished)
         {
             size_t remaining;
             ssize_t write_len;
 
-            resouce->zstd_out_buf.pos = 0;
-            resouce->zstd_out_buf.size = resouce->out_size;
-            remaining = ZSTD_compressStream2(resouce->ctx, &resouce->zstd_out_buf, &resouce->zstd_in_buf, mode);
+            resource->zstd_out_buf.pos = 0;
+            resource->zstd_out_buf.size = resource->out_size;
+            remaining = ZSTD_compressStream2(resource->ctx, &resource->zstd_out_buf, &resource->zstd_in_buf, mode);
             if (ZSTD_isError(remaining))
             {
                 close(src_fd);
                 close(dst_fd);
-                report_invalid_msg(resouce->errormsg_buf, "compress file %s failed:%s", src_path, ZSTD_getErrorName(remaining));
+                report_invalid_msg(resource->errormsg_buf, "compress file %s failed:%s", src_path, ZSTD_getErrorName(remaining));
                 return 1;
             }
 
-            write_len = zstd_file_write(dst_fd, resouce->zstd_out_buf.dst, resouce->zstd_out_buf.pos);
+            write_len = zstd_file_write(dst_fd, resource->zstd_out_buf.dst, resource->zstd_out_buf.pos);
             if (write_len < 0)
             {
                 close(src_fd);
                 close(dst_fd);
-                report_invalid_msg(resouce->errormsg_buf, "compress:write file %s content failed:%s", dst_path, strerror(errno));
+                report_invalid_msg(resource->errormsg_buf, "compress:write file %s content failed:%s", dst_path, strerror(errno));
                 return 1;
             }
-            finished = read_end ? (remaining == 0) : (resouce->zstd_in_buf.pos == resouce->zstd_in_buf.size);
+            finished = read_end ? (remaining == 0) : (resource->zstd_in_buf.pos == resource->zstd_in_buf.size);
         }
       
     }while (!read_end);
@@ -250,7 +250,7 @@ compress_file(CompressResouce *resouce, const char *src_path, const char *dst_pa
 }
 
 void 
-free_decompress_resouce(DecompressResouce *res)
+free_decompress_resource(DecompressResource *res)
 {
     if (res == NULL)
         return;
@@ -266,69 +266,69 @@ free_decompress_resouce(DecompressResouce *res)
     pfree(res);
 }
 
-DecompressResouce *
-init_decompress_resouce(size_t out_size)
+DecompressResource *
+init_decompress_resource(size_t out_size)
 {
-    DecompressResouce *resouce = (DecompressResouce *)palloc_extended(sizeof(DecompressResouce),
+    DecompressResource *resource = (DecompressResource *)palloc_extended(sizeof(DecompressResource),
                             MCXT_ALLOC_NO_OOM | MCXT_ALLOC_ZERO);
-    if (resouce == NULL)
+    if (resource == NULL)
         return NULL;
     
-    resouce->out_size = out_size;
-    resouce->in_size = ZSTD_compressBound(resouce->out_size) + 16;
+    resource->out_size = out_size;
+    resource->in_size = ZSTD_compressBound(resource->out_size) + 16;
 
 
-    resouce->in_buf_ptr = palloc_extended(resouce->in_size, MCXT_ALLOC_NO_OOM);
-    resouce->zstd_in_buf.src = resouce->in_buf_ptr;
+    resource->in_buf_ptr = palloc_extended(resource->in_size, MCXT_ALLOC_NO_OOM);
+    resource->zstd_in_buf.src = resource->in_buf_ptr;
 
-    if (resouce->zstd_in_buf.src == NULL) 
+    if (resource->zstd_in_buf.src == NULL) 
     {
-        pfree(resouce);
+        pfree(resource);
         return NULL;
     }
-    resouce->zstd_in_buf.size = resouce->in_size;
+    resource->zstd_in_buf.size = resource->in_size;
     
-    resouce->zstd_out_buf.dst = palloc_extended(resouce->out_size, MCXT_ALLOC_NO_OOM);
-    if (resouce->zstd_out_buf.dst == NULL) 
+    resource->zstd_out_buf.dst = palloc_extended(resource->out_size, MCXT_ALLOC_NO_OOM);
+    if (resource->zstd_out_buf.dst == NULL) 
     {
-        pfree(resouce->in_buf_ptr);
-        pfree(resouce);
+        pfree(resource->in_buf_ptr);
+        pfree(resource);
         return NULL;
     }
-    resouce->zstd_out_buf.size = resouce->out_size;
+    resource->zstd_out_buf.size = resource->out_size;
 
-    resouce->errormsg_buf = palloc_extended(ZSTD_ERRORMSG_LEN + 1, MCXT_ALLOC_NO_OOM);
-    if (resouce->errormsg_buf == NULL) 
+    resource->errormsg_buf = palloc_extended(ZSTD_ERRORMSG_LEN + 1, MCXT_ALLOC_NO_OOM);
+    if (resource->errormsg_buf == NULL) 
     {
-        pfree(resouce->zstd_out_buf.dst);
-        pfree(resouce->in_buf_ptr);
-        pfree(resouce);
-        return NULL;
-    }
-
-    resouce->errormsg_buf[0] = '\0';
-
-    resouce->ctx = ZSTD_createDCtx();  /* memory is not under our control */
-
-    if (resouce->ctx == NULL)
-    {
-        pfree(resouce->errormsg_buf);
-        pfree(resouce->zstd_out_buf.dst);
-        pfree(resouce->in_buf_ptr);
-        pfree(resouce);
+        pfree(resource->zstd_out_buf.dst);
+        pfree(resource->in_buf_ptr);
+        pfree(resource);
         return NULL;
     }
 
-    return resouce;
+    resource->errormsg_buf[0] = '\0';
+
+    resource->ctx = ZSTD_createDCtx();  /* memory is not under our control */
+
+    if (resource->ctx == NULL)
+    {
+        pfree(resource->errormsg_buf);
+        pfree(resource->zstd_out_buf.dst);
+        pfree(resource->in_buf_ptr);
+        pfree(resource);
+        return NULL;
+    }
+
+    return resource;
 }
 
-DecompressResouce *
-simple_init_decompress_resouce(void)
+DecompressResource *
+simple_init_decompress_resource(void)
 {
-    return init_decompress_resouce(ZSTD_BLOCKSIZE_MAX);
+    return init_decompress_resource(ZSTD_BLOCKSIZE_MAX);
 }
 
-int decompress_file(DecompressResouce *resouce, const char *src_path, const char *dst_path)
+int decompress_file(DecompressResource *resource, const char *src_path, const char *dst_path)
 {
     int src_fd;
     int dst_fd;
@@ -336,21 +336,21 @@ int decompress_file(DecompressResouce *resouce, const char *src_path, const char
 
     Assert(src_path != NULL);
     Assert(dst_path != NULL);
-    Assert(resouce != NULL);
+    Assert(resource != NULL);
 
-    ZSTD_DCtx_reset(resouce->ctx, ZSTD_reset_session_only);
+    ZSTD_DCtx_reset(resource->ctx, ZSTD_reset_session_only);
 
     src_fd = open(src_path, O_RDONLY, (S_IRUSR | S_IWUSR));
     if (src_fd < 0)
     {
-        report_invalid_msg(resouce->errormsg_buf, "decompress:open file %s failed:%s", src_path, strerror(errno));
+        report_invalid_msg(resource->errormsg_buf, "decompress:open file %s failed:%s", src_path, strerror(errno));
         return 1;
     }
 
     dst_fd = open(dst_path, O_RDWR | O_CREAT, (S_IRUSR | S_IWUSR));
     if (dst_fd < 0)
     {
-        report_invalid_msg(resouce->errormsg_buf, "decompress:open file %s failed:%s", dst_path, strerror(errno));
+        report_invalid_msg(resource->errormsg_buf, "decompress:open file %s failed:%s", dst_path, strerror(errno));
         close(src_fd);
         return 1;
     }
@@ -358,19 +358,19 @@ int decompress_file(DecompressResouce *resouce, const char *src_path, const char
     do
     {
         bool finished = false;
-        ssize_t read_len = zstd_file_read(src_fd, resouce->zstd_in_buf.src, resouce->in_size);
+        ssize_t read_len = zstd_file_read(src_fd, resource->zstd_in_buf.src, resource->in_size);
 
         if (read_len < 0)
         {
-            report_invalid_msg(resouce->errormsg_buf, "decompress:read file %s content failed:%s", src_path, strerror(errno));
+            report_invalid_msg(resource->errormsg_buf, "decompress:read file %s content failed:%s", src_path, strerror(errno));
             close(src_fd);
             close(dst_fd);
             return 1;
         }
-        resouce->zstd_in_buf.size = (size_t)read_len;
-        resouce->zstd_in_buf.pos = 0;
+        resource->zstd_in_buf.size = (size_t)read_len;
+        resource->zstd_in_buf.pos = 0;
 
-        if (read_len < resouce->in_size)
+        if (read_len < resource->in_size)
             last_block = true;
 
         while (!finished)
@@ -378,23 +378,23 @@ int decompress_file(DecompressResouce *resouce, const char *src_path, const char
             size_t remaining;
             ssize_t write_len;
 
-            resouce->zstd_out_buf.pos = 0;
-            resouce->zstd_out_buf.size = resouce->out_size;
-            remaining = ZSTD_decompressStream(resouce->ctx, &resouce->zstd_out_buf , &resouce->zstd_in_buf);
+            resource->zstd_out_buf.pos = 0;
+            resource->zstd_out_buf.size = resource->out_size;
+            remaining = ZSTD_decompressStream(resource->ctx, &resource->zstd_out_buf , &resource->zstd_in_buf);
             if (ZSTD_isError(remaining))
             {
                 close(src_fd);
                 close(dst_fd);
-                report_invalid_msg(resouce->errormsg_buf, "compress file %s failed:%s", src_path, ZSTD_getErrorName(remaining));
+                report_invalid_msg(resource->errormsg_buf, "decompress file %s failed:%s", src_path, ZSTD_getErrorName(remaining));
                 return 1;
             }
 
-            write_len = zstd_file_write(dst_fd, resouce->zstd_out_buf.dst, resouce->zstd_out_buf.pos);
+            write_len = zstd_file_write(dst_fd, resource->zstd_out_buf.dst, resource->zstd_out_buf.pos);
             if (write_len < 0)
             {
-                report_invalid_msg(resouce->errormsg_buf, "compress:write file %s content failed:%s", dst_path, strerror(errno));
+                report_invalid_msg(resource->errormsg_buf, "decompress:write file %s content failed:%s", dst_path, strerror(errno));
             }
-            finished = last_block ? (remaining == 0) : (resouce->zstd_in_buf.pos == resouce->zstd_in_buf.size);
+            finished = last_block ? (remaining == 0) : (resource->zstd_in_buf.pos == resource->zstd_in_buf.size);
         }
 
     } while(!last_block);

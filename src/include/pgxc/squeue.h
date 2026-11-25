@@ -59,7 +59,7 @@ typedef struct
 } PGPipe;
 
 extern PGPipe *CreatePipe(uint32 size);
-extern void    DestoryPipe(PGPipe *pPipe);
+extern void    DestroyPipe(PGPipe *pPipe);
 extern void   *PipeGet(PGPipe *pPipe);
 extern int     PipePut(PGPipe *pPipe, void *p);
 extern bool    PipeIsFull(PGPipe *pPipe);

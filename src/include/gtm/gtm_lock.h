@@ -96,7 +96,7 @@ typedef struct
 	volatile uint32      q_tail;  
 }GTM_Queue;
 extern GTM_Queue* CreateQueue(uint32 size);
-extern void    DestoryQueue(GTM_Queue *queue);
+extern void    DestroyQueue(GTM_Queue *queue);
 extern void    *QueuePop(GTM_Queue *queue);
 extern int     QueueEnq(GTM_Queue *queue, void *p);
 extern bool    QueueIsFull(GTM_Queue *queue);

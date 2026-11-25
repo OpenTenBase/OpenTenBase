@@ -125,8 +125,8 @@ typedef enum
 static LruErrorCause lru_errcause;
 static int	lru_errno;
 
-static CompressResouce *g_compress_res = NULL;
-static DecompressResouce *g_decompress_res = NULL;
+static CompressResource *g_compress_res = NULL;
+static DecompressResource *g_decompress_res = NULL;
 int compress_config = 0;
 
 
