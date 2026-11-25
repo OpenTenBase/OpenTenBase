@@ -746,15 +746,28 @@ int configure_dn_slave_node(NodeInfo *node, OpentenbaseConfig *install) {
     int ret;
     
     // find master node
+    //
+    // master_node 是默认构造的，NodeInfo::port 没有默认值，所以匹配不到时它的
+    // port 是不确定值。后面会把它直接拼进 primary_conninfo，等于写出一条
+    // "host =  port = <垃圾值>" 的恢复配置让备节点去连。这里显式记下是否找到，
+    // 找不到就失败，别把空 host 写下去。
     NodeInfo master_node;
+    bool master_found = false;
     for (size_t i = 0; i < install->nodes.size(); ++i) {
 
         if ((install->nodes[i].name == node->name && is_master_dn(install->nodes[i].type)))
         {
             master_node.ip = install->nodes[i].ip;
             master_node.port = install->nodes[i].port;
+            master_found = true;
             break;
         }
+    }
+    if (!master_found)
+    {
+        LOG_ERROR_FMT("Cannot find the master datanode for slave node %s (%s)",
+                      node->name.c_str(), node->ip.c_str());
+        return -1;
     }
 
     // Configure postgresql.conf.user
