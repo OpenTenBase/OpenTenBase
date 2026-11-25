@@ -17,12 +17,16 @@
 
 // Extract version from package name
 std::string extract_version_from_package_name(const std::string& package_name) {
-    // 改进后的正则表达式，确保捕获所有数字段
-    // 解释：
-    // ^[^-]+-       : 匹配包名开头，至少一个非 '-' 字符，后跟 '-'
-    // ([0-9]+(?:\.[0-9]+)+) : 捕获组，匹配版本号，如 3.16.9.301
-    // .*$           : 匹配版本号后剩余的部分
-    std::regex versionPattern(R"(^[^-]+-([0-9]+(?:\.[0-9]+)+).*?)");
+    /*
+     * 版本号不一定紧跟第一个 '-'。原来的写法把第一个连字符之前的部分整个吃掉，
+     * 所以 opentenbase-server-5.0.0-1... 这种包名在版本段前面还有一个连字符时
+     * 就完全匹配失败、返回空串；空串会让 is_fusion_version() 判成非融合版本，
+     * 进而少设置集中式实例的 GUC。
+     *
+     * 改成在任意 '_' 或 '-' 之后找版本号，并要求数字段里至少有一个点，这样不会
+     * 把 x86_64 这类架构串当成版本号。
+     */
+    std::regex versionPattern(R"([-_]([0-9]+(?:\.[0-9]+)+)(?:[-.]|$))");
 
     std::smatch match;
     if (std::regex_search(package_name, match, versionPattern)) {
