@@ -566,14 +566,38 @@ CREATE OR REPLACE FUNCTION ai.image(
 DECLARE
     base64_image text;
 BEGIN
-    -- Check if the mime_type is valid
+    -- NULL-aware validation. `mime_type NOT IN (...)` is NULL when mime_type is
+    -- NULL, so the guard below would not fire and the data URL would quietly
+    -- become NULL (`'data:' || NULL`), leaving the model call with no image at
+    -- all. Check for NULL explicitly before the membership test.
+    IF image IS NULL THEN
+        RAISE EXCEPTION 'image must not be null';
+    END IF;
+
+    IF octet_length(image) = 0 THEN
+        RAISE EXCEPTION 'image must not be empty'
+            USING HINT = 'The encoding of an empty bytea is an empty string, which the endpoint rejects.';
+    END IF;
+
+    IF mime_type IS NULL THEN
+        RAISE EXCEPTION 'mime_type must not be null'
+            USING HINT = 'Pass one of image/jpeg, image/png, image/gif, image/webp.';
+    END IF;
+
     IF mime_type NOT IN ('image/jpeg', 'image/png', 'image/gif', 'image/webp') THEN
         RAISE EXCEPTION 'Unsupported mime_type: %', mime_type;
     END IF;
 
+    -- Most vision endpoints cap the request body; failing here names the real
+    -- problem instead of surfacing the endpoint's own 413 payload.
+    IF octet_length(image) > 20 * 1024 * 1024 THEN
+        RAISE EXCEPTION 'image is too large: % bytes', octet_length(image)
+            USING HINT = 'Vision endpoints typically reject bodies above 20 MiB after base64 encoding.';
+    END IF;
+
     -- Convert binary image to base64
     base64_image := encode(image, 'base64');
-    
+
     -- Call the URL version with data URL
     RETURN ai.image(prompt, 'data:' || mime_type || ';base64,' || base64_image, model_name, config);
 END;
